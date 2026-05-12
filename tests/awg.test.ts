@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { buildAwg } from "../src/core/compiler.js";
-import { schemaForFile } from "../src/core/schemas.js";
+import { currentSchemaManifest, schemaBodyForFile, schemaContentHash, schemaForFile } from "../src/core/schemas.js";
 import { FileAwgStorage } from "../src/storage/FileAwgStorage.js";
+import { stableStringify } from "../src/util/json.js";
 
 const cli = path.resolve("dist/src/cli/index.js");
 
@@ -32,8 +33,39 @@ function tempHome(): string {
   return mkdtempSync(path.join(tmpdir(), "awg-home-"));
 }
 
-function readRegistry(home: string): { vaults: Array<{ path: string; name: string }> } {
+function readRegistry(home: string): { vaults: Array<{ path: string; name: string; [key: string]: unknown }> } {
   return JSON.parse(readFileSync(path.join(home, ".awg/registry.json"), "utf8"));
+}
+
+function initialV1NodeSchemaBody(): string {
+  const base = {
+    type: "object",
+    required: ["awg", "kind"],
+    properties: {
+      awg: { const: "0.1" },
+      kind: { enum: ["node", "edge", "event", "view", "lens", "response", "policy"] }
+    },
+    additionalProperties: true
+  };
+  return stableStringify({
+    ...base,
+    required: ["awg", "kind", "id", "type", "title", "summary", "status", "importance", "confidence", "created_at", "updated_at"],
+    properties: {
+      ...base.properties,
+      kind: { const: "node" },
+      id: { type: "string", pattern: "^n:.+" },
+      type: { type: "string" },
+      title: { type: "string", minLength: 1 },
+      summary: { type: "string", minLength: 1 },
+      status: { type: "string" },
+      importance: { type: "number", minimum: 0, maximum: 1 },
+      confidence: { type: "number", minimum: 0, maximum: 1 },
+      created_at: { type: "string" },
+      updated_at: { type: "string" },
+      tags: { type: "array", items: { type: "string" } },
+      aliases: { type: "array", items: { type: "string" } }
+    }
+  });
 }
 
 test("init creates expected files", () => {
@@ -44,6 +76,7 @@ test("init creates expected files", () => {
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
   assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg lens resume"));
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
 });
 
 test("packaged schemas match runtime schema source", () => {
@@ -70,6 +103,18 @@ test("setup is idempotent and does not clobber registry", () => {
   const registry = readRegistry(home);
   assert.equal(registry.vaults.length, 1);
   assert.equal(registry.vaults[0].name, "Kept");
+});
+
+test("setup refuses symlinked global registry files", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  const outside = path.join(tmp(), "registry.json");
+  mkdirSync(path.join(home, ".awg"), { recursive: true });
+  writeFileSync(outside, JSON.stringify({ version: "0.1", vaults: [] }, null, 2));
+  symlinkSync(outside, path.join(home, ".awg/registry.json"));
+  const output = runFail(cwd, ["setup", "--yes"], { HOME: home });
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(readFileSync(outside, "utf8"), JSON.stringify({ version: "0.1", vaults: [] }, null, 2));
 });
 
 test("setup --no-instructions still registers a nearby project vault", () => {
@@ -99,11 +144,31 @@ test("init does not overwrite existing root AGENTS.md", () => {
   assert.equal(readFileSync(path.join(cwd, "AGENTS.md"), "utf8"), "# Existing\n\nKeep this.\n");
 });
 
+test("init does not duplicate existing lowercase agent instruction files", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "agents.md"), "# Existing\n\nKeep this.\n");
+  writeFileSync(path.join(cwd, "claude.md"), "# Existing Claude\n\nKeep this too.\n");
+  run(cwd, ["init", "--empty"]);
+  assert.ok(!readdirSync(cwd).includes("AGENTS.md"));
+  assert.ok(!readdirSync(cwd).includes("CLAUDE.md"));
+  assert.equal(readFileSync(path.join(cwd, "agents.md"), "utf8"), "# Existing\n\nKeep this.\n");
+  assert.equal(readFileSync(path.join(cwd, "claude.md"), "utf8"), "# Existing Claude\n\nKeep this too.\n");
+});
+
 test("init does not overwrite existing CLAUDE.md", () => {
   const cwd = tmp();
   writeFileSync(path.join(cwd, "CLAUDE.md"), "# Existing Claude\n\nKeep this.\n");
   run(cwd, ["init", "--empty"]);
   assert.equal(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8"), "# Existing Claude\n\nKeep this.\n");
+});
+
+test("init-created CLAUDE.md points to existing lowercase agents.md", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "agents.md"), "# Existing\n\nKeep this.\n");
+  run(cwd, ["init", "--empty"]);
+  const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+  assert.ok(claude.includes("`agents.md`"));
+  assert.ok(!claude.includes("`AGENTS.md`"));
 });
 
 test("init is safe to rerun on existing AWG project", () => {
@@ -114,6 +179,32 @@ test("init is safe to rerun on existing AWG project", () => {
   run(cwd, ["init"]);
   assert.equal(readFileSync(path.join(cwd, "AGENTS.md"), "utf8"), "# Existing\n\nKeep this.\n");
   assert.equal(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8"), "# Existing Claude\n\nKeep this.\n");
+});
+
+test("init backfills schema manifest without clobbering custom schemas", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schemaFile = path.join(cwd, ".awg/schema/core/node.schema.json");
+  const manifestFile = path.join(cwd, ".awg/schema/core/.awg-managed.json");
+  rmSync(manifestFile);
+  writeFileSync(schemaFile, JSON.stringify({ custom: true }, null, 2));
+  run(cwd, ["init", "--empty"]);
+  assert.deepEqual(JSON.parse(readFileSync(schemaFile, "utf8")), { custom: true });
+  assert.deepEqual(JSON.parse(readFileSync(manifestFile, "utf8")), currentSchemaManifest());
+});
+
+test("init repairs missing schema directory in an otherwise plausible vault", () => {
+  const cwd = tmp();
+  mkdirSync(path.join(cwd, ".awg/log"), { recursive: true });
+  writeFileSync(path.join(cwd, ".awg/config.json"), JSON.stringify({
+    awg: "0.1",
+    project: { title: "Partial" },
+    validation: { allow_unknown_node_types: true, strict_links: false },
+    storage: { adapter: "file", canonical: ".awg/log/**/*.awg.jsonl" }
+  }, null, 2));
+  run(cwd, ["init", "--empty"]);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8")), schemaForFile("node"));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
 });
 
 test("init completes a partial .awg without clobbering existing instruction snippets", () => {
@@ -140,6 +231,19 @@ test("register adds a vault and does not duplicate same vault", () => {
   assert.equal(registry.vaults.length, 1);
   assert.equal(registry.vaults[0].name, "One");
   assert.equal(registry.vaults[0].path, realpathSync(path.join(cwd, ".awg")));
+});
+
+test("register refuses symlinked global registry files", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  const outside = path.join(tmp(), "registry.json");
+  run(cwd, ["init", "--empty"], { HOME: home });
+  mkdirSync(path.join(home, ".awg"), { recursive: true });
+  writeFileSync(outside, JSON.stringify({ version: "0.1", vaults: [] }, null, 2));
+  symlinkSync(outside, path.join(home, ".awg/registry.json"));
+  const output = runFail(cwd, ["register"], { HOME: home });
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.deepEqual(JSON.parse(readFileSync(outside, "utf8")).vaults, []);
 });
 
 test("register and unregister work from a project subdirectory", () => {
@@ -199,6 +303,17 @@ test("open outside vault handles missing and empty registry", () => {
   const output = run(cwd, ["open", "--global", "--no-launch"], { HOME: home });
   assert.ok(output.includes(path.join(home, ".awg/compiled/switcher/index.html")));
   assert.ok(existsSync(path.join(home, ".awg/compiled/switcher/index.html")));
+});
+
+test("open global refuses symlinked global compiled directories", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  const outside = tmp();
+  mkdirSync(path.join(home, ".awg"), { recursive: true });
+  symlinkSync(outside, path.join(home, ".awg/compiled"));
+  const output = runFail(cwd, ["open", "--global", "--no-launch"], { HOME: home });
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(existsSync(path.join(outside, "switcher")), false);
 });
 
 test("add node writes valid JSONL", () => {
@@ -262,6 +377,16 @@ test("init refuses to create a project vault inside ~/.awg", () => {
   const output = runFail(path.join(home, ".awg"), ["init"], { HOME: home });
   assert.ok(output.includes("Refusing to initialize a project vault inside ~/.awg"));
   assert.equal(existsSync(path.join(home, ".awg/.awg")), false);
+});
+
+test("init refuses symlinked managed parent directories", () => {
+  const cwd = tmp();
+  const outside = tmp();
+  mkdirSync(path.join(cwd, ".awg"), { recursive: true });
+  symlinkSync(outside, path.join(cwd, ".awg/schema"));
+  const output = runFail(cwd, ["init", "--empty"]);
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(existsSync(path.join(outside, "core")), false);
 });
 
 test("build generates graph and resume lens", () => {
@@ -432,6 +557,55 @@ test("instructions install codex creates and patches AGENTS.md without clobberin
   assert.equal((second.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
 });
 
+test("instructions install patches existing lowercase instruction files", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "agents.md"), "# Existing\n\nKeep this.\n");
+  writeFileSync(path.join(cwd, "claude.md"), "# Existing Claude\n\nKeep this too.\n");
+  run(cwd, ["instructions", "install", "codex"]);
+  run(cwd, ["instructions", "install", "claude-code"]);
+  const agents = readFileSync(path.join(cwd, "agents.md"), "utf8");
+  const claude = readFileSync(path.join(cwd, "claude.md"), "utf8");
+  assert.ok(agents.includes("Keep this."));
+  assert.ok(agents.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.ok(claude.includes("Keep this too."));
+  assert.ok(claude.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.ok(!readdirSync(cwd).includes("AGENTS.md"));
+  assert.ok(!readdirSync(cwd).includes("CLAUDE.md"));
+});
+
+test("instructions install refuses symlinked root instruction files", () => {
+  const cwd = tmp();
+  const outside = path.join(tmp(), "outside.md");
+  writeFileSync(outside, "# Outside\n\nDo not patch.\n");
+  symlinkSync(outside, path.join(cwd, "AGENTS.md"));
+  const output = runFail(cwd, ["instructions", "install", "codex"]);
+  assert.ok(output.includes("Refusing to write through symlink"));
+  assert.equal(readFileSync(outside, "utf8"), "# Outside\n\nDo not patch.\n");
+});
+
+test("upgrade refreshes lowercase managed instruction files by default", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  rmSync(path.join(cwd, "AGENTS.md"));
+  writeFileSync(path.join(cwd, "agents.md"), "# Existing\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
+  run(cwd, ["upgrade"]);
+  const agents = readFileSync(path.join(cwd, "agents.md"), "utf8");
+  assert.ok(agents.includes("# AWG Agent Loop"));
+  assert.ok(!agents.includes("\nold\n"));
+  assert.ok(!readdirSync(cwd).includes("AGENTS.md"));
+});
+
+test("upgrade ignores symlinked managed instruction files by default", () => {
+  const cwd = tmp();
+  const outside = path.join(tmp(), "outside-agents.md");
+  run(cwd, ["init", "--empty"]);
+  rmSync(path.join(cwd, "AGENTS.md"));
+  writeFileSync(outside, "# Outside\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
+  symlinkSync(outside, path.join(cwd, "AGENTS.md"));
+  run(cwd, ["upgrade"]);
+  assert.ok(readFileSync(outside, "utf8").includes("\nold\n"));
+});
+
 test("instructions install from subdirectory targets project root", () => {
   const cwd = tmp();
   const subdir = path.join(cwd, "src");
@@ -482,4 +656,187 @@ test("instructions install snippet --dry-run does not create .awg", () => {
   const output = run(cwd, ["instructions", "install", "antigravity", "--dry-run"]);
   assert.ok(output.includes("Would create"));
   assert.equal(existsSync(path.join(cwd, ".awg")), false);
+});
+
+test("upgrade dry-run reports changes without modifying project files", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schemaFile = path.join(cwd, ".awg/schema/core/node.schema.json");
+  const prior = readFileSync(schemaFile, "utf8");
+  writeFileSync(schemaFile, JSON.stringify({ stale: true }, null, 2));
+  const stale = readFileSync(schemaFile, "utf8");
+  const output = run(cwd, ["upgrade", "--dry-run"]);
+  assert.ok(output.includes("AWG upgrade dry run"));
+  assert.equal(readFileSync(schemaFile, "utf8"), stale);
+  assert.notEqual(stale, prior);
+});
+
+test("upgrade creates missing schemas and preserves config fields", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const configFile = path.join(cwd, ".awg/config.json");
+  const config = JSON.parse(readFileSync(configFile, "utf8"));
+  config["x-user"] = { kept: true };
+  config.validation.strict_links = true;
+  writeFileSync(configFile, JSON.stringify(config, null, 2));
+  rmSync(path.join(cwd, ".awg/schema/core/node.schema.json"));
+  run(cwd, ["upgrade"]);
+  const nextConfig = JSON.parse(readFileSync(configFile, "utf8"));
+  const nodeSchema = JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8"));
+  assert.deepEqual(nextConfig["x-user"], { kept: true });
+  assert.equal(nextConfig.validation.strict_links, true);
+  assert.deepEqual(nodeSchema, schemaForFile("node"));
+});
+
+test("upgrade preserves customized project schemas", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schemaFile = path.join(cwd, ".awg/schema/core/node.schema.json");
+  writeFileSync(schemaFile, JSON.stringify({ custom: true }, null, 2));
+  const output = run(cwd, ["upgrade"]);
+  assert.ok(output.includes("preserved custom schema"));
+  assert.deepEqual(JSON.parse(readFileSync(schemaFile, "utf8")), { custom: true });
+});
+
+test("upgrade updates schemas that match the AWG-managed manifest", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schemaFile = path.join(cwd, ".awg/schema/core/node.schema.json");
+  const staleBody = `${JSON.stringify({ type: "object", properties: { stale: true } }, null, 2)}\n`;
+  writeFileSync(schemaFile, staleBody);
+  writeFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), JSON.stringify({
+    version: "0.0",
+    managedBy: "awg",
+    hashAlgorithm: "sha256",
+    schemas: { node: { hash: schemaContentHash(staleBody) } }
+  }, null, 2));
+  run(cwd, ["upgrade"]);
+  assert.deepEqual(JSON.parse(readFileSync(schemaFile, "utf8")), schemaForFile("node"));
+  const manifest = JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8"));
+  assert.equal(manifest.schemas.node.hash, schemaContentHash(schemaBodyForFile("node")));
+});
+
+test("upgrade updates pre-manifest V1 generated schemas", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schemaFile = path.join(cwd, ".awg/schema/core/node.schema.json");
+  rmSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"));
+  writeFileSync(schemaFile, initialV1NodeSchemaBody());
+  run(cwd, ["upgrade"]);
+  assert.deepEqual(JSON.parse(readFileSync(schemaFile, "utf8")), schemaForFile("node"));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
+});
+
+test("upgrade refuses symlinked schema files", () => {
+  const cwd = tmp();
+  const outside = path.join(tmp(), "node.schema.json");
+  run(cwd, ["init", "--empty"]);
+  writeFileSync(outside, initialV1NodeSchemaBody());
+  rmSync(path.join(cwd, ".awg/schema/core/node.schema.json"));
+  symlinkSync(outside, path.join(cwd, ".awg/schema/core/node.schema.json"));
+  const output = runFail(cwd, ["upgrade"]);
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(readFileSync(outside, "utf8"), initialV1NodeSchemaBody());
+});
+
+test("upgrade refuses symlinked managed parent directories", () => {
+  const cwd = tmp();
+  const outside = tmp();
+  run(cwd, ["init", "--empty"]);
+  rmSync(path.join(cwd, ".awg/schema"), { recursive: true, force: true });
+  symlinkSync(outside, path.join(cwd, ".awg/schema"));
+  const output = runFail(cwd, ["upgrade"]);
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(existsSync(path.join(outside, "core")), false);
+});
+
+test("upgrade instructions preserves user-authored markdown", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n");
+  writeFileSync(path.join(cwd, "CLAUDE.md"), "# Claude\n\nKeep this too.\n");
+  run(cwd, ["upgrade", "--instructions", "codex,claude-code"]);
+  const agents = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+  assert.ok(agents.includes("Keep this."));
+  assert.ok(claude.includes("Keep this too."));
+  assert.equal((agents.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
+  assert.equal((claude.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
+});
+
+test("upgrade refreshes existing managed markdown blocks by default", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
+  run(cwd, ["upgrade"]);
+  const agents = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  assert.ok(agents.includes("Keep this."));
+  assert.ok(agents.includes("# AWG Agent Loop"));
+  assert.ok(!agents.includes("\nold\n"));
+  assert.ok(run(cwd, ["upgrade"]).includes("UNCHANGED"));
+});
+
+test("upgrade refreshes exact managed Claude snippet without patching unrelated CLAUDE.md", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  mkdirSync(path.join(cwd, ".awg/instructions"), { recursive: true });
+  writeFileSync(path.join(cwd, ".awg/instructions/claude-code.md"), "# Snippet\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
+  writeFileSync(path.join(cwd, "CLAUDE.md"), "# User Claude\n\nNo managed block here.\n");
+  run(cwd, ["upgrade"]);
+  const snippet = readFileSync(path.join(cwd, ".awg/instructions/claude-code.md"), "utf8");
+  const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+  assert.ok(snippet.includes("# AWG Claude Code Snippet"));
+  assert.ok(!snippet.includes("\nold\n"));
+  assert.ok(!claude.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+});
+
+test("upgrade --json stays machine-readable when installing instructions", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const output = run(cwd, ["upgrade", "--json", "--instructions", "codex"]);
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.results[0].status, "changed");
+  assert.ok(parsed.results[0].actions.some((action: string) => action.includes("instructions:codex")));
+});
+
+test("upgrade rejects --instructions without a pack list", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const output = runFail(cwd, ["upgrade", "--instructions"]);
+  assert.ok(output.includes("--instructions requires a comma-separated pack list or all."));
+});
+
+test("upgrade repairs older project config shapes", () => {
+  const cwd = tmp();
+  mkdirSync(path.join(cwd, ".awg/log"), { recursive: true });
+  writeFileSync(path.join(cwd, ".awg/config.json"), JSON.stringify({ awg: "0.0", project: { title: "Old" }, "x-user": true }, null, 2));
+  run(cwd, ["upgrade"]);
+  const config = JSON.parse(readFileSync(path.join(cwd, ".awg/config.json"), "utf8"));
+  assert.equal(config.awg, "0.1");
+  assert.equal(config.project.title, "Old");
+  assert.equal(config["x-user"], true);
+  assert.equal(config.storage.canonical, ".awg/log/**/*.awg.jsonl");
+});
+
+test("upgrade --all updates registered vaults and reports skipped missing vaults", () => {
+  const home = tempHome();
+  const one = tmp();
+  const two = tmp();
+  const missing = path.join(tmp(), ".awg");
+  run(one, ["setup", "--yes", "--no-register-current"], { HOME: home });
+  run(one, ["init", "--empty"], { HOME: home });
+  run(two, ["init", "--empty"], { HOME: home });
+  run(one, ["register", "--name", "One"], { HOME: home });
+  run(two, ["register", "--name", "Two"], { HOME: home });
+  const registry = readRegistry(home);
+  registry.vaults.push({ id: "vault:missing", name: "Missing", path: missing });
+  writeFileSync(path.join(home, ".awg/registry.json"), JSON.stringify(registry, null, 2));
+  rmSync(path.join(one, ".awg/schema/core/node.schema.json"));
+  rmSync(path.join(two, ".awg/schema/core/node.schema.json"));
+  const output = run(one, ["upgrade", "--all"], { HOME: home });
+  assert.ok(output.includes("CHANGED One"));
+  assert.ok(output.includes("CHANGED Two"));
+  assert.ok(output.includes("SKIPPED Missing"));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(one, ".awg/schema/core/node.schema.json"), "utf8")), schemaForFile("node"));
+  assert.deepEqual(JSON.parse(readFileSync(path.join(two, ".awg/schema/core/node.schema.json"), "utf8")), schemaForFile("node"));
 });

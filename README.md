@@ -96,14 +96,27 @@ awg instructions install all
 awg instructions install codex --dry-run
 ```
 
-Codex instructions are patched into `AGENTS.md` inside a clearly marked AWG-managed block. Existing user-authored content is preserved. Claude Code patches an existing `CLAUDE.md` when present; otherwise it writes a conservative snippet under `.awg/instructions/`. Antigravity writes a conservative snippet under `.awg/instructions/` unless a deeper native integration is added later.
+Codex instructions are patched into an existing root `AGENTS.md`/`agents.md` inside a clearly marked AWG-managed block, or into a new `AGENTS.md` when no variant exists. Existing user-authored content is preserved. Claude Code patches an existing root `CLAUDE.md`/`claude.md` when present; otherwise it writes a conservative snippet under `.awg/instructions/`. Antigravity writes a conservative snippet under `.awg/instructions/` unless a deeper native integration is added later.
 
 `awg open` opens the current project viewer when run inside a project. Outside a project, or with `awg open --global`, it generates and opens a static global project switcher from `~/.awg/registry.json`. Projects without compiled viewers are shown with a prompt to run `awg build` in that project. Use `awg open --no-launch` or `AWG_NO_OPEN=1 awg open` when automation should print the generated path without opening a browser.
+
+After updating the global `awg` CLI, project vault files can be upgraded explicitly:
+
+```sh
+awg upgrade
+awg upgrade --dry-run
+awg upgrade --all --dry-run
+awg upgrade --all
+awg upgrade --all --instructions all
+```
+
+`awg upgrade` updates the current project vault. `awg upgrade --all` reads `~/.awg/registry.json` and upgrades registered project vaults one at a time. It does not merge graph knowledge or inject cross-project context. It updates config defaults, creates missing packaged core schemas, preserves customized project schemas for manual review, creates missing vault instruction files, and optionally updates instruction packs. User-authored Markdown is preserved; instruction updates only touch AWG-managed blocks.
 
 ## CLI
 
 ```sh
 awg setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
+awg upgrade [--all] [--dry-run] [--instructions <packs|all>] [--json]
 awg init [--empty] [--force] [--register] [--no-register]
 awg register [--name <name>] [--scope project|org|user]
 awg unregister [--path <path>]
@@ -146,16 +159,16 @@ Compiled output:
 Project config and agent instructions:
 
 ```text
-AGENTS.md
-CLAUDE.md
+AGENTS.md or existing agents.md
+CLAUDE.md or existing claude.md
 .awg/config.json
 .awg/AGENTS.md
 .awg/schema/core/
 ```
 
-`awg init` creates a root `AGENTS.md` when one does not already exist. That file tells future agents working in the project to use AWG before, during, and after work. Existing root `AGENTS.md` files are left untouched.
+`awg init` creates a root `AGENTS.md` when no `AGENTS.md`/`agents.md` variant already exists. That file tells future agents working in the project to use AWG before, during, and after work. Existing root `AGENTS.md` or `agents.md` files are left untouched.
 
-`awg init` also creates a root `CLAUDE.md` when one does not already exist. It points Claude-compatible agents at `AGENTS.md` and `.awg/AGENTS.md` so the same AWG workflow is applied there too. Existing `CLAUDE.md` files are left untouched.
+`awg init` also creates a root `CLAUDE.md` when no `CLAUDE.md`/`claude.md` variant already exists. It points Claude-compatible agents at the active `AGENTS.md`/`agents.md` root instruction file and `.awg/AGENTS.md` so the same AWG workflow is applied there too. Existing `CLAUDE.md` or `claude.md` files are left untouched.
 
 ## Core Primitives
 

@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import type { Stats } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -40,7 +41,7 @@ export function globalConfigFile(): string {
 
 export async function ensureGlobalAwg(): Promise<void> {
   const dir = globalAwgDir();
-  await fs.mkdir(path.join(dir, "compiled"), { recursive: true });
+  await ensureGlobalDirectory(path.join(dir, "compiled"));
   await writeJsonIfMissing(globalConfigFile(), {
     version: GLOBAL_VERSION,
     registry: "registry.json",
@@ -56,14 +57,25 @@ export async function globalAwgExists(): Promise<boolean> {
 
 export async function readRegistry(): Promise<Registry> {
   const file = registryFile();
-  if (!(await exists(file))) return { version: GLOBAL_VERSION, vaults: [] };
+  const stat = await assertSafeGlobalPath(file, "file");
+  if (!stat) return { version: GLOBAL_VERSION, vaults: [] };
   const parsed = JSON.parse(await fs.readFile(file, "utf8")) as Partial<Registry>;
   return { ...parsed, version: GLOBAL_VERSION, vaults: Array.isArray(parsed.vaults) ? parsed.vaults : [] };
 }
 
 export async function writeRegistry(registry: Registry): Promise<void> {
-  await fs.mkdir(globalAwgDir(), { recursive: true });
-  await fs.writeFile(registryFile(), stableStringify(registry));
+  await writeGlobalFile(registryFile(), stableStringify(registry));
+}
+
+export async function ensureGlobalDirectory(dir: string): Promise<void> {
+  await assertSafeGlobalPath(dir, "directory");
+  await fs.mkdir(dir, { recursive: true });
+}
+
+export async function writeGlobalFile(file: string, body: string): Promise<void> {
+  await assertSafeGlobalPath(file, "file");
+  await ensureGlobalDirectory(path.dirname(file));
+  await fs.writeFile(file, body);
 }
 
 export async function findProjectRoot(start = process.cwd()): Promise<string | null> {
@@ -190,9 +202,35 @@ function parseScope(value: string | undefined): VaultEntry["scope"] | undefined 
 }
 
 async function writeJsonIfMissing(file: string, value: object): Promise<void> {
-  if (await exists(file)) return;
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, stableStringify(value));
+  const stat = await assertSafeGlobalPath(file, "file");
+  if (stat) return;
+  await writeGlobalFile(file, stableStringify(value));
+}
+
+async function assertSafeGlobalPath(target: string, kind: "file" | "directory"): Promise<Stats | null> {
+  const rootAbs = path.resolve(os.homedir());
+  const targetAbs = path.resolve(target);
+  const relative = path.relative(rootAbs, targetAbs);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`Refusing to access path outside ~/.awg control plane: ${target}`);
+  let current = rootAbs;
+  let stat: Stats | null = null;
+  const parts = relative.split(path.sep).filter(Boolean);
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    const isFinal = index === parts.length - 1;
+    current = path.join(current, part);
+    try {
+      stat = await fs.lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error(`Refusing to access symlink: ${current}`);
+    if (!isFinal && !stat.isDirectory()) throw new Error(`Refusing to access path through non-directory: ${current}`);
+    if (isFinal && kind === "file" && !stat.isFile()) throw new Error(`Refusing to access non-file path: ${target}`);
+    if (isFinal && kind === "directory" && !stat.isDirectory()) throw new Error(`Refusing to access non-directory path: ${target}`);
+  }
+  return stat;
 }
 
 async function fileExists(file: string): Promise<boolean> {

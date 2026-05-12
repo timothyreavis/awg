@@ -9,6 +9,7 @@ import { lensCommand } from "./commands/lens.js";
 import { openCommand } from "./commands/open.js";
 import { registerCommand, unregisterCommand } from "./commands/register.js";
 import { setupCommand } from "./commands/setup.js";
+import { upgradeCommand } from "./commands/upgrade.js";
 import { validateCommand } from "./commands/validate.js";
 import { vaultCommand } from "./commands/vault.js";
 import { viewCommand } from "./commands/view.js";
@@ -18,6 +19,7 @@ async function main(): Promise<void> {
   const [command] = parsed.positionals;
   if (!command || command === "help" || parsed.flags.help) return help();
   if (command === "setup") return setupCommand(parsed);
+  if (command === "upgrade") return upgradeCommand(parsed);
   if (command === "init") return initCommand(parsed);
   if (command === "register") return registerCommand(parsed);
   if (command === "unregister") return unregisterCommand(parsed);
@@ -38,6 +40,7 @@ function help(): void {
 
 Commands:
   setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
+  upgrade [--all] [--dry-run] [--instructions <packs|all>] [--json]
   init [--empty] [--force] [--register] [--no-register]
   register [--name <name>] [--scope project|org|user]
   unregister [--path <path>]
