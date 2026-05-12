@@ -88,10 +88,16 @@ Compiled output:
 Project config and agent instructions:
 
 ```text
+AGENTS.md
+CLAUDE.md
 .awg/config.json
 .awg/AGENTS.md
 .awg/schema/core/
 ```
+
+`awg init` creates a root `AGENTS.md` when one does not already exist. That file tells future agents working in the project to use AWG before, during, and after work. Existing root `AGENTS.md` files are left untouched.
+
+`awg init` also creates a root `CLAUDE.md` when one does not already exist. It points Claude-compatible agents at `AGENTS.md` and `.awg/AGENTS.md` so the same AWG workflow is applied there too. Existing `CLAUDE.md` files are left untouched.
 
 ## Core Primitives
 

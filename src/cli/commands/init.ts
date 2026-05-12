@@ -14,7 +14,12 @@ export async function initCommand(parsed: ParsedArgs): Promise<void> {
   const root = process.cwd();
   const awg = path.join(root, ".awg");
   if (await exists(awg)) {
-    if (!parsed.flags.force) throw new Error(".awg already exists. Use --force to reinitialize.");
+    if (!parsed.flags.force) {
+      await writeRootAgentsIfMissing(root);
+      await writeClaudeIfMissing(root);
+      console.log("AWG already initialized. Verified root agent instruction files.");
+      return;
+    }
     await fs.rm(awg, { recursive: true, force: true });
   }
 
@@ -35,6 +40,8 @@ export async function initCommand(parsed: ParsedArgs): Promise<void> {
     storage: { adapter: "file", canonical: ".awg/log/**/*.awg.jsonl" }
   }));
   await fs.writeFile(path.join(root, ".awg/AGENTS.md"), agentsTemplate());
+  await writeRootAgentsIfMissing(root);
+  await writeClaudeIfMissing(root);
   for (const name of schemaNames) await fs.writeFile(path.join(root, ".awg/schema/core", `${name}.schema.json`), stableStringify(schemaForFile(name)));
 
   if (!parsed.flags.empty) await writeStarterLog(root);
@@ -99,6 +106,55 @@ function agentsTemplate(): string {
 - Fix fatal validation errors before stopping.
 - Review \`awg doctor\` warnings and resolve obvious stale items.
 - End by ensuring \`.awg/compiled/lenses/resume.json\` reflects the current state.
+`;
+}
+
+async function writeRootAgentsIfMissing(root: string): Promise<void> {
+  const file = path.join(root, "AGENTS.md");
+  if (await exists(file)) return;
+  await fs.writeFile(file, rootAgentsTemplate());
+}
+
+function rootAgentsTemplate(): string {
+  return `# Agent Instructions
+
+This project uses AWG as its durable project memory.
+
+Before starting work:
+- Run \`awg lens resume\`.
+- If the lens is missing or stale, run \`awg build\`, then rerun \`awg lens resume\`.
+- Read \`.awg/AGENTS.md\`.
+
+During work:
+- Record durable facts, decisions, risks, tasks, questions, constraints, and preferences in AWG.
+- Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits.
+- Link knowledge by AWG node ID, not by file path.
+- Do not edit \`.awg/compiled/*\`.
+
+Before stopping:
+- Run \`awg build\`.
+- Run \`awg doctor\`.
+- Fix fatal validation errors.
+- Ensure \`awg lens resume\` reflects the current project state.
+`;
+}
+
+async function writeClaudeIfMissing(root: string): Promise<void> {
+  const file = path.join(root, "CLAUDE.md");
+  if (await exists(file)) return;
+  await fs.writeFile(file, claudeTemplate());
+}
+
+function claudeTemplate(): string {
+  return `# Claude Instructions
+
+Follow the project instructions in \`AGENTS.md\`.
+
+This project uses AWG as its durable project memory. Before starting work, run \`awg lens resume\`. If the lens is missing or stale, run \`awg build\`, then rerun \`awg lens resume\`.
+
+Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Do not edit \`.awg/compiled/*\`.
+
+Before stopping, run \`awg build\` and \`awg doctor\`, fix fatal validation errors, and ensure \`awg lens resume\` reflects the current project state.
 `;
 }
 

@@ -20,9 +20,35 @@ function run(cwd: string, args: string[]): string {
 test("init creates expected files", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
+  assert.ok(readFileSync(path.join(cwd, "AGENTS.md"), "utf8").includes("durable project memory"));
+  assert.ok(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8").includes("Follow the project instructions in `AGENTS.md`"));
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
   assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg lens resume"));
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
+});
+
+test("init does not overwrite existing root AGENTS.md", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n");
+  run(cwd, ["init", "--empty"]);
+  assert.equal(readFileSync(path.join(cwd, "AGENTS.md"), "utf8"), "# Existing\n\nKeep this.\n");
+});
+
+test("init does not overwrite existing CLAUDE.md", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "CLAUDE.md"), "# Existing Claude\n\nKeep this.\n");
+  run(cwd, ["init", "--empty"]);
+  assert.equal(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8"), "# Existing Claude\n\nKeep this.\n");
+});
+
+test("init is safe to rerun on existing AWG project", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n");
+  writeFileSync(path.join(cwd, "CLAUDE.md"), "# Existing Claude\n\nKeep this.\n");
+  run(cwd, ["init"]);
+  assert.equal(readFileSync(path.join(cwd, "AGENTS.md"), "utf8"), "# Existing\n\nKeep this.\n");
+  assert.equal(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8"), "# Existing Claude\n\nKeep this.\n");
 });
 
 test("add node writes valid JSONL", () => {
