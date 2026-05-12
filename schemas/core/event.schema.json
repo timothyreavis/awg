@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["awg", "kind", "type", "target", "by", "at"],
+  "properties": {
+    "awg": { "const": "0.1" },
+    "kind": { "const": "event" },
+    "type": { "type": "string" },
+    "target": { "type": "string" },
+    "by": { "type": "string" },
+    "at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

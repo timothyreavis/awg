@@ -1,0 +1,17 @@
+{
+  "awg": "0.1",
+  "diagnostics": [],
+  "generated_at": "2026-05-12T05:49:10.294Z",
+  "summary": {
+    "dangling_edge_count": 0,
+    "edge_count": 1,
+    "fatal_error_count": 0,
+    "node_count": 2,
+    "ok": true,
+    "orphan_node_count": 0,
+    "stale_node_count": 0,
+    "unanswered_question_count": 0,
+    "unverified_completion_count": 0,
+    "warning_count": 0
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "awg": "0.1",
+  "blocks": [
+    {
+      "summary": {
+        "dangling_edge_count": 0,
+        "edge_count": 1,
+        "fatal_error_count": 0,
+        "node_count": 2,
+        "ok": true,
+        "orphan_node_count": 0,
+        "stale_node_count": 0,
+        "unanswered_question_count": 0,
+        "unverified_completion_count": 0,
+        "warning_count": 0
+      },
+      "title": "Graph Health",
+      "type": "summary"
+    },
+    {
+      "items": [],
+      "title": "Attention Required",
+      "type": "attention-required"
+    },
+    {
+      "items": [],
+      "title": "Open Decisions",
+      "type": "decision-review"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.8,
+          "created_at": "2026-05-11T00:00:00.000Z",
+          "id": "n:review-static-view",
+          "importance": 0.6,
+          "kind": "node",
+          "status": "in_progress",
+          "summary": "Inspect the generated static current review view.",
+          "title": "Review static view",
+          "type": "task",
+          "updated_at": "2026-05-11T00:00:00.000Z"
+        }
+      ],
+      "title": "Active Tasks",
+      "type": "task-review"
+    },
+    {
+      "items": [],
+      "title": "Active Risks",
+      "type": "risk-review"
+    },
+    {
+      "items": [],
+      "title": "Open Questions",
+      "type": "question-review"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.8,
+          "created_at": "2026-05-11T00:00:00.000Z",
+          "id": "n:awg-v1",
+          "importance": 0.9,
+          "kind": "node",
+          "status": "active",
+          "summary": "A local-first semantic graph format for durable agent knowledge.",
+          "tags": [
+            "awg",
+            "example"
+          ],
+          "title": "AWG V1",
+          "type": "concept",
+          "updated_at": "2026-05-11T00:00:00.000Z",
+          "x-example": {
+            "preserved": true
+          }
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.8,
+          "created_at": "2026-05-11T00:00:00.000Z",
+          "id": "n:review-static-view",
+          "importance": 0.6,
+          "kind": "node",
+          "status": "in_progress",
+          "summary": "Inspect the generated static current review view.",
+          "title": "Review static view",
+          "type": "task",
+          "updated_at": "2026-05-11T00:00:00.000Z"
+        }
+      ],
+      "title": "Node Browser",
+      "type": "node-list"
+    },
+    {
+      "summary": {
+        "dangling_edge_count": 0,
+        "edge_count": 1,
+        "fatal_error_count": 0,
+        "node_count": 2,
+        "ok": true,
+        "orphan_node_count": 0,
+        "stale_node_count": 0,
+        "unanswered_question_count": 0,
+        "unverified_completion_count": 0,
+        "warning_count": 0
+      },
+      "title": "Diagnostics",
+      "type": "diagnostics"
+    }
+  ],
+  "generated_at": "2026-05-12T05:49:10.294Z",
+  "id": "v:current",
+  "kind": "view-output",
+  "title": "Current Review"
+}

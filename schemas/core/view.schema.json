@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["awg", "kind", "id", "title", "audience", "blocks"],
+  "properties": {
+    "awg": { "const": "0.1" },
+    "kind": { "const": "view" },
+    "id": { "type": "string", "pattern": "^v:.+" },
+    "title": { "type": "string" },
+    "audience": { "type": "string" },
+    "blocks": { "type": "array" }
+  },
+  "additionalProperties": true
+}

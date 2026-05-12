@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "required": ["awg", "kind", "id", "from", "rel", "to", "created_at"],
+  "properties": {
+    "awg": { "const": "0.1" },
+    "kind": { "const": "edge" },
+    "id": { "type": "string", "pattern": "^e:.+" },
+    "from": { "type": "string", "pattern": "^n:.+" },
+    "rel": { "type": "string" },
+    "to": { "type": "string", "pattern": "^n:.+" },
+    "created_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AWG Current Review</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Agent Work Graph</p>
+    <h1>Current Review</h1>
+    <div id="health"></div>
+  </header>
+  <main>
+    <section id="blocks"></section>
+    <section>
+      <h2>Node Browser</h2>
+      <div class="layout">
+        <table id="nodes"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Importance</th></tr></thead><tbody></tbody></table>
+        <article id="detail"></article>
+      </div>
+    </section>
+  </main>
+  <script>window.AWG_DATA = {"graph":{"awg":"0.1","generated_at":"2026-05-12T05:49:10.294Z","source":{"log_files":[".awg/log/2026/05/2026-05-11.awg.jsonl"],"entry_count":3},"stats":{"nodes":2,"edges":1,"events":0,"responses":0},"nodes":[{"awg":"0.1","kind":"node","id":"n:awg-v1","type":"concept","title":"AWG V1","summary":"A local-first semantic graph format for durable agent knowledge.","status":"active","importance":0.9,"confidence":0.8,"created_at":"2026-05-11T00:00:00.000Z","updated_at":"2026-05-11T00:00:00.000Z","tags":["awg","example"],"x-example":{"preserved":true}},{"awg":"0.1","kind":"node","id":"n:review-static-view","type":"task","title":"Review static view","summary":"Inspect the generated static current review view.","status":"in_progress","importance":0.6,"confidence":0.8,"created_at":"2026-05-11T00:00:00.000Z","updated_at":"2026-05-11T00:00:00.000Z"}],"edges":[{"awg":"0.1","kind":"edge","id":"e:basic","from":"n:review-static-view","rel":"applies_to","to":"n:awg-v1","created_at":"2026-05-11T00:00:00.000Z"}],"events":[],"views":[],"lenses":[],"responses":[],"policies":[],"diagnostics":{"awg":"0.1","generated_at":"2026-05-12T05:49:10.294Z","summary":{"ok":true,"fatal_error_count":0,"warning_count":0,"node_count":2,"edge_count":1,"orphan_node_count":0,"stale_node_count":0,"unverified_completion_count":0,"dangling_edge_count":0,"unanswered_question_count":0},"diagnostics":[]}},"view":{"awg":"0.1","kind":"view-output","id":"v:current","generated_at":"2026-05-12T05:49:10.294Z","title":"Current Review","blocks":[{"type":"summary","title":"Graph Health","summary":{"ok":true,"fatal_error_count":0,"warning_count":0,"node_count":2,"edge_count":1,"orphan_node_count":0,"stale_node_count":0,"unverified_completion_count":0,"dangling_edge_count":0,"unanswered_question_count":0}},{"type":"attention-required","title":"Attention Required","items":[]},{"type":"decision-review","title":"Open Decisions","items":[]},{"type":"task-review","title":"Active Tasks","items":[{"awg":"0.1","kind":"node","id":"n:review-static-view","type":"task","title":"Review static view","summary":"Inspect the generated static current review view.","status":"in_progress","importance":0.6,"confidence":0.8,"created_at":"2026-05-11T00:00:00.000Z","updated_at":"2026-05-11T00:00:00.000Z"}]},{"type":"risk-review","title":"Active Risks","items":[]},{"type":"question-review","title":"Open Questions","items":[]},{"type":"node-list","title":"Node Browser","items":[{"awg":"0.1","kind":"node","id":"n:awg-v1","type":"concept","title":"AWG V1","summary":"A local-first semantic graph format for durable agent knowledge.","status":"active","importance":0.9,"confidence":0.8,"created_at":"2026-05-11T00:00:00.000Z","updated_at":"2026-05-11T00:00:00.000Z","tags":["awg","example"],"x-example":{"preserved":true}},{"awg":"0.1","kind":"node","id":"n:review-static-view","type":"task","title":"Review static view","summary":"Inspect the generated static current review view.","status":"in_progress","importance":0.6,"confidence":0.8,"created_at":"2026-05-11T00:00:00.000Z","updated_at":"2026-05-11T00:00:00.000Z"}]},{"type":"diagnostics","title":"Diagnostics","summary":{"ok":true,"fatal_error_count":0,"warning_count":0,"node_count":2,"edge_count":1,"orphan_node_count":0,"stale_node_count":0,"unverified_completion_count":0,"dangling_edge_count":0,"unanswered_question_count":0}}]},"diagnostics":{"awg":"0.1","generated_at":"2026-05-12T05:49:10.294Z","summary":{"ok":true,"fatal_error_count":0,"warning_count":0,"node_count":2,"edge_count":1,"orphan_node_count":0,"stale_node_count":0,"unverified_completion_count":0,"dangling_edge_count":0,"unanswered_question_count":0},"diagnostics":[]}};</script>
+  <script src="./app.js"></script>
+</body>
+</html>

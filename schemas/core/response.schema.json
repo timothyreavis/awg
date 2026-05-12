@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "required": ["awg", "kind", "id", "type", "target", "summary", "by", "at"],
+  "properties": {
+    "awg": { "const": "0.1" },
+    "kind": { "const": "response" },
+    "id": { "type": "string", "pattern": "^r:.+" },
+    "type": { "type": "string" },
+    "target": { "type": "string" },
+    "summary": { "type": "string" },
+    "by": { "type": "string" },
+    "at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

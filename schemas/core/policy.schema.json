@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["awg", "kind", "id", "title", "summary", "status"],
+  "properties": {
+    "awg": { "const": "0.1" },
+    "kind": { "const": "policy" },
+    "id": { "type": "string", "pattern": "^policy:.+" },
+    "title": { "type": "string" },
+    "summary": { "type": "string" },
+    "status": { "type": "string" }
+  },
+  "additionalProperties": true
+}

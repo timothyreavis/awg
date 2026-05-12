@@ -1,0 +1,34 @@
+{
+  "name": "agent-work-graph",
+  "version": "0.1.0",
+  "description": "Local-first Agent Work Graph CLI and compiler.",
+  "type": "module",
+  "bin": {
+    "awg": "./dist/src/cli/index.js"
+  },
+  "files": [
+    "dist/src",
+    "schemas",
+    "docs",
+    "examples"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "pretest": "npm run build",
+    "test": "node --test dist/tests/*.test.js",
+    "prepack": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
