@@ -4,23 +4,32 @@ import { addCommand } from "./commands/add.js";
 import { buildCommand } from "./commands/build.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
+import { instructionsCommand } from "./commands/instructions.js";
 import { lensCommand } from "./commands/lens.js";
 import { openCommand } from "./commands/open.js";
+import { registerCommand, unregisterCommand } from "./commands/register.js";
+import { setupCommand } from "./commands/setup.js";
 import { validateCommand } from "./commands/validate.js";
+import { vaultCommand } from "./commands/vault.js";
 import { viewCommand } from "./commands/view.js";
 
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv.slice(2));
   const [command] = parsed.positionals;
   if (!command || command === "help" || parsed.flags.help) return help();
+  if (command === "setup") return setupCommand(parsed);
   if (command === "init") return initCommand(parsed);
+  if (command === "register") return registerCommand(parsed);
+  if (command === "unregister") return unregisterCommand(parsed);
+  if (command === "vault") return vaultCommand(parsed);
+  if (command === "instructions") return instructionsCommand(parsed);
   if (command === "add") return addCommand(parsed);
   if (command === "build") return buildCommand(parsed);
   if (command === "validate") return validateCommand(parsed);
   if (command === "doctor") return doctorCommand(parsed);
   if (command === "lens") return lensCommand(parsed);
   if (command === "view") return viewCommand(parsed);
-  if (command === "open") return openCommand();
+  if (command === "open") return openCommand(parsed);
   throw new Error(`Unknown command: ${command}`);
 }
 
@@ -28,7 +37,14 @@ function help(): void {
   console.log(`awg <command>
 
 Commands:
-  init [--empty] [--force]
+  setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
+  init [--empty] [--force] [--register] [--no-register]
+  register [--name <name>] [--scope project|org|user]
+  unregister [--path <path>]
+  vault list [--json]
+  vault info [--json]
+  instructions list
+  instructions install <codex|claude-code|antigravity|all> [--dry-run]
   add node --type <type> --title <title> --summary <summary>
   add edge --from <id> --rel <rel> --to <id>
   add response --type <type> --target <id> --summary <summary>
@@ -37,7 +53,7 @@ Commands:
   doctor [--json]
   lens resume [--json]
   view current [--json] [--text]
-  open`);
+  open [--global] [--no-launch]`);
 }
 
 main().catch((error) => {

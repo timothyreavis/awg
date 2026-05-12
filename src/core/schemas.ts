@@ -21,7 +21,7 @@ export const schemas = {
       type: { type: "string" },
       title: { type: "string", minLength: 1 },
       summary: { type: "string", minLength: 1 },
-      status: { type: "string" },
+      status: { enum: CORE_STATUSES },
       importance: { type: "number", minimum: 0, maximum: 1 },
       confidence: { type: "number", minimum: 0, maximum: 1 },
       created_at: { type: "string" },
@@ -38,7 +38,7 @@ export const schemas = {
       kind: { const: "edge" },
       id: { type: "string", pattern: "^e:.+" },
       from: { type: "string", pattern: "^n:.+" },
-      rel: { type: "string" },
+      rel: { enum: CORE_EDGE_RELS },
       to: { type: "string", pattern: "^n:.+" },
       created_at: { type: "string" },
       confidence: { type: "number", minimum: 0, maximum: 1 }

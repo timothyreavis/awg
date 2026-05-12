@@ -17,6 +17,6 @@ export async function viewCommand(parsed: ParsedArgs): Promise<void> {
       console.log(`- ${block.title}${count !== "" ? `: ${count}` : ""}`);
     }
   } else {
-    console.log(path.join(process.cwd(), ".awg", "compiled", "site", "index.html"));
+    console.log(path.join(storage.root, ".awg", "compiled", "site", "index.html"));
   }
 }

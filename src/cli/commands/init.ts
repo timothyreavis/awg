@@ -5,6 +5,7 @@ import { schemaForFile } from "../../core/schemas.js";
 import { nodeId } from "../../core/ids.js";
 import { stableStringify } from "../../util/json.js";
 import { nowIso, todayPathParts } from "../../util/time.js";
+import { canonicalVaultPath, globalAwgDir, globalAwgExists, isPlausibleAwgDir, registerVault } from "../../global/registry.js";
 import type { AwgNode } from "../../core/types.js";
 import type { ParsedArgs } from "../args.js";
 
@@ -13,16 +14,39 @@ const schemaNames = ["node", "edge", "event", "view", "lens", "response", "polic
 export async function initCommand(parsed: ParsedArgs): Promise<void> {
   const root = process.cwd();
   const awg = path.join(root, ".awg");
+  if (await isInsideGlobalAwg(root, awg)) {
+    throw new Error("Refusing to initialize a project vault inside ~/.awg. Run awg init inside a project directory.");
+  }
   if (await exists(awg)) {
     if (!parsed.flags.force) {
+      if (!(await isPlausibleAwgDir(awg))) {
+        await writeProjectVault(root, parsed, { preserveExistingFiles: true });
+        await maybeRegister(root, parsed);
+        console.log("Initialized AWG in existing .awg directory.");
+        return;
+      }
       await writeRootAgentsIfMissing(root);
       await writeClaudeIfMissing(root);
+      await maybeRegister(root, parsed);
       console.log("AWG already initialized. Verified root agent instruction files.");
       return;
     }
     await fs.rm(awg, { recursive: true, force: true });
   }
 
+  await writeProjectVault(root, parsed, { preserveExistingFiles: false });
+  await maybeRegister(root, parsed);
+  console.log("Initialized AWG in .awg");
+}
+
+async function isInsideGlobalAwg(root: string, awg: string): Promise<boolean> {
+  const global = await canonicalVaultPath(globalAwgDir());
+  const projectRoot = await canonicalVaultPath(root);
+  const projectVault = await canonicalVaultPath(awg);
+  return projectVault === global || projectRoot === global || projectRoot.startsWith(`${global}${path.sep}`);
+}
+
+async function writeProjectVault(root: string, parsed: ParsedArgs, options: { preserveExistingFiles: boolean }): Promise<void> {
   for (const dir of [
     ".awg/log",
     ".awg/compiled/indexes",
@@ -33,20 +57,31 @@ export async function initCommand(parsed: ParsedArgs): Promise<void> {
     ".awg/schema/core"
   ]) await fs.mkdir(path.join(root, dir), { recursive: true });
 
-  await fs.writeFile(path.join(root, ".awg/config.json"), stableStringify({
+  await writeFile(path.join(root, ".awg/config.json"), stableStringify({
     awg: AWG_VERSION,
     project: { title: path.basename(root) },
     validation: { allow_unknown_node_types: true, strict_links: false },
     storage: { adapter: "file", canonical: ".awg/log/**/*.awg.jsonl" }
-  }));
-  await fs.writeFile(path.join(root, ".awg/AGENTS.md"), agentsTemplate());
+  }), options);
+  await writeFile(path.join(root, ".awg/AGENTS.md"), agentsTemplate(), options);
   await writeRootAgentsIfMissing(root);
   await writeClaudeIfMissing(root);
-  for (const name of schemaNames) await fs.writeFile(path.join(root, ".awg/schema/core", `${name}.schema.json`), stableStringify(schemaForFile(name)));
+  for (const name of schemaNames) await writeFile(path.join(root, ".awg/schema/core", `${name}.schema.json`), stableStringify(schemaForFile(name)), options);
 
-  if (!parsed.flags.empty) await writeStarterLog(root);
-  if (await isAwgSourceRepo(root)) await writeSourceRepoDocs(root);
-  console.log("Initialized AWG in .awg");
+  if (!parsed.flags.empty && (!options.preserveExistingFiles || !(await hasLogEntries(root)))) await writeStarterLog(root);
+}
+
+async function writeFile(file: string, body: string, options: { preserveExistingFiles: boolean }): Promise<void> {
+  if (options.preserveExistingFiles && await exists(file)) return;
+  await fs.writeFile(file, body);
+}
+
+async function maybeRegister(root: string, parsed: ParsedArgs): Promise<void> {
+  if (parsed.flags["no-register"]) return;
+  if (parsed.flags.register || await globalAwgExists()) {
+    const result = await registerVault({ vaultPath: path.join(root, ".awg") });
+    console.log(`${result.created ? "Registered" : "Updated"} AWG vault in global registry.`);
+  }
 }
 
 async function writeStarterLog(root: string): Promise<void> {
@@ -71,22 +106,6 @@ async function writeStarterLog(root: string): Promise<void> {
   const file = path.join(root, ".awg/log", year, month, `${date}.awg.jsonl`);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, `${JSON.stringify(node)}\n`);
-}
-
-async function writeSourceRepoDocs(root: string): Promise<void> {
-  const docs = path.join(root, "docs/spec");
-  await fs.mkdir(docs, { recursive: true });
-  const files: Record<string, string> = {
-    "awg-core.md": "# AWG Core\n\nAWG is a local-first semantic graph format for durable agent knowledge. V1 has seven primitives: node, edge, event, view, lens, response, and policy. AWG is not a SaaS, task manager, Obsidian clone, Markdown replacement, codebase-only memory tool, or hosted service.\n\nEvery object carries `awg: \"0.1\"` and `kind`. Durable knowledge is stored as nodes, relationships as typed edges, historical facts as events, human/agent feedback as responses, and maintenance rules as policies. Unknown `x-*` extension fields are preserved. Unknown node types warn by default and can become fatal in strict validation.\n",
-    "awg-jsonl.md": "# AWG JSONL\n\nThe canonical V1 backend is append-only JSONL under `.awg/log/YYYY/MM/YYYY-MM-DD.awg.jsonl`. Each non-empty line is one direct AWG object. Compiled files are generated artifacts and are never canonical input. Do not rewrite history to reorganize; append corrective, supersession, archive, or redaction events.\n",
-    "awg-compiler.md": "# AWG Compiler\n\nThe compiler deterministically loads config and schemas, reads log files in sorted path order, parses and validates lines, materializes current graph state with last-write-wins upserts, builds indexes, runs diagnostics, and writes compiled artifacts. It never calls an LLM, never requires network access, and exits nonzero on fatal errors.\n",
-    "awg-lenses.md": "# AWG Lenses\n\nA lens is compact agent-facing context extraction. V1 generates `.awg/compiled/lenses/resume.json` with important active nodes, open decisions, active tasks and risks, unanswered questions, recent responses, diagnostics summary, and obvious maintenance actions.\n",
-    "awg-views.md": "# AWG Views\n\nA view is semantic human-facing presentation intent. V1 generates `.awg/compiled/views/current.json` and a static viewer under `.awg/compiled/site`. Views are not canonical. The renderer owns presentation; agents should not write arbitrary HTML as graph content.\n",
-    "awg-diagnostics.md": "# AWG Diagnostics\n\nDiagnostics provide operational trust. V1 reports malformed JSON, schema errors, incompatible duplicate IDs, dangling edges, orphan nodes, duplicate aliases, completed tasks without evidence, stale review dates, unanswered questions, low-confidence active nodes, and related graph-health counts.\n",
-    "awg-versioning.md": "# AWG Versioning\n\nV1 uses `awg: \"0.1\"`. Unsupported versions are validation errors until migrations exist. Future versions should preserve JSONL as a stable import/export and migration boundary.\n",
-    "awg-future-storage-adapters.md": "# Future Storage Adapters\n\nV1 implements only local files through `AwgStorage`. Future SQLite materialization can support larger local vaults, and future Postgres/API adapters can support remote multi-agent use. Migration should remain JSONL -> database and database -> JSONL exportable. V1 intentionally ships no SQLite, Postgres, daemon, sync, server, MCP server, marketplace, vector search, or LLM calls.\n"
-  };
-  for (const [name, body] of Object.entries(files)) await fs.writeFile(path.join(docs, name), body);
 }
 
 function agentsTemplate(): string {
@@ -167,11 +186,21 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-async function isAwgSourceRepo(root: string): Promise<boolean> {
+async function hasLogEntries(root: string): Promise<boolean> {
+  const files = await walk(path.join(root, ".awg/log"));
+  return files.some((file) => file.endsWith(".awg.jsonl"));
+}
+
+async function walk(root: string): Promise<string[]> {
   try {
-    const pkg = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8")) as { name?: string };
-    return pkg.name === "agent-work-graph";
-  } catch {
-    return false;
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    const found = await Promise.all(entries.map(async (entry) => {
+      const full = path.join(root, entry.name);
+      return entry.isDirectory() ? walk(full) : [full];
+    }));
+    return found.flat();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
 }

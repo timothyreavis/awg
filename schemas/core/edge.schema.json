@@ -6,9 +6,31 @@
     "kind": { "const": "edge" },
     "id": { "type": "string", "pattern": "^e:.+" },
     "from": { "type": "string", "pattern": "^n:.+" },
-    "rel": { "type": "string" },
+    "rel": {
+      "enum": [
+        "relates_to",
+        "depends_on",
+        "blocks",
+        "supports",
+        "contradicts",
+        "answers",
+        "asks",
+        "implements",
+        "affects",
+        "supersedes",
+        "derived_from",
+        "part_of",
+        "caused_by",
+        "requires",
+        "recommends",
+        "references",
+        "owned_by",
+        "applies_to"
+      ]
+    },
     "to": { "type": "string", "pattern": "^n:.+" },
-    "created_at": { "type": "string" }
+    "created_at": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
   },
   "additionalProperties": true
 }

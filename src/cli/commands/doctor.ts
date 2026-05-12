@@ -4,6 +4,7 @@ import type { ParsedArgs } from "../args.js";
 
 export async function doctorCommand(parsed: ParsedArgs): Promise<void> {
   const result = await buildAwg(new FileAwgStorage(), { write: true });
+  if (result.diagnostics.summary.fatal_error_count > 0) process.exitCode = 1;
   if (parsed.flags.json) {
     console.log(JSON.stringify(result.diagnostics, null, 2));
     return;
@@ -12,5 +13,4 @@ export async function doctorCommand(parsed: ParsedArgs): Promise<void> {
     console.log(`${diag.severity.toUpperCase()} ${diag.code}${diag.id ? ` ${diag.id}` : ""}: ${diag.message}`);
   }
   if (result.diagnostics.diagnostics.length === 0) console.log("No diagnostics.");
-  if (result.diagnostics.summary.fatal_error_count > 0) process.exitCode = 1;
 }

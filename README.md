@@ -9,6 +9,7 @@ AWG V1 is intentionally small:
 - local files are the canonical backend
 - JSONL logs are append-only
 - compiled outputs are generated artifacts
+- `~/.awg` is only a global registry/control-plane directory
 - no database, server, daemon, telemetry, hosted sync, vector search, LLM calls, or external integrations
 
 ## Install
@@ -34,11 +35,14 @@ node dist/src/cli/index.js --help
 ## Quick Start
 
 ```sh
+awg setup --yes
 awg init
+awg instructions install codex
 awg add node --type concept --title "Example" --summary "Example durable knowledge."
 awg build
+awg doctor
 awg lens resume
-awg view current
+awg open
 ```
 
 `awg view current` prints the generated static viewer path:
@@ -49,10 +53,64 @@ awg view current
 
 No server is required.
 
+## Project Vaults and Global Registry
+
+Each project keeps its canonical AWG vault at:
+
+```text
+project/.awg
+```
+
+The global directory is:
+
+```text
+~/.awg
+```
+
+`~/.awg` is not a merged knowledge base. It stores local control-plane files such as `config.json`, `registry.json`, and generated global switcher HTML. Registering a project means “this project vault exists and can be opened later.” It does not merge project knowledge, inject all registered vaults into lenses, or create cross-project context automatically.
+
+Setup is safe to rerun:
+
+```sh
+awg setup --yes
+```
+
+Register the current project vault:
+
+```sh
+awg register
+awg vault list
+awg vault info
+```
+
+`awg init` registers the new project by default when `~/.awg` already exists. Use `awg init --no-register` to opt out. If `~/.awg` does not exist, `awg init` still creates the project `.awg` vault and prints normal output.
+
+Install explicit agent instruction snippets:
+
+```sh
+awg instructions list
+awg instructions install codex
+awg instructions install claude-code
+awg instructions install antigravity
+awg instructions install all
+awg instructions install codex --dry-run
+```
+
+Codex instructions are patched into `AGENTS.md` inside a clearly marked AWG-managed block. Existing user-authored content is preserved. Claude Code patches an existing `CLAUDE.md` when present; otherwise it writes a conservative snippet under `.awg/instructions/`. Antigravity writes a conservative snippet under `.awg/instructions/` unless a deeper native integration is added later.
+
+`awg open` opens the current project viewer when run inside a project. Outside a project, or with `awg open --global`, it generates and opens a static global project switcher from `~/.awg/registry.json`. Projects without compiled viewers are shown with a prompt to run `awg build` in that project. Use `awg open --no-launch` or `AWG_NO_OPEN=1 awg open` when automation should print the generated path without opening a browser.
+
 ## CLI
 
 ```sh
-awg init [--empty] [--force]
+awg setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
+awg init [--empty] [--force] [--register] [--no-register]
+awg register [--name <name>] [--scope project|org|user]
+awg unregister [--path <path>]
+awg vault list [--json]
+awg vault info [--json]
+awg instructions list
+awg instructions install <codex|claude-code|antigravity|all> [--dry-run]
 awg add node --type <type> --title <title> --summary <summary>
 awg add edge --from <node-id> --rel <relation> --to <node-id>
 awg add response --type <type> --target <id> --summary <summary>
@@ -61,7 +119,7 @@ awg validate [--json] [--strict]
 awg doctor [--json]
 awg lens resume [--json]
 awg view current [--json] [--text]
-awg open
+awg open [--global] [--no-launch]
 ```
 
 ## Storage Layout
@@ -125,6 +183,8 @@ The compiler is deterministic. It:
 6. Runs graph diagnostics.
 7. Generates graph JSON, diagnostics, resume lens, current view, and static viewer files.
 
+Compiled `generated_at` metadata is derived from source object timestamps so unchanged source logs produce unchanged compiled artifacts.
+
 Fatal errors return nonzero exit codes. Warnings keep normal builds usable; `--strict` elevates warnings to fatal diagnostics.
 
 ## Diagnostics
@@ -152,6 +212,20 @@ npm pack --dry-run --json
 ```
 
 The test suite covers initialization, JSONL appends, compiler output, resume lenses, malformed JSON, strict dangling-edge behavior, stale/completion diagnostics, extension-field preservation, and compiled-output exclusion from canonical input.
+
+## V1.1 Example Flow
+
+```sh
+npm install -g agent-work-graph
+awg setup --yes
+cd ~/dev/my-project
+awg init
+awg instructions install codex
+awg add node --type concept --title "Project purpose" --summary "..."
+awg build
+awg doctor
+awg open
+```
 
 ## Example
 

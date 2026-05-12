@@ -1,5 +1,5 @@
 import AjvModule from "ajv";
-import { CORE_KINDS, CORE_NODE_TYPES } from "./constants.js";
+import { CORE_EDGE_RELS, CORE_KINDS, CORE_NODE_TYPES, CORE_STATUSES } from "./constants.js";
 import { schemas } from "./schemas.js";
 import type { AwgObject, Diagnostic, RawLogEntry } from "./types.js";
 
@@ -13,9 +13,10 @@ const Ajv = AjvModule as unknown as new (options: { allErrors: boolean; strict: 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validators = Object.fromEntries(Object.entries(schemas).map(([kind, schema]) => [kind, ajv.compile(schema)]));
 
-export function parseAndValidate(entries: RawLogEntry[], options: { strict: boolean; allowUnknownNodeTypes: boolean }): { parsed: ParsedEntry[]; diagnostics: Diagnostic[] } {
+export function parseAndValidate(entries: RawLogEntry[], options: { strict: boolean; allowUnknownNodeTypes: boolean }, schemaOverrides?: Record<string, unknown>): { parsed: ParsedEntry[]; diagnostics: Diagnostic[] } {
   const parsed: ParsedEntry[] = [];
   const diagnostics: Diagnostic[] = [];
+  const activeValidators = schemaOverrides ? buildValidators(schemaOverrides) : validators;
 
   for (const entry of entries) {
     let value: unknown;
@@ -40,7 +41,7 @@ export function parseAndValidate(entries: RawLogEntry[], options: { strict: bool
       continue;
     }
 
-    const validate = validators[kind];
+    const validate = activeValidators[kind];
     if (!validate(value)) {
       const maybeId = (value as Record<string, unknown>).id;
       diagnostics.push({
@@ -66,9 +67,39 @@ export function parseAndValidate(entries: RawLogEntry[], options: { strict: bool
         id: typeof typed.id === "string" ? typed.id : undefined
       });
     }
+    if (kind === "node" && typeof typed.status === "string" && !CORE_STATUSES.includes(typed.status as never)) {
+      diagnostics.push({
+        severity: "fatal",
+        code: "unknown_status",
+        message: `Unknown node status: ${typed.status}`,
+        file: entry.file,
+        line: entry.line,
+        id: typeof typed.id === "string" ? typed.id : undefined
+      });
+    }
+    if (kind === "edge" && typeof typed.rel === "string" && !CORE_EDGE_RELS.includes(typed.rel as never)) {
+      diagnostics.push({
+        severity: "fatal",
+        code: "unknown_edge_rel",
+        message: `Unknown edge relation: ${typed.rel}`,
+        file: entry.file,
+        line: entry.line,
+        id: typeof typed.id === "string" ? typed.id : undefined
+      });
+    }
 
     parsed.push({ raw: entry, object: value as AwgObject });
   }
 
   return { parsed, diagnostics };
+}
+
+function buildValidators(schemaOverrides: Record<string, unknown>): Record<string, Validator> {
+  const merged: Record<string, object> = { ...schemas };
+  for (const [fileName, schema] of Object.entries(schemaOverrides)) {
+    const kind = fileName.replace(/\.schema\.json$/, "");
+    if (kind in merged && schema && typeof schema === "object") merged[kind] = schema as object;
+  }
+  const localAjv = new Ajv({ allErrors: true, strict: false });
+  return Object.fromEntries(Object.entries(merged).map(([kind, schema]) => [kind, localAjv.compile(schema)]));
 }

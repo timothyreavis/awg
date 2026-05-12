@@ -1,12 +1,18 @@
-import { promises as fs } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync, promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { AWG_VERSION } from "../core/constants.js";
 import type { AwgObject, RawLogEntry } from "../core/types.js";
 import { stableLine, stableStringify } from "../util/json.js";
 import { todayPathParts } from "../util/time.js";
 import type { AwgStorage } from "./AwgStorage.js";
 
 export class FileAwgStorage implements AwgStorage {
-  constructor(public readonly root: string = process.cwd()) {}
+  public readonly root: string;
+
+  constructor(root?: string) {
+    this.root = root ? path.resolve(root) : defaultRoot();
+  }
 
   awgPath(...parts: string[]): string {
     return path.join(this.root, ".awg", ...parts);
@@ -30,7 +36,10 @@ export class FileAwgStorage implements AwgStorage {
 
   async readLogEntries(): Promise<RawLogEntry[]> {
     const logRoot = this.awgPath("log");
-    const files = (await walk(logRoot)).filter((file) => /\/\.awg\/log\/\d{4}\/\d{2}\/\d{4}-\d{2}-\d{2}\.awg\.jsonl$/.test(file)).sort();
+    const files = (await walk(logRoot)).filter((file) => {
+      const relative = path.relative(logRoot, file);
+      return /^\d{4}[\\/]\d{2}[\\/]\d{4}-\d{2}-\d{2}\.awg\.jsonl$/.test(relative);
+    }).sort();
     const entries: RawLogEntry[] = [];
     for (const file of files) {
       const text = await fs.readFile(file, "utf8");
@@ -62,6 +71,56 @@ export class FileAwgStorage implements AwgStorage {
       throw error;
     }
   }
+}
+
+function defaultRoot(): string {
+  let current = path.resolve(process.cwd());
+  while (true) {
+    if (isPlausibleAwgRoot(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) throw new Error("No AWG project vault found. Run awg init first.");
+    current = parent;
+  }
+}
+
+function isPlausibleAwgRoot(root: string): boolean {
+  const vault = path.join(root, ".awg");
+  if (samePath(vault, path.join(os.homedir(), ".awg"))) return false;
+  if (!isFile(path.join(vault, "config.json")) || !isDirectory(path.join(vault, "log"))) return false;
+  try {
+    const config = JSON.parse(readFileSync(path.join(vault, "config.json"), "utf8")) as { awg?: unknown; storage?: { canonical?: unknown } };
+    return config.awg === AWG_VERSION && typeof config.storage?.canonical === "string";
+  } catch {
+    return false;
+  }
+}
+
+function isFile(file: string): boolean {
+  try {
+    return existsSync(file) && statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function isDirectory(file: string): boolean {
+  try {
+    return existsSync(file) && statSync(file).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function samePath(a: string, b: string): boolean {
+  try {
+    return path.resolve(a) === path.resolve(b) || fsRealPath(a) === fsRealPath(b);
+  } catch {
+    return path.resolve(a) === path.resolve(b);
+  }
+}
+
+function fsRealPath(file: string): string {
+  return existsSync(file) ? realpathSync(file) : path.resolve(file);
 }
 
 async function walk(root: string): Promise<string[]> {

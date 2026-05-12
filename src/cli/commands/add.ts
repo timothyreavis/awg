@@ -3,7 +3,7 @@ import { AWG_VERSION } from "../../core/constants.js";
 import { edgeId, nodeId, responseId } from "../../core/ids.js";
 import type { AwgEdge, AwgNode, AwgResponse } from "../../core/types.js";
 import { nowIso } from "../../util/time.js";
-import { arr, num, str, type ParsedArgs } from "../args.js";
+import { arr, str, type ParsedArgs } from "../args.js";
 
 export async function addCommand(parsed: ParsedArgs): Promise<void> {
   const [, sub] = parsed.positionals;
@@ -26,8 +26,8 @@ async function addNode(parsed: ParsedArgs): Promise<void> {
     title,
     summary,
     status: str(parsed.flags, "status", "active") ?? "active",
-    importance: num(parsed.flags, "importance", 0.5),
-    confidence: num(parsed.flags, "confidence", 0.8),
+    importance: numberFlag(parsed, "importance", 0.5),
+    confidence: numberFlag(parsed, "confidence", 0.8),
     created_at: at,
     updated_at: at,
     tags: arr(parsed.flags, "tag")
@@ -58,7 +58,7 @@ async function addEdge(parsed: ParsedArgs): Promise<void> {
   const reason = str(parsed.flags, "reason");
   if (reason) edge.reason = reason;
   const confidence = str(parsed.flags, "confidence");
-  if (confidence) edge.confidence = Number(confidence);
+  if (confidence !== undefined) edge.confidence = numberFlag(parsed, "confidence");
   await new FileAwgStorage().appendLogEntry(edge);
   console.log(`Added edge ${edge.id}`);
 }
@@ -82,4 +82,15 @@ function required(parsed: ParsedArgs, key: string): string {
   const value = str(parsed.flags, key);
   if (!value) throw new Error(`Missing required --${key}`);
   return value;
+}
+
+function numberFlag(parsed: ParsedArgs, key: string, fallback?: number): number {
+  const value = str(parsed.flags, key);
+  if (value === undefined) {
+    if (fallback === undefined) throw new Error(`Missing required --${key}`);
+    return fallback;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 1) throw new Error(`--${key} must be a number between 0 and 1`);
+  return number;
 }

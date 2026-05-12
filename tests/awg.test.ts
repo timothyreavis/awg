@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { buildAwg } from "../src/core/compiler.js";
+import { schemaForFile } from "../src/core/schemas.js";
 import { FileAwgStorage } from "../src/storage/FileAwgStorage.js";
 
 const cli = path.resolve("dist/src/cli/index.js");
@@ -13,8 +14,26 @@ function tmp(): string {
   return mkdtempSync(path.join(tmpdir(), "awg-test-"));
 }
 
-function run(cwd: string, args: string[]): string {
-  return execFileSync(process.execPath, [cli, ...args], { cwd, encoding: "utf8" });
+function run(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): string {
+  return execFileSync(process.execPath, [cli, ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: tempHome(), ...env } });
+}
+
+function runFail(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): string {
+  try {
+    run(cwd, args, env);
+  } catch (error) {
+    const failed = error as { stdout?: string; stderr?: string };
+    return `${failed.stdout ?? ""}${failed.stderr ?? ""}`;
+  }
+  assert.fail(`Expected command to fail: ${args.join(" ")}`);
+}
+
+function tempHome(): string {
+  return mkdtempSync(path.join(tmpdir(), "awg-home-"));
+}
+
+function readRegistry(home: string): { vaults: Array<{ path: string; name: string }> } {
+  return JSON.parse(readFileSync(path.join(home, ".awg/registry.json"), "utf8"));
 }
 
 test("init creates expected files", () => {
@@ -25,6 +44,52 @@ test("init creates expected files", () => {
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
   assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg lens resume"));
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
+});
+
+test("packaged schemas match runtime schema source", () => {
+  for (const name of ["node", "edge", "event", "view", "lens", "response", "policy", "operation"]) {
+    const packaged = JSON.parse(readFileSync(path.join("schemas/core", `${name}.schema.json`), "utf8"));
+    assert.deepEqual(packaged, schemaForFile(name));
+  }
+});
+
+test("setup creates global config and registry in temp home", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  assert.ok(readFileSync(path.join(home, ".awg/config.json"), "utf8").includes('"networking": false'));
+  assert.deepEqual(readRegistry(home).vaults, []);
+});
+
+test("setup is idempotent and does not clobber registry", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  writeFileSync(path.join(home, ".awg/registry.json"), JSON.stringify({ version: "0.1", vaults: [{ id: "vault:x", name: "Kept", path: "/tmp/kept/.awg", scope: "project", registeredAt: "a", lastSeenAt: "b", tags: ["x"], favorite: true, extra: true }] }, null, 2));
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  const registry = readRegistry(home);
+  assert.equal(registry.vaults.length, 1);
+  assert.equal(registry.vaults[0].name, "Kept");
+});
+
+test("setup --no-instructions still registers a nearby project vault", () => {
+  const parent = tmp();
+  const child = path.join(parent, "child");
+  const home = tempHome();
+  run(parent, ["init", "--empty"], { HOME: home });
+  mkdirSync(child);
+  run(child, ["setup", "--yes", "--no-instructions"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 1);
+});
+
+test("setup --no-register-current skips nearby project registration", () => {
+  const parent = tmp();
+  const child = path.join(parent, "child");
+  const home = tempHome();
+  run(parent, ["init", "--empty"], { HOME: home });
+  mkdirSync(child);
+  run(child, ["setup", "--yes", "--no-register-current"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 0);
 });
 
 test("init does not overwrite existing root AGENTS.md", () => {
@@ -51,6 +116,91 @@ test("init is safe to rerun on existing AWG project", () => {
   assert.equal(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8"), "# Existing Claude\n\nKeep this.\n");
 });
 
+test("init completes a partial .awg without clobbering existing instruction snippets", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  mkdirSync(path.join(cwd, ".awg/instructions"), { recursive: true });
+  writeFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "# User rules\n\nKeep this.\n");
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty"], { HOME: home });
+  assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
+  assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg lens resume"));
+  assert.equal(readFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "utf8"), "# User rules\n\nKeep this.\n");
+  assert.equal(readRegistry(home).vaults.length, 1);
+});
+
+test("register adds a vault and does not duplicate same vault", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["init", "--empty"], { HOME: home });
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["register", "--name", "One"], { HOME: home });
+  run(cwd, ["register", "--name", "One"], { HOME: home });
+  const registry = readRegistry(home);
+  assert.equal(registry.vaults.length, 1);
+  assert.equal(registry.vaults[0].name, "One");
+  assert.equal(registry.vaults[0].path, realpathSync(path.join(cwd, ".awg")));
+});
+
+test("register and unregister work from a project subdirectory", () => {
+  const cwd = tmp();
+  const subdir = path.join(cwd, "src");
+  const home = tempHome();
+  mkdirSync(subdir);
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty"], { HOME: home });
+  run(subdir, ["register", "--name", "Subdir"], { HOME: home });
+  let registry = readRegistry(home);
+  assert.equal(registry.vaults.length, 1);
+  assert.equal(registry.vaults[0].name, "Subdir");
+  run(subdir, ["unregister"], { HOME: home });
+  registry = readRegistry(home);
+  assert.equal(registry.vaults.length, 0);
+});
+
+test("unregister removes a vault", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 1);
+  run(cwd, ["unregister"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 0);
+});
+
+test("init registers by default when global setup exists", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 1);
+});
+
+test("init --no-register does not register", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty", "--no-register"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 0);
+});
+
+test("vault list works with registered vaults", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty"], { HOME: home });
+  const output = run(cwd, ["vault", "list"], { HOME: home });
+  assert.ok(output.includes(realpathSync(path.join(cwd, ".awg"))));
+});
+
+test("open outside vault handles missing and empty registry", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  const output = run(cwd, ["open", "--global", "--no-launch"], { HOME: home });
+  assert.ok(output.includes(path.join(home, ".awg/compiled/switcher/index.html")));
+  assert.ok(existsSync(path.join(home, ".awg/compiled/switcher/index.html")));
+});
+
 test("add node writes valid JSONL", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -62,6 +212,56 @@ test("add node writes valid JSONL", () => {
     assert.equal(node.kind, "node");
     assert.equal(node.type, "concept");
   });
+});
+
+test("current-vault commands work from a project subdirectory", () => {
+  const cwd = tmp();
+  const subdir = path.join(cwd, "src");
+  mkdirSync(subdir);
+  run(cwd, ["init", "--empty"]);
+  run(subdir, ["add", "node", "--type", "concept", "--title", "From subdir", "--summary", "Written to parent vault."]);
+  assert.equal(existsSync(path.join(subdir, ".awg")), false);
+  const entries = new FileAwgStorage(cwd).readLogEntries();
+  return entries.then((lines) => {
+    assert.equal(lines.length, 1);
+    run(subdir, ["build"]);
+    run(subdir, ["doctor"]);
+    assert.ok(run(subdir, ["lens", "resume"]).includes("1 nodes"));
+    assert.ok(run(subdir, ["view", "current", "--text"]).includes("Current Review"));
+    assert.equal(run(subdir, ["view", "current"]).trim(), path.join(realpathSync(cwd), ".awg/compiled/site/index.html"));
+    assert.ok(existsSync(path.join(cwd, ".awg/compiled/site/index.html")));
+  });
+});
+
+test("current-vault commands fail clearly outside an initialized project", () => {
+  const cwd = tmp();
+  const output = runFail(cwd, ["add", "node", "--type", "concept", "--title", "No vault", "--summary", "Should fail."]);
+  assert.ok(output.includes("No AWG project vault found"));
+  assert.equal(existsSync(path.join(cwd, ".awg")), false);
+});
+
+test("global ~/.awg is not treated as a project vault", () => {
+  const home = tempHome();
+  run(home, ["setup", "--yes"], { HOME: home });
+  mkdirSync(path.join(home, ".awg/log"), { recursive: true });
+  const output = runFail(home, ["register"], { HOME: home });
+  assert.ok(output.includes("No project .awg vault found"));
+});
+
+test("init refuses to create a project vault at ~/.awg", () => {
+  const home = tempHome();
+  run(home, ["setup", "--yes"], { HOME: home });
+  const output = runFail(home, ["init"], { HOME: home });
+  assert.ok(output.includes("Refusing to initialize a project vault inside ~/.awg"));
+  assert.equal(existsSync(path.join(home, ".awg/log")), false);
+});
+
+test("init refuses to create a project vault inside ~/.awg", () => {
+  const home = tempHome();
+  run(home, ["setup", "--yes"], { HOME: home });
+  const output = runFail(path.join(home, ".awg"), ["init"], { HOME: home });
+  assert.ok(output.includes("Refusing to initialize a project vault inside ~/.awg"));
+  assert.equal(existsSync(path.join(home, ".awg/.awg")), false);
 });
 
 test("build generates graph and resume lens", () => {
@@ -86,6 +286,33 @@ test("build reports malformed JSON line", async () => {
   assert.equal(result.diagnostics.diagnostics[0].code, "invalid_json");
 });
 
+test("doctor --json exits nonzero on fatal diagnostics", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, "{bad\n");
+  const output = runFail(cwd, ["doctor", "--json"]);
+  assert.ok(output.includes("invalid_json"));
+});
+
+test("fatal builds refresh diagnostics and replace stale viewer", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--type", "concept", "--title", "Clean", "--summary", "Clean node."]);
+  run(cwd, ["build"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, "{bad\n");
+  runFail(cwd, ["build"]);
+  const diagnostics = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/reports/diagnostics.json"), "utf8"));
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(diagnostics.summary.fatal_error_count, 1);
+  assert.equal(graph.diagnostics.summary.fatal_error_count, 1);
+  assert.ok(readFileSync(path.join(cwd, ".awg/compiled/site/index.html"), "utf8").includes("AWG Build Failed"));
+  assert.ok(readFileSync(path.join(cwd, ".awg/compiled/lenses/resume.json"), "utf8").includes("1 fatal"));
+});
+
 test("dangling edge warns by default and is fatal in strict mode", async () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -95,6 +322,62 @@ test("dangling edge warns by default and is fatal in strict mode", async () => {
   assert.equal(loose.diagnostics.summary.dangling_edge_count, 1);
   assert.equal(loose.diagnostics.summary.fatal_error_count, 0);
   assert.equal(strict.diagnostics.summary.fatal_error_count, 1);
+});
+
+test("duplicate edge id with different relationship is fatal", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  const base = { awg: "0.1", created_at: "2026-01-01T00:00:00.000Z" };
+  writeFileSync(file, [
+    JSON.stringify({ ...base, kind: "node", id: "n:a", type: "concept", title: "A", summary: "A.", status: "active", importance: 0.5, confidence: 0.8, updated_at: base.created_at }),
+    JSON.stringify({ ...base, kind: "node", id: "n:b", type: "concept", title: "B", summary: "B.", status: "active", importance: 0.5, confidence: 0.8, updated_at: base.created_at }),
+    JSON.stringify({ ...base, kind: "node", id: "n:c", type: "concept", title: "C", summary: "C.", status: "active", importance: 0.5, confidence: 0.8, updated_at: base.created_at }),
+    JSON.stringify({ ...base, kind: "edge", id: "e:collision", from: "n:a", rel: "relates_to", to: "n:b" }),
+    JSON.stringify({ ...base, kind: "edge", id: "e:collision", from: "n:a", rel: "depends_on", to: "n:c" })
+  ].join("\n") + "\n");
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.ok(result.diagnostics.diagnostics.some((d) => d.code === "duplicate_edge_id_conflict"));
+  assert.equal(result.diagnostics.summary.fatal_error_count, 1);
+});
+
+test("invalid status and edge relation fail validation", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:a", type: "concept", title: "A", summary: "A.", status: "in-progress", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "edge", id: "e:badrel", from: "n:a", rel: "depend_on", to: "n:b", created_at: at })
+  ].join("\n") + "\n");
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.equal(result.diagnostics.summary.fatal_error_count, 2);
+});
+
+test("project schema overrides are used for validation", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schemaFile = path.join(cwd, ".awg/schema/core/node.schema.json");
+  const schema = JSON.parse(readFileSync(schemaFile, "utf8"));
+  schema.properties.title = { const: "Only allowed title" };
+  writeFileSync(schemaFile, JSON.stringify(schema, null, 2));
+  run(cwd, ["add", "node", "--type", "concept", "--title", "Other title", "--summary", "Schema override should reject this."]);
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.ok(result.diagnostics.diagnostics.some((d) => d.code === "schema_error"));
+  assert.equal(result.diagnostics.summary.fatal_error_count, 1);
+});
+
+test("compiled output is deterministic for unchanged source", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:stable", "--type", "concept", "--title", "Stable", "--summary", "Stable node."]);
+  run(cwd, ["build"]);
+  const first = readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8");
+  run(cwd, ["build"]);
+  const second = readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8");
+  assert.equal(second, first);
 });
 
 test("completed task without evidence and stale review_after warn", async () => {
@@ -125,4 +408,78 @@ test("compiled files are not treated as canonical input", async () => {
   writeFileSync(path.join(cwd, ".awg/compiled/fake.awg.jsonl"), "{bad\n");
   const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
   assert.equal(result.diagnostics.summary.fatal_error_count, 0);
+});
+
+test("invalid numeric add flags fail before writing JSONL", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  let output = runFail(cwd, ["add", "node", "--type", "concept", "--title", "Bad", "--summary", "Bad.", "--importance", "nope"]);
+  assert.ok(output.includes("--importance must be a number between 0 and 1"));
+  output = runFail(cwd, ["add", "edge", "--from", "n:a", "--rel", "relates_to", "--to", "n:b", "--confidence", "2"]);
+  assert.ok(output.includes("--confidence must be a number between 0 and 1"));
+  return new FileAwgStorage(cwd).readLogEntries().then((lines) => assert.equal(lines.length, 0));
+});
+
+test("instructions install codex creates and patches AGENTS.md without clobbering", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n");
+  run(cwd, ["instructions", "install", "codex"]);
+  const first = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  assert.ok(first.includes("Keep this."));
+  assert.ok(first.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  run(cwd, ["instructions", "install", "codex"]);
+  const second = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  assert.equal((second.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
+});
+
+test("instructions install from subdirectory targets project root", () => {
+  const cwd = tmp();
+  const subdir = path.join(cwd, "src");
+  mkdirSync(subdir);
+  run(cwd, ["init", "--empty"]);
+  run(subdir, ["instructions", "install", "codex"]);
+  assert.ok(readFileSync(path.join(cwd, "AGENTS.md"), "utf8").includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.equal(existsSync(path.join(subdir, "AGENTS.md")), false);
+  run(subdir, ["instructions", "install", "antigravity"]);
+  assert.ok(readFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "utf8").includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.equal(existsSync(path.join(subdir, ".awg")), false);
+});
+
+test("instructions install --dry-run does not modify files", () => {
+  const cwd = tmp();
+  const output = run(cwd, ["instructions", "install", "codex", "--dry-run"]);
+  assert.ok(output.includes("Would create"));
+  assert.equal(existsSync(path.join(cwd, "AGENTS.md")), false);
+});
+
+test("instructions install claude-code patches existing CLAUDE.md", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "CLAUDE.md"), "# Existing Claude\n\nKeep this.\n");
+  run(cwd, ["instructions", "install", "claude-code"]);
+  const text = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+  assert.ok(text.includes("Keep this."));
+  assert.ok(text.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.equal(existsSync(path.join(cwd, ".awg/instructions/claude-code.md")), false);
+});
+
+test("instructions install snippets preserve existing user-authored content", () => {
+  const cwd = tmp();
+  mkdirSync(path.join(cwd, ".awg/instructions"), { recursive: true });
+  writeFileSync(path.join(cwd, ".awg/instructions/claude-code.md"), "# Claude user notes\n\nKeep this.\n");
+  writeFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "# Antigravity user notes\n\nKeep this too.\n");
+  run(cwd, ["instructions", "install", "claude-code"]);
+  run(cwd, ["instructions", "install", "antigravity"]);
+  const claude = readFileSync(path.join(cwd, ".awg/instructions/claude-code.md"), "utf8");
+  const antigravity = readFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "utf8");
+  assert.ok(claude.includes("Keep this."));
+  assert.ok(antigravity.includes("Keep this too."));
+  assert.equal((claude.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
+  assert.equal((antigravity.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
+});
+
+test("instructions install snippet --dry-run does not create .awg", () => {
+  const cwd = tmp();
+  const output = run(cwd, ["instructions", "install", "antigravity", "--dry-run"]);
+  assert.ok(output.includes("Would create"));
+  assert.equal(existsSync(path.join(cwd, ".awg")), false);
 });
