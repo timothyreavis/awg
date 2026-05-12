@@ -1,0 +1,63 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "awg": {
+      "const": "0.1"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "from": {
+      "pattern": "^n:.+",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^e:.+",
+      "type": "string"
+    },
+    "kind": {
+      "const": "edge"
+    },
+    "rel": {
+      "enum": [
+        "relates_to",
+        "depends_on",
+        "blocks",
+        "supports",
+        "contradicts",
+        "answers",
+        "asks",
+        "implements",
+        "affects",
+        "supersedes",
+        "derived_from",
+        "part_of",
+        "caused_by",
+        "requires",
+        "recommends",
+        "references",
+        "owned_by",
+        "applies_to"
+      ]
+    },
+    "to": {
+      "pattern": "^n:.+",
+      "type": "string"
+    }
+  },
+  "required": [
+    "awg",
+    "kind",
+    "id",
+    "from",
+    "rel",
+    "to",
+    "created_at"
+  ],
+  "type": "object"
+}

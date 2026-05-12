@@ -1,0 +1,14 @@
+{
+  "awg": "0.1",
+  "project": {
+    "title": "awg"
+  },
+  "storage": {
+    "adapter": "file",
+    "canonical": ".awg/log/**/*.awg.jsonl"
+  },
+  "validation": {
+    "allow_unknown_node_types": true,
+    "strict_links": false
+  }
+}

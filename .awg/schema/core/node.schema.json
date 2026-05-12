@@ -1,0 +1,84 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "aliases": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "awg": {
+      "const": "0.1"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^n:.+",
+      "type": "string"
+    },
+    "importance": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "kind": {
+      "const": "node"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "proposed",
+        "active",
+        "blocked",
+        "in_progress",
+        "completed",
+        "resolved",
+        "rejected",
+        "superseded",
+        "archived",
+        "needs_review",
+        "stale"
+      ]
+    },
+    "summary": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "title": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "awg",
+    "kind",
+    "id",
+    "type",
+    "title",
+    "summary",
+    "status",
+    "importance",
+    "confidence",
+    "created_at",
+    "updated_at"
+  ],
+  "type": "object"
+}

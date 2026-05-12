@@ -1,0 +1,41 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "at": {
+      "type": "string"
+    },
+    "awg": {
+      "const": "0.1"
+    },
+    "by": {
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^r:.+",
+      "type": "string"
+    },
+    "kind": {
+      "const": "response"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "awg",
+    "kind",
+    "id",
+    "type",
+    "target",
+    "summary",
+    "by",
+    "at"
+  ],
+  "type": "object"
+}

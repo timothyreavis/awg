@@ -1,0 +1,33 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "awg": {
+      "const": "0.1"
+    },
+    "id": {
+      "pattern": "^lens:.+",
+      "type": "string"
+    },
+    "include": {
+      "type": "array"
+    },
+    "kind": {
+      "const": "lens"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "awg",
+    "kind",
+    "id",
+    "title",
+    "purpose",
+    "include"
+  ],
+  "type": "object"
+}

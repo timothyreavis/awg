@@ -1,0 +1,28 @@
+{
+  "artifact": [
+    "n:current-repo-state"
+  ],
+  "concept": [
+    "n:awg-project-purpose",
+    "n:cli-command-surface",
+    "n:compiler-architecture",
+    "n:diagnostic-model",
+    "n:file-storage-adapter",
+    "n:global-registry-model",
+    "n:project-vault-model",
+    "n:schema-management"
+  ],
+  "constraint": [
+    "n:local-first-boundary",
+    "n:path-boundary-safety"
+  ],
+  "process": [
+    "n:instruction-install-behavior",
+    "n:setup-register-open-behavior",
+    "n:upgrade-behavior",
+    "n:verification-workflow"
+  ],
+  "task": [
+    "n:future-maintenance-priorities"
+  ]
+}

@@ -1,0 +1,386 @@
+[
+  {
+    "awg": "0.1",
+    "body": "AWG stores typed graph objects in append-only JSONL logs, then deterministically compiles them into graph JSON, diagnostics, agent lenses, human review views, and a static HTML viewer. V1 is intentionally offline and file-backed: no server, daemon, database, telemetry, hosted sync, vector search, LLM calls, MCP, or automatic cross-project context injection.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:27.748Z",
+    "id": "n:awg-project-purpose",
+    "importance": 0.95,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "AWG is a local-first Agent Work Graph CLI and file format for durable agent knowledge, using project-local .awg vaults as canonical storage.",
+    "tags": [
+      "awg",
+      "purpose"
+    ],
+    "title": "AWG project purpose",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:27.748Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "src/cli/index.ts dispatches commands. add supports node/edge/response. build/validate/doctor/lens/view wrap compiler outputs. open prints or launches static viewer files and supports --global/--no-launch. setup/register/vault manage the global registry. instructions installs managed agent snippets. upgrade updates project vault scaffolding and instruction blocks.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.389Z",
+    "id": "n:cli-command-surface",
+    "importance": 0.85,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "The CLI exposes setup, upgrade, init, register/unregister, vault, instructions, add, build, validate, doctor, lens, view, and open commands.",
+    "tags": [
+      "cli",
+      "architecture"
+    ],
+    "title": "CLI command surface",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:28.389Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "src/core/compiler.ts is the center of the runtime. It uses storage.readConfig/readSchemas/readLogEntries, parseAndValidate, last-write-wins node merging, deterministic sorting, generated_at derived from source timestamps, buildDiagnostics, buildResumeLens, buildCurrentView, and renderStaticSite. Fatal builds still refresh graph and failure diagnostics/viewer artifacts.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.180Z",
+    "id": "n:compiler-architecture",
+    "importance": 0.95,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "buildAwg reads config/schemas/log entries, validates JSONL, materializes current graph state, runs diagnostics, then writes deterministic compiled artifacts.",
+    "tags": [
+      "compiler",
+      "architecture"
+    ],
+    "title": "Compiler architecture",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:28.180Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "As of the AWG install pass, git status showed untracked .awg/, AGENTS.md, and CLAUDE.md. main and origin/main were synced at de1606a before adding the project AWG vault. The vault initially built clean with 0 nodes/edges before this context population.",
+    "confidence": 0.9,
+    "created_at": "2026-05-12T18:42:29.228Z",
+    "id": "n:current-repo-state",
+    "importance": 0.8,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "The AWG repo now has a project-local .awg vault, root AGENTS.md/CLAUDE.md, and global registration; these files are currently untracked until committed.",
+    "tags": [
+      "current-state",
+      "git"
+    ],
+    "title": "Current repo state after AWG install",
+    "type": "artifact",
+    "updated_at": "2026-05-12T18:42:29.228Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "Current checks include malformed JSON, schema errors, incompatible duplicate IDs, dangling edges, orphan nodes, duplicate-looking aliases, stale review dates, completed tasks without evidence, unanswered questions, low-confidence active nodes, blocked-by-resolved, and implemented-proposed decisions. --strict elevates warnings to fatal.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:29.020Z",
+    "id": "n:diagnostic-model",
+    "importance": 0.85,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Diagnostics distinguish fatal validation/build errors from warnings and drive doctor, lens, and viewer health output.",
+    "tags": [
+      "diagnostics",
+      "validation"
+    ],
+    "title": "Diagnostic model",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:29.020Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "src/storage/FileAwgStorage.ts locates the nearest plausible project .awg vault, reads config/schema/log entries, appends log entries to today’s JSONL file, and writes compiled artifacts. It excludes compiled files from canonical input and expects log files to match the YYYY/MM/YYYY-MM-DD.awg.jsonl pattern.",
+    "confidence": 0.9,
+    "created_at": "2026-05-12T18:42:28.285Z",
+    "id": "n:file-storage-adapter",
+    "importance": 0.85,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "FileAwgStorage is the current storage backend and should remain the canonical V1 adapter unless a future slice explicitly adds more.",
+    "tags": [
+      "storage",
+      "architecture"
+    ],
+    "title": "File storage adapter",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:28.285Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "For future agents: avoid broad abstractions unless they remove real complexity; prefer repo patterns; keep dependencies minimal; update docs/tests with every CLI behavior change; run awg build and awg doctor before stopping; record durable architecture decisions, risks, and human feedback as AWG nodes/edges/responses.",
+    "confidence": 0.9,
+    "created_at": "2026-05-12T18:42:29.372Z",
+    "id": "n:future-maintenance-priorities",
+    "importance": 0.85,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Keep AWG small and durable: preserve local-first boundaries, add tests for each behavior change, and update AWG context when architecture decisions change.",
+    "tags": [
+      "maintenance",
+      "future"
+    ],
+    "title": "Future maintenance priorities",
+    "type": "task",
+    "updated_at": "2026-05-12T18:42:29.372Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "setup/register/vault/open global flows use ~/.awg/config.json and ~/.awg/registry.json to remember known project vaults. Registry entries identify vault path/name/scope/timestamps/tags/favorite and preserve unknown fields for forward compatibility. Registering updates lastSeenAt and avoids duplicates by canonical vault path.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.075Z",
+    "id": "n:global-registry-model",
+    "importance": 0.9,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "~/.awg stores config, registry, and switcher output only; it is not a global merged graph.",
+    "tags": [
+      "registry",
+      "setup"
+    ],
+    "title": "Global registry model",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:28.075Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "Codex patches an existing AGENTS.md/agents.md or creates AGENTS.md. Claude Code patches existing CLAUDE.md/claude.md or writes .awg/instructions/claude-code.md. Antigravity writes .awg/instructions/antigravity.md. Dry-run reports intended files. Installs are idempotent and preserve unrelated content.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.601Z",
+    "id": "n:instruction-install-behavior",
+    "importance": 0.9,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Instruction installs patch clearly marked AWG-managed blocks without overwriting user-authored content.",
+    "tags": [
+      "instructions",
+      "agents"
+    ],
+    "title": "Instruction installation behavior",
+    "type": "process",
+    "updated_at": "2026-05-12T18:42:28.601Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "The project deliberately keeps project/.awg as the source of truth. ~/.awg is only a registry/control-plane directory, not a merged knowledge base. Cross-vault references must be explicit and registered vaults must not be automatically injected into project lenses.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:27.857Z",
+    "id": "n:local-first-boundary",
+    "importance": 1,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Keep AWG local, deterministic, and file-backed; do not add daemon/server/database/hosted-sync/MCP/vector-search/LLM creep without an explicit later slice.",
+    "tags": [
+      "scope",
+      "local-first"
+    ],
+    "title": "Local-first scope boundary",
+    "type": "constraint",
+    "updated_at": "2026-05-12T18:42:27.857Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "Recent hardening added component-wise lstat checks for init, upgrade, instruction installation, global registry writes, and global switcher writes. Tests cover symlinked root instruction files, schema files, managed parent directories, global registry files, and global compiled directories. Preserve this boundary when adding new write paths.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.810Z",
+    "id": "n:path-boundary-safety",
+    "importance": 1,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Managed writes must stay inside intended project/.awg or ~/.awg control-plane paths and must not follow symlinked write targets or parent directories.",
+    "tags": [
+      "security",
+      "filesystem"
+    ],
+    "title": "Path-boundary and symlink safety",
+    "type": "constraint",
+    "updated_at": "2026-05-12T18:42:28.810Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "Canonical input lives under .awg/log/YYYY/MM/YYYY-MM-DD.awg.jsonl. Project config is .awg/config.json. Core schema overrides live under .awg/schema/core. Generated outputs include .awg/compiled/graph.json, indexes, lenses/resume.json, views/current.json, reports/diagnostics.json, and static site files.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:27.966Z",
+    "id": "n:project-vault-model",
+    "importance": 0.95,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Each project owns its canonical AWG vault at project/.awg; compiled outputs are generated artifacts under .awg/compiled.",
+    "tags": [
+      "storage",
+      "vault"
+    ],
+    "title": "Project vault model",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:27.966Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "schemaForFile/schemaBodyForFile produce default core schemas. .awg/schema/core/.awg-managed.json stores AWG-managed schema hashes. Upgrade uses manifest hashes plus known V1 schema hashes to update stale AWG-managed schemas, while preserving differing custom schemas for manual review. Runtime validation reads project schema overrides.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.915Z",
+    "id": "n:schema-management",
+    "importance": 0.9,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Core schemas are packaged defaults but project schemas may be customized and are active validation inputs.",
+    "tags": [
+      "schema",
+      "validation"
+    ],
+    "title": "Schema management model",
+    "type": "concept",
+    "updated_at": "2026-05-12T18:42:28.915Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "setup is rerunnable and does not enable networking or daemons. init registers the project by default when ~/.awg exists. register/unregister operate on the current vault or explicit path. vault list/info report registration and cheap health/build state. open inside a project targets the project viewer; outside a project or with --global it generates a static switcher under ~/.awg/compiled/switcher.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.496Z",
+    "id": "n:setup-register-open-behavior",
+    "importance": 0.85,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Use awg setup --yes to create ~/.awg, awg init/register to attach project vaults, and awg open --no-launch when automation must not open a browser.",
+    "tags": [
+      "setup",
+      "workflow"
+    ],
+    "title": "Setup, registration, and open behavior",
+    "type": "process",
+    "updated_at": "2026-05-12T18:42:28.496Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "Upgrade updates config defaults, creates missing packaged schemas, preserves customized project schemas, creates missing .awg/AGENTS.md, and optionally updates instruction packs. It uses schema manifest/hash logic to update AWG-managed stale schemas while preserving user-customized schema files. --json output must remain pure JSON even when instructions are involved.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:28.705Z",
+    "id": "n:upgrade-behavior",
+    "importance": 0.95,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "awg upgrade updates the current vault; awg upgrade --all updates registered vaults without merging project knowledge.",
+    "tags": [
+      "upgrade",
+      "compatibility"
+    ],
+    "title": "Upgrade behavior",
+    "type": "process",
+    "updated_at": "2026-05-12T18:42:28.705Z"
+  },
+  {
+    "awg": "0.1",
+    "body": "Recent V1.1 work was verified with git diff --check, npm run typecheck, npm test, CLI smoke in temp HOME/project, and npm pack --dry-run --json. For open/browser behavior in automation, prefer awg open --no-launch or AWG_NO_OPEN=1 to avoid opening the user’s browser.",
+    "confidence": 0.95,
+    "created_at": "2026-05-12T18:42:29.123Z",
+    "id": "n:verification-workflow",
+    "importance": 0.9,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Before finishing meaningful code changes, run npm run typecheck, npm test, CLI smoke where relevant, npm pack --dry-run --json, awg build, and awg doctor.",
+    "tags": [
+      "verification",
+      "workflow"
+    ],
+    "title": "Verification workflow",
+    "type": "process",
+    "updated_at": "2026-05-12T18:42:29.123Z"
+  }
+]

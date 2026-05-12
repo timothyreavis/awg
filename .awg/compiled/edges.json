@@ -1,0 +1,182 @@
+[
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.975Z",
+    "from": "n:future-maintenance-priorities",
+    "id": "e:0ce3810499509382",
+    "kind": "edge",
+    "reason": "Maintenance priorities preserve AWG's local-first scope.",
+    "rel": "supports",
+    "to": "n:local-first-boundary"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.871Z",
+    "from": "n:current-repo-state",
+    "id": "e:0fc8ce09b3e794f3",
+    "kind": "edge",
+    "reason": "The current state follows installation and initial build/doctor verification.",
+    "rel": "derived_from",
+    "to": "n:verification-workflow"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.040Z",
+    "from": "n:upgrade-behavior",
+    "id": "e:111e5af992db42d9",
+    "kind": "edge",
+    "reason": "Upgrade is an explicit CLI workflow.",
+    "rel": "part_of",
+    "to": "n:cli-command-surface"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.250Z",
+    "from": "n:schema-management",
+    "id": "e:186b030fd4808740",
+    "kind": "edge",
+    "reason": "Validation schemas are loaded by the compiler pipeline.",
+    "rel": "supports",
+    "to": "n:compiler-architecture"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.665Z",
+    "from": "n:path-boundary-safety",
+    "id": "e:281dbf242b0446ce",
+    "kind": "edge",
+    "reason": "Upgrade writes project scaffolding and must enforce path boundaries.",
+    "rel": "applies_to",
+    "to": "n:upgrade-behavior"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.354Z",
+    "from": "n:diagnostic-model",
+    "id": "e:33e15d2fdc5c9c69",
+    "kind": "edge",
+    "reason": "Diagnostics are generated during compilation and exposed by doctor/lens/view.",
+    "rel": "part_of",
+    "to": "n:compiler-architecture"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.145Z",
+    "from": "n:upgrade-behavior",
+    "id": "e:371e6747ba980768",
+    "kind": "edge",
+    "reason": "Upgrade keeps project vault scaffolding current without merging knowledge.",
+    "rel": "supports",
+    "to": "n:project-vault-model"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.138Z",
+    "from": "n:project-vault-model",
+    "id": "e:38a756b1bac831e8",
+    "kind": "edge",
+    "reason": "The project-local vault is the core storage model for AWG.",
+    "rel": "part_of",
+    "to": "n:awg-project-purpose"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.243Z",
+    "from": "n:global-registry-model",
+    "id": "e:409b1f25842f50c0",
+    "kind": "edge",
+    "reason": "The global registry selects known project vaults without replacing project-local canonical storage.",
+    "rel": "supports",
+    "to": "n:project-vault-model"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.766Z",
+    "from": "n:verification-workflow",
+    "id": "e:4f7c05887cdd7893",
+    "kind": "edge",
+    "reason": "Future maintenance should keep using the established checks.",
+    "rel": "applies_to",
+    "to": "n:future-maintenance-priorities"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.727Z",
+    "from": "n:cli-command-surface",
+    "id": "e:6fcfa21064955700",
+    "kind": "edge",
+    "reason": "The CLI is the user-facing interface to AWG.",
+    "rel": "supports",
+    "to": "n:awg-project-purpose"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.456Z",
+    "from": "n:path-boundary-safety",
+    "id": "e:845a794c9370396a",
+    "kind": "edge",
+    "reason": "Global registry and switcher writes must remain inside ~/.awg.",
+    "rel": "applies_to",
+    "to": "n:setup-register-open-behavior"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.937Z",
+    "from": "n:instruction-install-behavior",
+    "id": "e:a9211fc9b907f274",
+    "kind": "edge",
+    "reason": "Instruction installation is an explicit CLI workflow.",
+    "rel": "part_of",
+    "to": "n:cli-command-surface"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:03.560Z",
+    "from": "n:path-boundary-safety",
+    "id": "e:c8c5a1d153fcc822",
+    "kind": "edge",
+    "reason": "Instruction patching must not write through symlinks or outside the project.",
+    "rel": "applies_to",
+    "to": "n:instruction-install-behavior"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.515Z",
+    "from": "n:compiler-architecture",
+    "id": "e:cf5431e81af8fec7",
+    "kind": "edge",
+    "reason": "The compiler turns project vault JSONL into generated graph/view artifacts.",
+    "rel": "implements",
+    "to": "n:project-vault-model"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.834Z",
+    "from": "n:setup-register-open-behavior",
+    "id": "e:d2cad9f744393468",
+    "kind": "edge",
+    "reason": "Setup/register/open are CLI workflows.",
+    "rel": "part_of",
+    "to": "n:cli-command-surface"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.620Z",
+    "from": "n:file-storage-adapter",
+    "id": "e:e07f5b9792afccff",
+    "kind": "edge",
+    "reason": "FileAwgStorage is the V1 backend for project vault reads and writes.",
+    "rel": "implements",
+    "to": "n:project-vault-model"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-12T18:43:02.411Z",
+    "from": "n:local-first-boundary",
+    "id": "e:e5a4be1da033876f",
+    "kind": "edge",
+    "reason": "The local-first constraint defines the acceptable product scope.",
+    "rel": "applies_to",
+    "to": "n:awg-project-purpose"
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "additionalProperties": true,
+  "description": "Reserved for future operation wrappers. V1 JSONL uses direct AWG objects.",
+  "type": "object"
+}

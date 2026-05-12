@@ -1,0 +1,32 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "at": {
+      "type": "string"
+    },
+    "awg": {
+      "const": "0.1"
+    },
+    "by": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "event"
+    },
+    "target": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "awg",
+    "kind",
+    "type",
+    "target",
+    "by",
+    "at"
+  ],
+  "type": "object"
+}

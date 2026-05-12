@@ -1,0 +1,31 @@
+{
+  "hashAlgorithm": "sha256",
+  "managedBy": "awg",
+  "schemas": {
+    "edge": {
+      "hash": "47ff22398b3e6504e66546ce7c2f0dcd27f3e7273f9b21829dfda95675b59041"
+    },
+    "event": {
+      "hash": "1b1c57fbb42cbb1780ec032e003a122cf02dfb2673681380e40ded70f6659b54"
+    },
+    "lens": {
+      "hash": "7ac05358ecc4c83d94817ff95dd7709b01bb3cf2b092e7353ac426d1ade2db18"
+    },
+    "node": {
+      "hash": "ca72a817708e8e32f0b78fa3c2a34237d7f21db728c343d5ce913ff8ec6e9594"
+    },
+    "operation": {
+      "hash": "08d11a3d3055bf899df5e8e6f8f750789c8813bb5ce314ebbd18661effcca464"
+    },
+    "policy": {
+      "hash": "98658a07218963e4bf27a2e6bdc4144bf1db868cc78b31231536b53df4571ff3"
+    },
+    "response": {
+      "hash": "509876d7c346e3b5c5f3c8edade4dd29a3e93760979d661ed87369becfe2ca55"
+    },
+    "view": {
+      "hash": "4943bdfad8a164a1448d7e1a62c3874af537321c00a47fa27fe2ed167b17f500"
+    }
+  },
+  "version": "0.1"
+}

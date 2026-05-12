@@ -1,0 +1,86 @@
+{
+  "agents": [
+    "n:instruction-install-behavior"
+  ],
+  "architecture": [
+    "n:cli-command-surface",
+    "n:compiler-architecture",
+    "n:file-storage-adapter"
+  ],
+  "awg": [
+    "n:awg-project-purpose"
+  ],
+  "cli": [
+    "n:cli-command-surface"
+  ],
+  "compatibility": [
+    "n:upgrade-behavior"
+  ],
+  "compiler": [
+    "n:compiler-architecture"
+  ],
+  "current-state": [
+    "n:current-repo-state"
+  ],
+  "diagnostics": [
+    "n:diagnostic-model"
+  ],
+  "filesystem": [
+    "n:path-boundary-safety"
+  ],
+  "future": [
+    "n:future-maintenance-priorities"
+  ],
+  "git": [
+    "n:current-repo-state"
+  ],
+  "instructions": [
+    "n:instruction-install-behavior"
+  ],
+  "local-first": [
+    "n:local-first-boundary"
+  ],
+  "maintenance": [
+    "n:future-maintenance-priorities"
+  ],
+  "purpose": [
+    "n:awg-project-purpose"
+  ],
+  "registry": [
+    "n:global-registry-model"
+  ],
+  "schema": [
+    "n:schema-management"
+  ],
+  "scope": [
+    "n:local-first-boundary"
+  ],
+  "security": [
+    "n:path-boundary-safety"
+  ],
+  "setup": [
+    "n:global-registry-model",
+    "n:setup-register-open-behavior"
+  ],
+  "storage": [
+    "n:file-storage-adapter",
+    "n:project-vault-model"
+  ],
+  "upgrade": [
+    "n:upgrade-behavior"
+  ],
+  "validation": [
+    "n:diagnostic-model",
+    "n:schema-management"
+  ],
+  "vault": [
+    "n:project-vault-model"
+  ],
+  "verification": [
+    "n:verification-workflow"
+  ],
+  "workflow": [
+    "n:setup-register-open-behavior",
+    "n:verification-workflow"
+  ]
+}
