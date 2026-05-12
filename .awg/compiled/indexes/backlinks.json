@@ -31,6 +31,18 @@
       "to": "n:awg-project-purpose"
     }
   ],
+  "n:awg-v13-human-surface-framework": [
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T21:30:00.000Z",
+      "from": "n:viewer-section-formatting-demo",
+      "id": "e:n:viewer-section-formatting-demo:relates_to:n:awg-v13-human-surface-framework",
+      "kind": "edge",
+      "reason": "Demo node exercises the V1.3 node detail surface.",
+      "rel": "relates_to",
+      "to": "n:awg-v13-human-surface-framework"
+    }
+  ],
   "n:cli-command-surface": [
     {
       "awg": "0.1",
@@ -95,6 +107,16 @@
       "reason": "Future maintenance should keep using the established checks.",
       "rel": "applies_to",
       "to": "n:future-maintenance-priorities"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T19:13:03.701Z",
+      "from": "n:awg-v13-human-surface-framework",
+      "id": "e:f8d62cacd34f3617",
+      "kind": "edge",
+      "reason": "V1.3 creates the viewer foundation for future theme and block work.",
+      "rel": "relates_to",
+      "to": "n:future-maintenance-priorities"
     }
   ],
   "n:instruction-install-behavior": [
@@ -119,6 +141,74 @@
       "reason": "Maintenance priorities preserve AWG's local-first scope.",
       "rel": "supports",
       "to": "n:local-first-boundary"
+    }
+  ],
+  "n:overview-ui-demo-blocked-release": [
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T22:46:43.692Z",
+      "from": "n:overview-ui-demo-risk-scale",
+      "id": "e:1ee06f36efa27f33",
+      "kind": "edge",
+      "reason": "The scale risk blocks release confidence until overview section behavior is reviewed.",
+      "rel": "blocks",
+      "to": "n:overview-ui-demo-blocked-release"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T22:47:28.212Z",
+      "from": "n:overview-ui-demo-review-copy",
+      "id": "e:dd532759a848b5ca",
+      "kind": "edge",
+      "reason": "Copy review is part of the blocked overview release inspection.",
+      "rel": "relates_to",
+      "to": "n:overview-ui-demo-blocked-release"
+    }
+  ],
+  "n:overview-ui-demo-decision-actions": [
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T22:46:43.836Z",
+      "from": "n:overview-ui-demo-risk-duplicates",
+      "id": "e:026529a42838bc2b",
+      "kind": "edge",
+      "reason": "Duplicate overview signals affect where actions and drilldowns should live.",
+      "rel": "relates_to",
+      "to": "n:overview-ui-demo-decision-actions"
+    }
+  ],
+  "n:overview-ui-demo-decision-density": [
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T22:46:43.842Z",
+      "from": "n:overview-ui-demo-question-agent-recipes",
+      "id": "e:33cd2f1b708a270e",
+      "kind": "edge",
+      "reason": "Recipe ranking should inform overview density decisions.",
+      "rel": "relates_to",
+      "to": "n:overview-ui-demo-decision-density"
+    }
+  ],
+  "n:overview-ui-demo-question-priority": [
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T22:47:28.211Z",
+      "from": "n:overview-ui-demo-question-agent-recipes",
+      "id": "e:842c0cefb13e40f6",
+      "kind": "edge",
+      "reason": "Both questions exercise the open-question overview UI.",
+      "rel": "relates_to",
+      "to": "n:overview-ui-demo-question-priority"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-12T22:46:43.693Z",
+      "from": "n:overview-ui-demo-decision-density",
+      "id": "e:e683d7f34705e3a0",
+      "kind": "edge",
+      "reason": "The density decision depends on what belongs in the curated overview.",
+      "rel": "relates_to",
+      "to": "n:overview-ui-demo-question-priority"
     }
   ],
   "n:project-vault-model": [

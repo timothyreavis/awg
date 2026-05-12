@@ -1,17 +1,42 @@
 {
   "awg": "0.1",
-  "diagnostics": [],
-  "generated_at": "2026-05-12T18:43:13.304Z",
+  "diagnostics": [
+    {
+      "code": "unanswered_question",
+      "id": "n:overview-ui-demo-question-agent-recipes",
+      "message": "Question is still open: n:overview-ui-demo-question-agent-recipes",
+      "severity": "warning"
+    },
+    {
+      "code": "unanswered_question",
+      "id": "n:overview-ui-demo-question-priority",
+      "message": "Question is still open: n:overview-ui-demo-question-priority",
+      "severity": "warning"
+    },
+    {
+      "code": "stale_node",
+      "id": "n:viewer-section-formatting-demo",
+      "message": "Node review_after is past: n:viewer-section-formatting-demo",
+      "severity": "warning"
+    },
+    {
+      "code": "low_confidence_active",
+      "id": "n:viewer-section-formatting-demo",
+      "message": "Active node has low confidence: n:viewer-section-formatting-demo",
+      "severity": "warning"
+    }
+  ],
+  "generated_at": "2026-05-12T23:52:20.223Z",
   "summary": {
     "dangling_edge_count": 0,
-    "edge_count": 18,
+    "edge_count": 26,
     "fatal_error_count": 0,
-    "node_count": 16,
+    "node_count": 26,
     "ok": true,
     "orphan_node_count": 0,
-    "stale_node_count": 0,
-    "unanswered_question_count": 0,
+    "stale_node_count": 1,
+    "unanswered_question_count": 2,
     "unverified_completion_count": 0,
-    "warning_count": 0
+    "warning_count": 4
   }
 }

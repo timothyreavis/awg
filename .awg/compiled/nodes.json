@@ -25,6 +25,29 @@
   },
   {
     "awg": "0.1",
+    "confidence": 0.85,
+    "created_at": "2026-05-12T19:13:21.374Z",
+    "id": "n:awg-v13-human-surface-framework",
+    "importance": 0.9,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "resolved",
+    "summary": "Implemented static hash-routed viewer surfaces, tokenized light/dark themes, reusable primitives, query helpers, Kanban, graph, node detail, health, views, tests, and docs.",
+    "tags": [
+      "viewer",
+      "v1.3"
+    ],
+    "title": "AWG V1.3 human surface framework",
+    "type": "task",
+    "updated_at": "2026-05-12T19:13:21.374Z"
+  },
+  {
+    "awg": "0.1",
     "body": "src/cli/index.ts dispatches commands. add supports node/edge/response. build/validate/doctor/lens/view wrap compiler outputs. open prints or launches static viewer files and supports --global/--no-launch. setup/register/vault manage the global registry. instructions installs managed agent snippets. upgrade updates project vault scaffolding and instruction blocks.",
     "confidence": 0.95,
     "created_at": "2026-05-12T18:42:28.389Z",
@@ -241,6 +264,190 @@
   },
   {
     "awg": "0.1",
+    "confidence": 0.74,
+    "created_at": "2026-05-12T22:46:17.109Z",
+    "id": "n:overview-ui-demo-blocked-release",
+    "importance": 0.88,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "blocked",
+    "summary": "Release review is blocked until the overview sections have populated UI states for visual inspection.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: unblock viewer release",
+    "type": "task",
+    "updated_at": "2026-05-12T22:46:17.109Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.62,
+    "created_at": "2026-05-12T22:46:31.307Z",
+    "id": "n:overview-ui-demo-decision-actions",
+    "importance": 0.71,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "needs_review",
+    "summary": "Choose whether node-level actions should appear in overview rows or remain only on detail pages.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: decide action placement",
+    "type": "decision",
+    "updated_at": "2026-05-12T22:46:31.307Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.66,
+    "created_at": "2026-05-12T22:46:17.108Z",
+    "id": "n:overview-ui-demo-decision-density",
+    "importance": 0.82,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "proposed",
+    "summary": "Decide whether overview review blocks should stay as full-width editorial sections or become compact paired rows for small data sets.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: choose overview density",
+    "type": "decision",
+    "updated_at": "2026-05-12T22:46:17.108Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.61,
+    "created_at": "2026-05-12T22:46:31.444Z",
+    "id": "n:overview-ui-demo-question-agent-recipes",
+    "importance": 0.74,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Agent-generated view recipes need deterministic ranking so the overview surfaces the most useful items first.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: how should recipes rank items?",
+    "type": "question",
+    "updated_at": "2026-05-12T22:46:31.444Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.58,
+    "created_at": "2026-05-12T22:46:17.114Z",
+    "id": "n:overview-ui-demo-question-priority",
+    "importance": 0.76,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "needs_review",
+    "summary": "Clarify which agent-surfaced items are important enough for the curated overview instead of the health, graph, or node browser routes.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: what belongs on the overview?",
+    "type": "question",
+    "updated_at": "2026-05-12T22:46:17.114Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.69,
+    "created_at": "2026-05-12T22:46:31.303Z",
+    "id": "n:overview-ui-demo-review-copy",
+    "importance": 0.73,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "needs_review",
+    "summary": "Needs review because section labels and summaries should be glanceable without reading raw node metadata.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: review overview copy",
+    "type": "task",
+    "updated_at": "2026-05-12T22:46:31.303Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.78,
+    "created_at": "2026-05-12T22:46:31.437Z",
+    "id": "n:overview-ui-demo-risk-duplicates",
+    "importance": 0.84,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "blocked",
+    "summary": "Health, attention, and diagnostic summaries can repeat the same signal unless overview curation stays strict.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: duplicate signals crowd overview",
+    "type": "risk",
+    "updated_at": "2026-05-12T22:46:31.437Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.7,
+    "created_at": "2026-05-12T22:46:17.118Z",
+    "id": "n:overview-ui-demo-risk-scale",
+    "importance": 0.79,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "active",
+    "summary": "Dynamic agent-surfaced sections can grow quickly, so the UI needs dense rows, clear hierarchy, and strong drilldowns.",
+    "tags": [
+      "demo",
+      "overview"
+    ],
+    "title": "Demo: overview sections may overfill",
+    "type": "risk",
+    "updated_at": "2026-05-12T22:46:17.118Z"
+  },
+  {
+    "awg": "0.1",
     "body": "Recent hardening added component-wise lstat checks for init, upgrade, instruction installation, global registry writes, and global switcher writes. Tests cover symlinked root instruction files, schema files, managed parent directories, global registry files, and global compiled directories. Preserve this boundary when adding new write paths.",
     "confidence": 0.95,
     "created_at": "2026-05-12T18:42:28.810Z",
@@ -382,5 +589,46 @@
     "title": "Verification workflow",
     "type": "process",
     "updated_at": "2026-05-12T18:42:29.123Z"
+  },
+  {
+    "awg": "0.1",
+    "confidence": 0.32,
+    "created_at": "2026-05-12T19:00:00.000Z",
+    "evidence": [
+      {
+        "label": "Browser verification",
+        "source": "local viewer route #/node/n:future-maintenance-priorities",
+        "summary": "Confirmed the relationship section renders dense rows without the summary rail."
+      },
+      {
+        "label": "Test suite",
+        "source": "npm test",
+        "summary": "npm test passes all 82 tests after node detail changes."
+      },
+      {
+        "label": "Static build",
+        "source": "awg build",
+        "summary": "Regenerated the static viewer and example viewer without syntax errors."
+      }
+    ],
+    "id": "n:viewer-section-formatting-demo",
+    "importance": 0.72,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "review_after": "2026-01-01T00:00:00.000Z",
+    "status": "active",
+    "summary": "Exercise populated evidence, health, activity, and relationship sections in the node detail surface.",
+    "tags": [
+      "viewer",
+      "demo"
+    ],
+    "title": "Viewer section formatting demo",
+    "type": "task",
+    "updated_at": "2026-05-12T21:30:00.000Z"
   }
 ]

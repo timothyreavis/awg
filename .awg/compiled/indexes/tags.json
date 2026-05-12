@@ -22,6 +22,17 @@
   "current-state": [
     "n:current-repo-state"
   ],
+  "demo": [
+    "n:overview-ui-demo-blocked-release",
+    "n:overview-ui-demo-decision-actions",
+    "n:overview-ui-demo-decision-density",
+    "n:overview-ui-demo-question-agent-recipes",
+    "n:overview-ui-demo-question-priority",
+    "n:overview-ui-demo-review-copy",
+    "n:overview-ui-demo-risk-duplicates",
+    "n:overview-ui-demo-risk-scale",
+    "n:viewer-section-formatting-demo"
+  ],
   "diagnostics": [
     "n:diagnostic-model"
   ],
@@ -42,6 +53,16 @@
   ],
   "maintenance": [
     "n:future-maintenance-priorities"
+  ],
+  "overview": [
+    "n:overview-ui-demo-blocked-release",
+    "n:overview-ui-demo-decision-actions",
+    "n:overview-ui-demo-decision-density",
+    "n:overview-ui-demo-question-agent-recipes",
+    "n:overview-ui-demo-question-priority",
+    "n:overview-ui-demo-review-copy",
+    "n:overview-ui-demo-risk-duplicates",
+    "n:overview-ui-demo-risk-scale"
   ],
   "purpose": [
     "n:awg-project-purpose"
@@ -69,6 +90,9 @@
   "upgrade": [
     "n:upgrade-behavior"
   ],
+  "v1.3": [
+    "n:awg-v13-human-surface-framework"
+  ],
   "validation": [
     "n:diagnostic-model",
     "n:schema-management"
@@ -78,6 +102,10 @@
   ],
   "verification": [
     "n:verification-workflow"
+  ],
+  "viewer": [
+    "n:awg-v13-human-surface-framework",
+    "n:viewer-section-formatting-demo"
   ],
   "workflow": [
     "n:setup-register-open-behavior",

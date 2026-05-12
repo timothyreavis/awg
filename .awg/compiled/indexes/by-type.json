@@ -16,13 +16,29 @@
     "n:local-first-boundary",
     "n:path-boundary-safety"
   ],
+  "decision": [
+    "n:overview-ui-demo-decision-actions",
+    "n:overview-ui-demo-decision-density"
+  ],
   "process": [
     "n:instruction-install-behavior",
     "n:setup-register-open-behavior",
     "n:upgrade-behavior",
     "n:verification-workflow"
   ],
+  "question": [
+    "n:overview-ui-demo-question-agent-recipes",
+    "n:overview-ui-demo-question-priority"
+  ],
+  "risk": [
+    "n:overview-ui-demo-risk-duplicates",
+    "n:overview-ui-demo-risk-scale"
+  ],
   "task": [
-    "n:future-maintenance-priorities"
+    "n:awg-v13-human-surface-framework",
+    "n:future-maintenance-priorities",
+    "n:overview-ui-demo-blocked-release",
+    "n:overview-ui-demo-review-copy",
+    "n:viewer-section-formatting-demo"
   ]
 }

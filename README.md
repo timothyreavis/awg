@@ -53,6 +53,19 @@ awg open
 
 No server is required.
 
+The generated viewer is a tokenized, hash-routed human surface:
+
+- `#/overview` for curated current focus and attention
+- `#/graph` for focused relationship traversal
+- `#/kanban` for read-only workflow review
+- `#/nodes` for searchable node browsing
+- `#/node/<id>` for node inspection
+- `#/health` for diagnostics and graph hygiene
+- `#/views` for compiled/generated view blocks
+- `#/settings` for local UI preferences
+
+Themes are CSS-variable based. AWG ships light and dark themes, defaults to system preference, and stores the selected theme in `localStorage`.
+
 ## Project Vaults and Global Registry
 
 Each project keeps its canonical AWG vault at:
@@ -183,6 +196,25 @@ AWG Core V1 has seven primitive object kinds:
 - `policy`
 
 Nodes represent durable units of meaning. Edges represent typed relationships between nodes. Events and responses preserve history and feedback. Views and lenses define generated presentation and agent context. Policies preserve maintenance rules.
+
+## Viewer Surface Model
+
+The static viewer uses reusable UI primitives rather than one-off pages:
+
+- surfaces
+- blocks
+- cards
+- badges and chips
+- graph neighborhoods
+- boards
+- details
+- non-mutating actions
+
+The overview is curated, the graph is exploratory, Kanban is operational, node detail is inspectable, and every summary item should link deeper when possible. Styling is tokenized through CSS variables for semantic, status, diagnostic, and component colors.
+
+The internal block renderer supports safe known block types such as briefs, metric rows, attention lists, node lists/tables, decision/risk/question reviews, evidence and diagnostic lists, Kanban boards, graph neighborhoods, and raw JSON. Unsupported blocks render a clear fallback plus raw data. Future plugin/block rendering is planned, but AWG does not execute arbitrary plugin code, HTML, JavaScript, or agent-provided scripts.
+
+See `docs/spec/awg-viewer-surface.md` for the route model, token system, static limitations, and future plugin boundary.
 
 ## Compiler
 

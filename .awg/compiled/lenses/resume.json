@@ -1,5 +1,52 @@
 {
-  "active_risks": [],
+  "active_risks": [
+    {
+      "awg": "0.1",
+      "confidence": 0.78,
+      "created_at": "2026-05-12T22:46:31.437Z",
+      "id": "n:overview-ui-demo-risk-duplicates",
+      "importance": 0.84,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "blocked",
+      "summary": "Health, attention, and diagnostic summaries can repeat the same signal unless overview curation stays strict.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: duplicate signals crowd overview",
+      "type": "risk",
+      "updated_at": "2026-05-12T22:46:31.437Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.7,
+      "created_at": "2026-05-12T22:46:17.118Z",
+      "id": "n:overview-ui-demo-risk-scale",
+      "importance": 0.79,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "active",
+      "summary": "Dynamic agent-surfaced sections can grow quickly, so the UI needs dense rows, clear hierarchy, and strong drilldowns.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: overview sections may overfill",
+      "type": "risk",
+      "updated_at": "2026-05-12T22:46:17.118Z"
+    }
+  ],
   "active_tasks": [
     {
       "awg": "0.1",
@@ -24,22 +71,109 @@
       "title": "Future maintenance priorities",
       "type": "task",
       "updated_at": "2026-05-12T18:42:29.372Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.74,
+      "created_at": "2026-05-12T22:46:17.109Z",
+      "id": "n:overview-ui-demo-blocked-release",
+      "importance": 0.88,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "blocked",
+      "summary": "Release review is blocked until the overview sections have populated UI states for visual inspection.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: unblock viewer release",
+      "type": "task",
+      "updated_at": "2026-05-12T22:46:17.109Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.69,
+      "created_at": "2026-05-12T22:46:31.303Z",
+      "id": "n:overview-ui-demo-review-copy",
+      "importance": 0.73,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "needs_review",
+      "summary": "Needs review because section labels and summaries should be glanceable without reading raw node metadata.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: review overview copy",
+      "type": "task",
+      "updated_at": "2026-05-12T22:46:31.303Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.32,
+      "created_at": "2026-05-12T19:00:00.000Z",
+      "evidence": [
+        {
+          "label": "Browser verification",
+          "source": "local viewer route #/node/n:future-maintenance-priorities",
+          "summary": "Confirmed the relationship section renders dense rows without the summary rail."
+        },
+        {
+          "label": "Test suite",
+          "source": "npm test",
+          "summary": "npm test passes all 82 tests after node detail changes."
+        },
+        {
+          "label": "Static build",
+          "source": "awg build",
+          "summary": "Regenerated the static viewer and example viewer without syntax errors."
+        }
+      ],
+      "id": "n:viewer-section-formatting-demo",
+      "importance": 0.72,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "review_after": "2026-01-01T00:00:00.000Z",
+      "status": "active",
+      "summary": "Exercise populated evidence, health, activity, and relationship sections in the node detail surface.",
+      "tags": [
+        "viewer",
+        "demo"
+      ],
+      "title": "Viewer section formatting demo",
+      "type": "task",
+      "updated_at": "2026-05-12T21:30:00.000Z"
     }
   ],
   "awg": "0.1",
   "diagnostics_summary": {
     "dangling_edge_count": 0,
-    "edge_count": 18,
+    "edge_count": 26,
     "fatal_error_count": 0,
-    "node_count": 16,
+    "node_count": 26,
     "ok": true,
     "orphan_node_count": 0,
-    "stale_node_count": 0,
-    "unanswered_question_count": 0,
+    "stale_node_count": 1,
+    "unanswered_question_count": 2,
     "unverified_completion_count": 0,
-    "warning_count": 0
+    "warning_count": 4
   },
-  "generated_at": "2026-05-12T18:43:13.304Z",
+  "generated_at": "2026-05-12T23:52:20.223Z",
   "id": "lens:resume",
   "important": [
     {
@@ -65,6 +199,29 @@
       "title": "AWG project purpose",
       "type": "concept",
       "updated_at": "2026-05-12T18:42:27.748Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.85,
+      "created_at": "2026-05-12T19:13:21.374Z",
+      "id": "n:awg-v13-human-surface-framework",
+      "importance": 0.9,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "resolved",
+      "summary": "Implemented static hash-routed viewer surfaces, tokenized light/dark themes, reusable primitives, query helpers, Kanban, graph, node detail, health, views, tests, and docs.",
+      "tags": [
+        "viewer",
+        "v1.3"
+      ],
+      "title": "AWG V1.3 human surface framework",
+      "type": "task",
+      "updated_at": "2026-05-12T19:13:21.374Z"
     },
     {
       "awg": "0.1",
@@ -284,6 +441,190 @@
     },
     {
       "awg": "0.1",
+      "confidence": 0.74,
+      "created_at": "2026-05-12T22:46:17.109Z",
+      "id": "n:overview-ui-demo-blocked-release",
+      "importance": 0.88,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "blocked",
+      "summary": "Release review is blocked until the overview sections have populated UI states for visual inspection.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: unblock viewer release",
+      "type": "task",
+      "updated_at": "2026-05-12T22:46:17.109Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.62,
+      "created_at": "2026-05-12T22:46:31.307Z",
+      "id": "n:overview-ui-demo-decision-actions",
+      "importance": 0.71,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "needs_review",
+      "summary": "Choose whether node-level actions should appear in overview rows or remain only on detail pages.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: decide action placement",
+      "type": "decision",
+      "updated_at": "2026-05-12T22:46:31.307Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.66,
+      "created_at": "2026-05-12T22:46:17.108Z",
+      "id": "n:overview-ui-demo-decision-density",
+      "importance": 0.82,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "proposed",
+      "summary": "Decide whether overview review blocks should stay as full-width editorial sections or become compact paired rows for small data sets.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: choose overview density",
+      "type": "decision",
+      "updated_at": "2026-05-12T22:46:17.108Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.61,
+      "created_at": "2026-05-12T22:46:31.444Z",
+      "id": "n:overview-ui-demo-question-agent-recipes",
+      "importance": 0.74,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "active",
+      "summary": "Agent-generated view recipes need deterministic ranking so the overview surfaces the most useful items first.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: how should recipes rank items?",
+      "type": "question",
+      "updated_at": "2026-05-12T22:46:31.444Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.58,
+      "created_at": "2026-05-12T22:46:17.114Z",
+      "id": "n:overview-ui-demo-question-priority",
+      "importance": 0.76,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "needs_review",
+      "summary": "Clarify which agent-surfaced items are important enough for the curated overview instead of the health, graph, or node browser routes.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: what belongs on the overview?",
+      "type": "question",
+      "updated_at": "2026-05-12T22:46:17.114Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.69,
+      "created_at": "2026-05-12T22:46:31.303Z",
+      "id": "n:overview-ui-demo-review-copy",
+      "importance": 0.73,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "needs_review",
+      "summary": "Needs review because section labels and summaries should be glanceable without reading raw node metadata.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: review overview copy",
+      "type": "task",
+      "updated_at": "2026-05-12T22:46:31.303Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.78,
+      "created_at": "2026-05-12T22:46:31.437Z",
+      "id": "n:overview-ui-demo-risk-duplicates",
+      "importance": 0.84,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "blocked",
+      "summary": "Health, attention, and diagnostic summaries can repeat the same signal unless overview curation stays strict.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: duplicate signals crowd overview",
+      "type": "risk",
+      "updated_at": "2026-05-12T22:46:31.437Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.7,
+      "created_at": "2026-05-12T22:46:17.118Z",
+      "id": "n:overview-ui-demo-risk-scale",
+      "importance": 0.79,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "active",
+      "summary": "Dynamic agent-surfaced sections can grow quickly, so the UI needs dense rows, clear hierarchy, and strong drilldowns.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: overview sections may overfill",
+      "type": "risk",
+      "updated_at": "2026-05-12T22:46:17.118Z"
+    },
+    {
+      "awg": "0.1",
       "body": "Recent hardening added component-wise lstat checks for init, upgrade, instruction installation, global registry writes, and global switcher writes. Tests cover symlinked root instruction files, schema files, managed parent directories, global registry files, and global compiled directories. Preserve this boundary when adding new write paths.",
       "confidence": 0.95,
       "created_at": "2026-05-12T18:42:28.810Z",
@@ -305,143 +646,209 @@
       "title": "Path-boundary and symlink safety",
       "type": "constraint",
       "updated_at": "2026-05-12T18:42:28.810Z"
-    },
-    {
-      "awg": "0.1",
-      "body": "Canonical input lives under .awg/log/YYYY/MM/YYYY-MM-DD.awg.jsonl. Project config is .awg/config.json. Core schema overrides live under .awg/schema/core. Generated outputs include .awg/compiled/graph.json, indexes, lenses/resume.json, views/current.json, reports/diagnostics.json, and static site files.",
-      "confidence": 0.95,
-      "created_at": "2026-05-12T18:42:27.966Z",
-      "id": "n:project-vault-model",
-      "importance": 0.95,
-      "kind": "node",
-      "provenance": {
-        "created_by": "agent:codex",
-        "human_approved": false,
-        "source": "agent_generated",
-        "updated_by": "agent:codex"
-      },
-      "status": "active",
-      "summary": "Each project owns its canonical AWG vault at project/.awg; compiled outputs are generated artifacts under .awg/compiled.",
-      "tags": [
-        "storage",
-        "vault"
-      ],
-      "title": "Project vault model",
-      "type": "concept",
-      "updated_at": "2026-05-12T18:42:27.966Z"
-    },
-    {
-      "awg": "0.1",
-      "body": "schemaForFile/schemaBodyForFile produce default core schemas. .awg/schema/core/.awg-managed.json stores AWG-managed schema hashes. Upgrade uses manifest hashes plus known V1 schema hashes to update stale AWG-managed schemas, while preserving differing custom schemas for manual review. Runtime validation reads project schema overrides.",
-      "confidence": 0.95,
-      "created_at": "2026-05-12T18:42:28.915Z",
-      "id": "n:schema-management",
-      "importance": 0.9,
-      "kind": "node",
-      "provenance": {
-        "created_by": "agent:codex",
-        "human_approved": false,
-        "source": "agent_generated",
-        "updated_by": "agent:codex"
-      },
-      "status": "active",
-      "summary": "Core schemas are packaged defaults but project schemas may be customized and are active validation inputs.",
-      "tags": [
-        "schema",
-        "validation"
-      ],
-      "title": "Schema management model",
-      "type": "concept",
-      "updated_at": "2026-05-12T18:42:28.915Z"
-    },
-    {
-      "awg": "0.1",
-      "body": "setup is rerunnable and does not enable networking or daemons. init registers the project by default when ~/.awg exists. register/unregister operate on the current vault or explicit path. vault list/info report registration and cheap health/build state. open inside a project targets the project viewer; outside a project or with --global it generates a static switcher under ~/.awg/compiled/switcher.",
-      "confidence": 0.95,
-      "created_at": "2026-05-12T18:42:28.496Z",
-      "id": "n:setup-register-open-behavior",
-      "importance": 0.85,
-      "kind": "node",
-      "provenance": {
-        "created_by": "agent:codex",
-        "human_approved": false,
-        "source": "agent_generated",
-        "updated_by": "agent:codex"
-      },
-      "status": "active",
-      "summary": "Use awg setup --yes to create ~/.awg, awg init/register to attach project vaults, and awg open --no-launch when automation must not open a browser.",
-      "tags": [
-        "setup",
-        "workflow"
-      ],
-      "title": "Setup, registration, and open behavior",
-      "type": "process",
-      "updated_at": "2026-05-12T18:42:28.496Z"
-    },
-    {
-      "awg": "0.1",
-      "body": "Upgrade updates config defaults, creates missing packaged schemas, preserves customized project schemas, creates missing .awg/AGENTS.md, and optionally updates instruction packs. It uses schema manifest/hash logic to update AWG-managed stale schemas while preserving user-customized schema files. --json output must remain pure JSON even when instructions are involved.",
-      "confidence": 0.95,
-      "created_at": "2026-05-12T18:42:28.705Z",
-      "id": "n:upgrade-behavior",
-      "importance": 0.95,
-      "kind": "node",
-      "provenance": {
-        "created_by": "agent:codex",
-        "human_approved": false,
-        "source": "agent_generated",
-        "updated_by": "agent:codex"
-      },
-      "status": "active",
-      "summary": "awg upgrade updates the current vault; awg upgrade --all updates registered vaults without merging project knowledge.",
-      "tags": [
-        "upgrade",
-        "compatibility"
-      ],
-      "title": "Upgrade behavior",
-      "type": "process",
-      "updated_at": "2026-05-12T18:42:28.705Z"
-    },
-    {
-      "awg": "0.1",
-      "body": "Recent V1.1 work was verified with git diff --check, npm run typecheck, npm test, CLI smoke in temp HOME/project, and npm pack --dry-run --json. For open/browser behavior in automation, prefer awg open --no-launch or AWG_NO_OPEN=1 to avoid opening the user’s browser.",
-      "confidence": 0.95,
-      "created_at": "2026-05-12T18:42:29.123Z",
-      "id": "n:verification-workflow",
-      "importance": 0.9,
-      "kind": "node",
-      "provenance": {
-        "created_by": "agent:codex",
-        "human_approved": false,
-        "source": "agent_generated",
-        "updated_by": "agent:codex"
-      },
-      "status": "active",
-      "summary": "Before finishing meaningful code changes, run npm run typecheck, npm test, CLI smoke where relevant, npm pack --dry-run --json, awg build, and awg doctor.",
-      "tags": [
-        "verification",
-        "workflow"
-      ],
-      "title": "Verification workflow",
-      "type": "process",
-      "updated_at": "2026-05-12T18:42:29.123Z"
     }
   ],
   "kind": "lens-output",
-  "open_decisions": [],
-  "recent_responses": [
+  "open_decisions": [
     {
-      "at": "2026-05-12T18:43:13.304Z",
       "awg": "0.1",
-      "by": "human",
-      "id": "r:a0b681c5-da0",
-      "kind": "response",
-      "summary": "Human requested that AWG be filled with project and codebase context useful for future agents and human users.",
-      "target": "n:future-maintenance-priorities",
-      "type": "instruction"
+      "confidence": 0.62,
+      "created_at": "2026-05-12T22:46:31.307Z",
+      "id": "n:overview-ui-demo-decision-actions",
+      "importance": 0.71,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "needs_review",
+      "summary": "Choose whether node-level actions should appear in overview rows or remain only on detail pages.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: decide action placement",
+      "type": "decision",
+      "updated_at": "2026-05-12T22:46:31.307Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.66,
+      "created_at": "2026-05-12T22:46:17.108Z",
+      "id": "n:overview-ui-demo-decision-density",
+      "importance": 0.82,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "proposed",
+      "summary": "Decide whether overview review blocks should stay as full-width editorial sections or become compact paired rows for small data sets.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: choose overview density",
+      "type": "decision",
+      "updated_at": "2026-05-12T22:46:17.108Z"
     }
   ],
-  "recommended_maintenance": [],
-  "summary": "16 nodes, 18 edges, 0 warnings, 0 fatal errors.",
-  "unanswered_questions": []
+  "recent_responses": [
+    {
+      "at": "2026-05-12T23:52:20.223Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:7c813fbf-663",
+      "kind": "response",
+      "summary": "Subagent review loop completed for the V1.3 human surface framework. Valid findings fixed: mobile media CSS, needs-attention and open decision/question drilldowns, missing graph focus handling, symlink-safe compiled reads/open behavior, generated viewer parity, and regression tests. Remaining architecture notes are intentionally deferred: stricter view block schema contracts, deeper source/runtime helper unification, and splitting monolithic viewer assets before adding many more themes.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "review-summary"
+    },
+    {
+      "at": "2026-05-12T23:23:59.419Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:d2e307e2-6d9",
+      "kind": "response",
+      "summary": "Removed secondary labels from overview section headers, including subtitles and the item/count label, and compacted the header height to match the simpler structure.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T23:16:41.565Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:48489d4a-c8f",
+      "kind": "response",
+      "summary": "Changed overview review rows to use globally synchronized dynamic metadata columns: fixed marker column, flexible title column, and measured status/type/score/health/tag columns that shrink to content while staying aligned across all overview sections.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T23:13:00.360Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:bbbef998-3d1",
+      "kind": "response",
+      "summary": "Adjusted overview review row marker spacing so status dots sit evenly between the left row edge and the row text.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T23:11:26.296Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:88459498-f4c",
+      "kind": "response",
+      "summary": "Shortened the visible needs_review status label to 'review' in viewer badges and centered overview status badges inside their fixed row column.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T23:08:18.801Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:5542a111-fe6",
+      "kind": "response",
+      "summary": "Removed Resume Lens Preview from the overview route because its useful data is already transformed into curated overview sections; the lens remains available through the Views route.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T23:06:10.815Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:3f9d58b3-6f4",
+      "kind": "response",
+      "summary": "Aligned overview review row metadata into fixed status/type/score/health/tag columns, matched row markers to status badge colors, and applied the same overview surface treatment to Recently Completed and Resume Lens Preview blocks.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T22:57:54.648Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:8a1b52e4-e4b",
+      "kind": "response",
+      "summary": "Reworked overview review blocks to use full-width inspection sections with header counts, dense clickable rows, status markers, compact metadata, human-readable status labels, and responsive row behavior instead of generic stacked node cards.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T22:48:12.135Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:16607e24-8c7",
+      "kind": "response",
+      "summary": "Added overview UI demo nodes for Attention Required, Open Decisions, Active Risks, and Open Questions, with representative statuses and relationships so the generated current view renders populated review sections.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    },
+    {
+      "at": "2026-05-12T22:44:08.197Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:a335b53c-5d0",
+      "kind": "response",
+      "summary": "Made the graph canvas fill the graph card body by removing the inner canvas padding, border, and radius while keeping toolbar and footer attached to the same surface.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "implementation-note"
+    }
+  ],
+  "recommended_maintenance": [
+    "Review stale nodes and update freshness metadata."
+  ],
+  "summary": "26 nodes, 26 edges, 4 warnings, 0 fatal errors.",
+  "unanswered_questions": [
+    {
+      "awg": "0.1",
+      "confidence": 0.61,
+      "created_at": "2026-05-12T22:46:31.444Z",
+      "id": "n:overview-ui-demo-question-agent-recipes",
+      "importance": 0.74,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "active",
+      "summary": "Agent-generated view recipes need deterministic ranking so the overview surfaces the most useful items first.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: how should recipes rank items?",
+      "type": "question",
+      "updated_at": "2026-05-12T22:46:31.444Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.58,
+      "created_at": "2026-05-12T22:46:17.114Z",
+      "id": "n:overview-ui-demo-question-priority",
+      "importance": 0.76,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "needs_review",
+      "summary": "Clarify which agent-surfaced items are important enough for the curated overview instead of the health, graph, or node browser routes.",
+      "tags": [
+        "demo",
+        "overview"
+      ],
+      "title": "Demo: what belongs on the overview?",
+      "type": "question",
+      "updated_at": "2026-05-12T22:46:17.114Z"
+    }
+  ]
 }

@@ -124,7 +124,7 @@ function generatedAtFor(parsed: Array<{ object?: AwgObject }>): string {
 
 async function writeCompiled(storage: AwgStorage, graph: CompiledGraph, diagnostics: CompiledGraph["diagnostics"], resumeLens: unknown, currentView: unknown): Promise<void> {
   await writeGraphArtifacts(storage, graph);
-  const site = renderStaticSite(graph, currentView as never, diagnostics);
+  const site = renderStaticSite(graph, currentView as never, diagnostics, resumeLens as never);
   await storage.writeCompiledArtifact("lenses/resume.json", resumeLens as object);
   await storage.writeCompiledArtifact("views/current.json", currentView as object);
   await storage.writeCompiledArtifact("reports/diagnostics.json", diagnostics);

@@ -10,11 +10,29 @@
     "n:global-registry-model",
     "n:instruction-install-behavior",
     "n:local-first-boundary",
+    "n:overview-ui-demo-question-agent-recipes",
+    "n:overview-ui-demo-risk-scale",
     "n:path-boundary-safety",
     "n:project-vault-model",
     "n:schema-management",
     "n:setup-register-open-behavior",
     "n:upgrade-behavior",
-    "n:verification-workflow"
+    "n:verification-workflow",
+    "n:viewer-section-formatting-demo"
+  ],
+  "blocked": [
+    "n:overview-ui-demo-blocked-release",
+    "n:overview-ui-demo-risk-duplicates"
+  ],
+  "needs_review": [
+    "n:overview-ui-demo-decision-actions",
+    "n:overview-ui-demo-question-priority",
+    "n:overview-ui-demo-review-copy"
+  ],
+  "proposed": [
+    "n:overview-ui-demo-decision-density"
+  ],
+  "resolved": [
+    "n:awg-v13-human-surface-framework"
   ]
 }

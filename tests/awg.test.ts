@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { buildAwg } from "../src/core/compiler.js";
+import { decodeNodeRouteId, graphNeighborhood, kanbanColumnsFor, nodeRoute, queryNodes, renderStaticSite, unsupportedBlockFallback } from "../src/core/renderStaticSite.js";
 import { currentSchemaManifest, schemaBodyForFile, schemaContentHash, schemaForFile } from "../src/core/schemas.js";
+import type { AwgNode, Diagnostic } from "../src/core/types.js";
 import { FileAwgStorage } from "../src/storage/FileAwgStorage.js";
 import { stableStringify } from "../src/util/json.js";
 
@@ -68,6 +70,18 @@ function initialV1NodeSchemaBody(): string {
   });
 }
 
+function node(overrides: Partial<AwgNode> & Pick<AwgNode, "id" | "type" | "title" | "summary" | "status">): AwgNode {
+  return {
+    awg: "0.1",
+    kind: "node",
+    importance: 0.5,
+    confidence: 0.8,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides
+  };
+}
+
 test("init creates expected files", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -84,6 +98,35 @@ test("packaged schemas match runtime schema source", () => {
     const packaged = JSON.parse(readFileSync(path.join("schemas/core", `${name}.schema.json`), "utf8"));
     assert.deepEqual(packaged, schemaForFile(name));
   }
+});
+
+test("example compiled viewer is current", () => {
+  const cwd = tmp();
+  cpSync(path.resolve("examples/basic"), cwd, { recursive: true });
+  const files = [
+    ".awg/compiled/graph.json",
+    ".awg/compiled/lenses/resume.json",
+    ".awg/compiled/reports/diagnostics.json",
+    ".awg/compiled/site/index.html",
+    ".awg/compiled/site/app.js",
+    ".awg/compiled/site/style.css",
+    ".awg/compiled/views/current.json"
+  ];
+  const before = files.map((file) => readFileSync(path.join(cwd, file), "utf8"));
+  run(cwd, ["build"]);
+  const after = files.map((file) => readFileSync(path.join(cwd, file), "utf8"));
+  assert.deepEqual(after, before);
+});
+
+test("packed package installs and exposes the awg bin", () => {
+  const packDir = tmp();
+  const installDir = tmp();
+  const output = execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir], { cwd: path.resolve("."), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const packed = JSON.parse(output) as Array<{ filename: string }>;
+  const tarball = path.join(packDir, packed[0].filename);
+  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], { cwd: installDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const help = execFileSync(path.join(installDir, "node_modules/.bin/awg"), ["--help"], { cwd: installDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.ok(help.includes("awg <command>"));
 });
 
 test("setup creates global config and registry in temp home", () => {
@@ -316,6 +359,29 @@ test("open global refuses symlinked global compiled directories", () => {
   assert.equal(existsSync(path.join(outside, "switcher")), false);
 });
 
+test("open refuses symlinked project viewer files", () => {
+  const cwd = tmp();
+  const outside = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["build"]);
+  rmSync(path.join(cwd, ".awg/compiled/site/index.html"));
+  writeFileSync(path.join(outside, "index.html"), "<!doctype html><title>outside</title>");
+  symlinkSync(path.join(outside, "index.html"), path.join(cwd, ".awg/compiled/site/index.html"));
+  const output = runFail(cwd, ["open", "--no-launch"]);
+  assert.ok(output.includes("Refusing to access symlink"));
+});
+
+test("compiled reads refuse symlinked artifacts", async () => {
+  const cwd = tmp();
+  const outside = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["build"]);
+  rmSync(path.join(cwd, ".awg/compiled/views/current.json"));
+  writeFileSync(path.join(outside, "current.json"), "{}");
+  symlinkSync(path.join(outside, "current.json"), path.join(cwd, ".awg/compiled/views/current.json"));
+  await assert.rejects(() => new FileAwgStorage(cwd).readCompiledArtifact("views/current.json"), /Refusing to access symlink/);
+});
+
 test("add node writes valid JSONL", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -398,6 +464,181 @@ test("build generates graph and resume lens", () => {
   const lens = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/lenses/resume.json"), "utf8"));
   assert.equal(graph.nodes.length, 1);
   assert.equal(lens.kind, "lens-output");
+});
+
+test("build refuses symlinked compiled output directories", () => {
+  const cwd = tmp();
+  const outside = tmp();
+  run(cwd, ["init", "--empty"]);
+  rmSync(path.join(cwd, ".awg/compiled"), { recursive: true, force: true });
+  symlinkSync(outside, path.join(cwd, ".awg/compiled"));
+  run(cwd, ["add", "node", "--id", "n:test", "--type", "concept", "--title", "Test", "--summary", "A test."]);
+  const output = runFail(cwd, ["build"]);
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(existsSync(path.join(outside, "graph.json")), false);
+});
+
+test("current-vault commands refuse symlinked .awg vault directories", async () => {
+  const cwd = tmp();
+  const outside = tmp();
+  run(outside, ["init", "--empty"]);
+  symlinkSync(path.join(outside, ".awg"), path.join(cwd, ".awg"));
+  const output = runFail(cwd, ["add", "node", "--type", "concept", "--title", "Escaped", "--summary", "Should not write outside."]);
+  assert.ok(output.includes("No AWG project vault found"));
+  const entries = await new FileAwgStorage(outside).readLogEntries();
+  assert.equal(entries.length, 0);
+});
+
+test("build refuses symlinked canonical log files", () => {
+  const cwd = tmp();
+  const outside = tmp();
+  run(cwd, ["init", "--empty"]);
+  const outsideLog = path.join(outside, "outside.awg.jsonl");
+  writeFileSync(outsideLog, `${JSON.stringify({ awg: "0.1", kind: "node", id: "n:outside", type: "concept", title: "Outside", summary: "Outside.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" })}\n`);
+  const logDir = path.join(cwd, ".awg/log/2026/01");
+  mkdirSync(logDir, { recursive: true });
+  symlinkSync(outsideLog, path.join(logDir, "2026-01-01.awg.jsonl"));
+  const output = runFail(cwd, ["build"]);
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(existsSync(path.join(cwd, ".awg/compiled/graph.json")), false);
+});
+
+test("viewer generation includes route shell and theme assets", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:purpose", "--type", "concept", "--title", "Purpose", "--summary", "Project purpose."]);
+  run(cwd, ["build"]);
+  const html = readFileSync(path.join(cwd, ".awg/compiled/site/index.html"), "utf8");
+  const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  const css = readFileSync(path.join(cwd, ".awg/compiled/site/style.css"), "utf8");
+  assert.ok(html.includes("AWG Surface"));
+  for (const route of ["overview", "graph", "kanban", "nodes", "health", "views", "settings"]) assert.ok(js.includes(`"${route}"`));
+  assert.ok(js.includes('"attention-required"'));
+  assert.ok(js.includes("query.tags"));
+  assert.ok(js.includes("graph-type"));
+  assert.ok(js.includes("Object.prototype.hasOwnProperty.call"));
+  assert.ok(js.includes('<article class="node-card">'));
+  assert.ok(js.includes("metric-state"));
+  assert.ok(js.includes("block-metrics"));
+  assert.ok(js.includes("block-compact"));
+  assert.ok(js.includes('layout === "compact"'));
+  assert.ok(js.includes('"Needs Attention"'));
+  assert.ok(js.includes('"Active Work"'));
+  assert.ok(js.includes('!["node-list", "summary", "diagnostics", "diagnostic-list"].includes(block.type)'));
+  assert.ok(!js.includes('<a class="node-card"'));
+  assert.ok(css.includes("--sidebar-bg"));
+  assert.ok(css.includes("--nav-active-bg"));
+  assert.ok(css.includes("--surface-filter"));
+  assert.ok(css.includes("--box-grid-bg"));
+  assert.ok(css.includes(".metric-row{display:grid"));
+  assert.ok(css.includes(".top-summary{align-self:stretch;display:grid"));
+  assert.ok(css.includes(".top-summary .metric{min-height:100%"));
+  assert.ok(css.includes(".block-metrics"));
+  assert.ok(css.includes(".block{grid-column:1 / -1}"));
+  assert.ok(css.includes(".block-compact{grid-column:span 1"));
+  assert.ok(css.includes(".column-blocked"));
+  assert.ok(css.includes("@media(max-width:640px){.route-root"));
+  assert.ok(!css.includes("\n(max-width:640px)"));
+  assert.ok(css.includes(':root[data-theme="dark"]'));
+});
+
+test("viewer route helpers encode node ids with special characters", () => {
+  const id = "n:task/with spaces?x=1";
+  const route = nodeRoute(id);
+  assert.equal(route, "#/node/n%3Atask%2Fwith%20spaces%3Fx%3D1");
+  assert.equal(decodeNodeRouteId(route.replace("#/node/", "")), id);
+  assert.equal(decodeNodeRouteId("%"), "%");
+});
+
+test("viewer query helper filters by type status and diagnostics", () => {
+  const nodes = [
+    node({ id: "n:a", type: "task", title: "A", summary: "A.", status: "blocked", importance: 0.9, tags: ["urgent"] }),
+    node({ id: "n:b", type: "risk", title: "B", summary: "B.", status: "active", importance: 0.7, tags: ["later"] }),
+    node({ id: "n:c", type: "task", title: "C", summary: "C.", status: "completed", importance: 0.4 })
+  ];
+  const diagnostics: Diagnostic[] = [{ severity: "warning", code: "stale_node", message: "stale", id: "n:a" }];
+  assert.deepEqual(queryNodes(nodes, diagnostics, { type: "task", status: "blocked", hasDiagnostics: true }).map((n) => n.id), ["n:a"]);
+  assert.deepEqual(queryNodes(nodes, diagnostics, { tags: ["urgent"] }).map((n) => n.id), ["n:a"]);
+  assert.deepEqual(queryNodes(nodes, diagnostics, { needsAttention: true }).map((n) => n.id), ["n:a"]);
+  assert.deepEqual(queryNodes(nodes, diagnostics, { type: "task", open: true }).map((n) => n.id), ["n:a"]);
+  assert.deepEqual(queryNodes(nodes, diagnostics, { statuses: ["blocked", "completed"] }).map((n) => n.id), ["n:a", "n:c"]);
+});
+
+test("viewer overview fallback handles missing current view data", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  const site = renderStaticSite(result.graph, { ...result.currentView, blocks: [] }, result.diagnostics);
+  assert.ok(site.js.includes("No graph yet"));
+  assert.ok(site.html.includes("route-root"));
+});
+
+test("unsupported viewer block renders a safe fallback", () => {
+  assert.equal(unsupportedBlockFallback({ type: "future-plugin-block", html: "<script>" }), "Unsupported block type: future-plugin-block");
+});
+
+test("kanban column mapping groups workflow statuses", () => {
+  const columns = kanbanColumnsFor([
+    node({ id: "n:a", type: "task", title: "A", summary: "A.", status: "proposed" }),
+    node({ id: "n:b", type: "risk", title: "B", summary: "B.", status: "blocked" }),
+    node({ id: "n:c", type: "concept", title: "C", summary: "C.", status: "blocked" }),
+    node({ id: "n:d", type: "task", title: "D", summary: "D.", status: "archived" })
+  ]);
+  assert.deepEqual(columns.find((column) => column.id === "proposed")?.nodes.map((n) => n.id), ["n:a"]);
+  assert.deepEqual(columns.find((column) => column.id === "blocked")?.nodes.map((n) => n.id), ["n:b"]);
+  assert.equal(columns.some((column) => column.id === "archived"), false);
+});
+
+test("graph neighborhood generation is deterministic and bounded", () => {
+  const nodes = [
+    node({ id: "n:a", type: "task", title: "A", summary: "A.", status: "active" }),
+    node({ id: "n:b", type: "risk", title: "B", summary: "B.", status: "active" }),
+    node({ id: "n:c", type: "decision", title: "C", summary: "C.", status: "active" }),
+    node({ id: "n:d", type: "task", title: "D", summary: "D.", status: "archived" })
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { awg: "0.1", kind: "edge" as const, id: "e:1", from: "n:a", rel: "blocks", to: "n:b", created_at: "2026-01-01T00:00:00.000Z" },
+      { awg: "0.1", kind: "edge" as const, id: "e:2", from: "n:b", rel: "relates_to", to: "n:c", created_at: "2026-01-01T00:00:00.000Z" },
+      { awg: "0.1", kind: "edge" as const, id: "e:3", from: "n:a", rel: "relates_to", to: "n:d", created_at: "2026-01-01T00:00:00.000Z" }
+    ]
+  };
+  assert.deepEqual(graphNeighborhood(graph, "n:a", { depth: 2 }).nodes.map((n) => n.id), ["n:a", "n:b", "n:c"]);
+  assert.deepEqual(graphNeighborhood(graph, "n:a", { depth: 2, rels: ["blocks"] }).edges.map((e) => e.id), ["e:1"]);
+  assert.deepEqual(graphNeighborhood(graph, "n:a", { depth: 2, statuses: ["active"], types: ["risk"] }).nodes.map((n) => n.id), ["n:b"]);
+  assert.equal(graphNeighborhood(graph, "n:missing", { depth: 2 }).missingFocus, true);
+});
+
+test("viewer generated node detail handles missing nodes and health diagnostics link to nodes", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:special/id", "--type", "task", "--title", "Special", "--summary", "Special node.", "--status", "blocked"]);
+  run(cwd, ["build"]);
+  const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.ok(js.includes("Missing node"));
+  assert.ok(js.includes("diagnosticTarget"));
+  assert.ok(js.includes("#/node/"));
+});
+
+test("viewer runtime guards malformed routes and malformed view blocks", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:a", type: "task", title: "A", summary: "A.", status: "stale", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "view", id: "v:bad", title: "Bad", audience: "human", blocks: [{ type: "diagnostic-list", items: "not-array" }, { type: "constructor" }] })
+  ].join("\n") + "\n");
+  run(cwd, ["build"]);
+  const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.ok(js.includes("safeDecodeURIComponent"));
+  assert.ok(js.includes("Array.isArray(block.items)"));
+  assert.ok(js.includes("safeItems"));
+  assert.ok(js.includes('sortBy === "staleFirst"'));
+  assert.ok(js.includes("firstGraphFocus"));
+  assert.ok(js.includes("typeof parsed === \"object\""));
 });
 
 test("build reports malformed JSON line", async () => {
