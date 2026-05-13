@@ -8,6 +8,11 @@
       "severity": "warning"
     },
     {
+      "code": "template_no_active_template",
+      "message": "No active operating template is available for this vault.",
+      "severity": "warning"
+    },
+    {
       "code": "orphan_node",
       "id": "n:active-risk",
       "message": "Node has no graph edges: n:active-risk",
@@ -111,6 +116,6 @@
     "stale_run_count": 1,
     "unanswered_question_count": 1,
     "unverified_completion_count": 1,
-    "warning_count": 16
+    "warning_count": 17
   }
 }

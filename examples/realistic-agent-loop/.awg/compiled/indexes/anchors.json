@@ -1,0 +1,36 @@
+{
+  "byKind": {
+    "file": [
+      {
+        "key": "file\u0000src/core/retrieval.ts",
+        "kind": "file",
+        "nodeIds": [
+          "n:active-task"
+        ],
+        "value": "src/core/retrieval.ts"
+      }
+    ]
+  },
+  "byNodeId": {
+    "n:active-task": [
+      {
+        "key": "file\u0000src/core/retrieval.ts",
+        "kind": "file",
+        "nodeIds": [
+          "n:active-task"
+        ],
+        "value": "src/core/retrieval.ts"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "key": "file\u0000src/core/retrieval.ts",
+      "kind": "file",
+      "nodeIds": [
+        "n:active-task"
+      ],
+      "value": "src/core/retrieval.ts"
+    }
+  ]
+}

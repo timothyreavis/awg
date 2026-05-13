@@ -1,6 +1,12 @@
 {
   "awg": "0.1",
-  "diagnostics": [],
+  "diagnostics": [
+    {
+      "code": "template_no_active_template",
+      "message": "No active operating template is available for this vault.",
+      "severity": "warning"
+    }
+  ],
   "generated_at": "2026-05-11T00:00:00.000Z",
   "summary": {
     "dangling_edge_count": 0,
@@ -12,6 +18,6 @@
     "stale_node_count": 0,
     "unanswered_question_count": 0,
     "unverified_completion_count": 0,
-    "warning_count": 0
+    "warning_count": 1
   }
 }

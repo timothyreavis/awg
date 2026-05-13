@@ -5,15 +5,19 @@
 - If the lens is missing or stale, run `awg build`.
 - Store durable knowledge as AWG nodes/edges/responses/events.
 - Use `awg search <query>` before creating duplicate nodes.
+- Use `awg template status --goal "..." --json` to understand local operating templates and field expectations.
 - Use `awg lens task --goal "..."` for scoped work context.
+- Use `awg node show <node-id> --json` when search, lens, or handoff surfaces a node whose full detail matters.
 - Prefer `awg add`, `awg update node`, and `awg add evidence` commands over manually editing JSONL.
 - Durable writes automatically attach to the active run; use `--run <run-id>` for an explicit active run or `--no-run` to suppress attribution.
+- Use concise summaries for scanning, `body` for deeper detail, `fields` for structured operational data, safe `blocks` for presentation, `freshness` for currentness, and `anchors` for file/symbol/url/command references.
 - Do not edit `.awg/compiled/*` manually.
 - Do not link by file path when linking knowledge. Link by AWG node ID.
 - Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
 - When making a durable decision, create or update a decision node.
 - When identifying a risk/blocker, create a risk/task node with review metadata if possible.
 - When completing work, update/add task status and add evidence.
+- When behavior, policy, implementation, ownership, pricing, or process changes, update related nodes and freshness metadata.
 - Add run notes for meaningful progress, blockers, and force-finish rationale.
 - After writing AWG data, run `awg build`.
 - Fix fatal validation errors before stopping.

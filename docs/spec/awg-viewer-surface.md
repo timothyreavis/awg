@@ -4,7 +4,7 @@ The AWG viewer is a generated static surface for humans reviewing compiled proje
 
 ## Route Roles
 
-- `#/overview` is curated. It shows what the agent thinks matters right now: focus items, attention items, open decisions, open questions, active risks, health summary, recent completions, and a resume lens preview.
+- `#/overview` is curated. It shows what the agent thinks matters right now: current effort/run context, selected operating template, focus items, attention items, open decisions, open questions, active risks, health summary, recent completions, and a resume lens preview.
 - `#/graph` is exploratory. It renders a focused neighborhood around one node with deterministic depth-limited traversal instead of a whole-graph hairball.
 - `#/kanban` is operational. It groups workflow-like nodes into status columns and stays read-only in static mode.
 - `#/nodes` is the searchable database-style browser for all nodes.
@@ -42,18 +42,19 @@ Node-authored MVP block types are:
 - `metric-row`
 - `table`
 - `checklist`
+- `node-list`
+- `timeline`
+
+Additional internal view block types include:
+
+- `current-effort`
+- `stats-grid`
+- `attention-list`
 - `task-queue`
 - `risk-list`
 - `decision-list`
 - `evidence-list`
-- `node-list`
-- `timeline`
 - `run-summary`
-
-Additional internal view block types include:
-
-- `stats-grid`
-- `attention-list`
 - `node-table`
 - `decision-review`
 - `risk-review`
@@ -64,6 +65,8 @@ Additional internal view block types include:
 - `raw-json`
 
 CLI-authored node blocks must include `schemaVersion: 1`, `type`, and `data`. Malformed structural blocks, unsupported block types, malformed block data, and malformed `sourceNodeIds` / `targetNodeIds` references fail before append. Historical malformed blocks and unsupported compiled-view blocks must not crash the viewer; they render a visible fallback.
+
+Node `body` text is rendered with a safe outline renderer. It is not arbitrary Markdown or HTML. The renderer escapes HTML and only recognizes paragraphs, simple section-label headings, `#` headings, bullet lists, numbered lists, and inline code spans. Richer human presentation should use the supported typed block set instead of embedding markup in body text.
 
 ## Query Helpers
 

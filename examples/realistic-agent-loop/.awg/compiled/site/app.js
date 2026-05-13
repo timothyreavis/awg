@@ -30,6 +30,7 @@ const blockRenderers = {
   table: renderTableBlock,
   checklist: renderChecklistBlock,
   timeline: renderTimelineBlock,
+  "current-effort": renderCurrentEffortBlock,
   "stats-grid": renderStatsGridBlock,
   "attention-list": renderNodeListBlock,
   "attention-required": renderNodeListBlock,
@@ -57,12 +58,7 @@ const nodeBlockRenderers = {
   table: renderTableBlock,
   checklist: renderChecklistBlock,
   "node-list": renderNodeListBlock,
-  "task-queue": renderNodeListBlock,
-  "risk-list": renderNodeListBlock,
-  "decision-list": renderNodeListBlock,
-  "evidence-list": renderEvidenceListBlock,
-  timeline: renderTimelineBlock,
-  "run-summary": renderRunSummaryBlock
+  timeline: renderTimelineBlock
 };
 initShell();
 window.addEventListener("hashchange", renderRoute);
@@ -139,12 +135,14 @@ function buildOverviewBlocks() {
   const currentBlocks = Array.isArray(view.blocks) ? view.blocks.filter((block) => block && !["node-list", "summary", "diagnostics", "diagnostic-list"].includes(block.type)) : [];
   if (currentBlocks.length) {
     return [
+      { type: "current-effort", title: "Current Effort" },
       { type: "attention-list", title: "Current Focus", items: resumeLens?.important || queryNodes({ limit: 6, sortBy: "importance" }) },
       ...currentBlocks.map(normalizeOverviewBlock),
       { type: "node-list", title: "Recently Completed", items: queryNodes({ statuses: ["completed", "resolved"], limit: 8, sortBy: "updated" }) }
     ];
   }
   const blocks = [
+    { type: "current-effort", title: "Current Effort" },
     { type: "attention-list", title: "Current Focus", items: resumeLens?.important || queryNodes({ limit: 6, sortBy: "importance" }) },
     { type: "attention-list", title: "Needs Attention", items: queryNodes({ statuses: ["blocked", "needs_review", "stale"], limit: 8, sortBy: "blockedFirst" }) },
     { type: "attention-list", title: "Agent-Surfaced Priorities", items: (resumeLens?.active_tasks || []).concat(resumeLens?.active_risks || []).slice(0, 8) },
@@ -282,18 +280,29 @@ function renderNodeDetail(id) {
   const evidenceCount = Array.isArray(node.evidence) ? node.evidence.length : 0;
   const nodeEvents = (graph.events || []).filter((event) => event.target === id);
   const sections = [
-    node.body ? nodeSection("Body", '<div class="prose"><p>' + esc(node.body) + '</p></div>') : "",
-    node.fields && Object.keys(node.fields).length ? nodeSection("Fields", renderKeyValueTable(node.fields)) : "",
-    node.freshness ? nodeSection("Freshness", renderKeyValueTable(node.freshness)) : "",
-    Array.isArray(node.blocks) && node.blocks.length ? nodeSection("Blocks", node.blocks.map(renderNodeAuthoredBlock).join("")) : "",
+    nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
+    Array.isArray(node.blocks) && node.blocks.length ? nodeSection("Structured View", node.blocks.map(renderNodeAuthoredBlock).join("")) : "",
     outgoing.length || incoming.length ? nodeSection("Connected work", renderRelationshipIndex(outgoing, incoming)) : "",
     evidenceCount ? nodeSection("Evidence", renderEvidence(node.evidence)) : "",
-    nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
+    Array.isArray(node.anchors) && node.anchors.length ? nodeSection("Anchors", renderAnchors(node.anchors)) : "",
+    node.freshness ? nodeSection("Freshness", renderKeyValueTable(node.freshness)) : "",
+    node.fields && Object.keys(node.fields).length ? nodeSection("Fields", renderKeyValueTable(node.fields)) : "",
+    node.body ? nodeSection("Body", renderBodyOutline(node.body)) : "",
     nodeEvents.length ? nodeSection("Activity", renderEventsForNode(node.id, nodeEvents)) : "",
     nodeSection("Run attribution", renderNodeRuns(node.id)),
     nodeSection("Use this node", '<div class="action-bar"><button class="button" data-copy="' + esc(node.title + "\n" + node.summary) + '">Copy prompt snippet</button><a class="button" href="#/nodes?type=' + encodeURIComponent(node.type) + '">Same type</a><a class="button" href="#/nodes?status=' + encodeURIComponent(node.status) + '">Same status</a><a class="button" href="#/health?id=' + encodeURIComponent(node.id) + '">Related health</a></div>')
   ].join("");
-  return '<article class="node-detail surface"><header class="node-hero"><div><div class="chip-row">' + badge(node.type, "type") + badge(node.status, "status") + '</div><h2>' + esc(node.title) + '</h2><p class="node-id">' + esc(node.id) + '</p>' + renderNodeMeta(node) + '</div><div class="node-hero-actions"><a class="button" href="#/graph?focus=' + encodeURIComponent(node.id) + '">Open graph</a><button class="button" data-copy="' + esc(node.id) + '">Copy reference</button></div></header><p class="node-summary">' + esc(node.summary) + '</p><div class="node-kpis">' + nodeKpi("Importance", pct(node.importance), "#/nodes?sortBy=importance") + nodeKpi("Confidence", pct(node.confidence), "#/nodes?sortBy=confidence") + nodeKpi("Diagnostics", nodeDiagnostics.length, "#/health?id=" + encodeURIComponent(node.id)) + nodeKpi("Evidence", evidenceCount, "#/node/" + encodeURIComponent(node.id)) + '</div><div class="node-sections">' + sections + '</div><details class="raw-panel"><summary>Raw JSON</summary><pre>' + esc(JSON.stringify(node, null, 2)) + '</pre></details></article>';
+  return '<article class="node-detail surface"><header class="node-hero"><div><div class="chip-row">' + renderNodeBadges(node) + '</div><h2>' + esc(node.title) + '</h2><p class="node-id">' + esc(node.id) + '</p>' + renderNodeMeta(node) + '</div><div class="node-hero-actions"><a class="button" href="#/graph?focus=' + encodeURIComponent(node.id) + '">Open graph</a><button class="button" data-copy="' + esc(node.id) + '">Copy reference</button></div></header><p class="node-summary">' + esc(node.summary) + '</p><div class="node-kpis">' + nodeKpi("Importance", pct(node.importance), "#/nodes?sortBy=importance") + nodeKpi("Confidence", pct(node.confidence), "#/nodes?sortBy=confidence") + nodeKpi("Diagnostics", nodeDiagnostics.length, "#/health?id=" + encodeURIComponent(node.id)) + nodeKpi("Evidence", evidenceCount, "#/node/" + encodeURIComponent(node.id)) + '</div><div class="node-sections">' + sections + '</div><details class="raw-panel"><summary>Raw JSON</summary><pre>' + esc(rawJsonPreview(node)) + '</pre></details></article>';
+}
+
+function renderNodeBadges(node) {
+  return [
+    badge(node.type, "type"),
+    badge(node.status, "status"),
+    node.evidence_required ? badge("evidence required", "status") : "",
+    Array.isArray(node.anchors) && node.anchors.length ? badge(node.anchors.length + " anchors", "type") : "",
+    node.freshness?.state ? badge("freshness: " + node.freshness.state, "status") : ""
+  ].join("");
 }
 
 function renderNodeRuns(id) {
@@ -304,21 +313,100 @@ function renderNodeRuns(id) {
 
 function renderBlock(block) {
   const renderer = Object.prototype.hasOwnProperty.call(blockRenderers, block?.type) ? blockRenderers[block.type] : undefined;
-  if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+  if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
   return renderer(block);
 }
 
 function renderNodeAuthoredBlock(block) {
   const renderer = Object.prototype.hasOwnProperty.call(nodeBlockRenderers, block?.type) ? nodeBlockRenderers[block.type] : undefined;
-  if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+  if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
   try {
     return renderer(block);
   } catch (error) {
-    return '<section class="block unsupported"><h2>Malformed block</h2><p class="muted">' + esc(error instanceof Error ? error.message : String(error)) + '</p><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+    return '<section class="block unsupported"><h2>Malformed block</h2><p class="muted">' + esc(error instanceof Error ? error.message : String(error)) + '</p><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
   }
 }
 
+function renderBodyOutline(body) {
+  const lines = String(body || "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trimEnd());
+  const html = [];
+  let paragraph = [];
+  let listType = "";
+  let listItems = [];
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push("<p>" + renderInlineText(paragraph.join(" ")) + "</p>");
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!listType || !listItems.length) return;
+    html.push("<" + listType + ">" + listItems.map((item) => "<li>" + renderInlineText(item) + "</li>").join("") + "</" + listType + ">");
+    listType = "";
+    listItems = [];
+  };
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      if (listType && listType !== "ul") flushList();
+      listType = "ul";
+      listItems.push(bullet[1]);
+      continue;
+    }
+    const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    if (numbered) {
+      flushParagraph();
+      if (listType && listType !== "ol") flushList();
+      listType = "ol";
+      listItems.push(numbered[1]);
+      continue;
+    }
+    const heading = outlineHeading(trimmed);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      html.push("<h4>" + renderInlineText(heading) + "</h4>");
+      continue;
+    }
+    flushList();
+    paragraph.push(trimmed);
+  }
+  flushParagraph();
+  flushList();
+  return '<div class="prose outline-body">' + (html.length ? html.join("") : '<p class="muted">No body content.</p>') + "</div>";
+}
+
+function outlineHeading(line) {
+  const markdown = line.match(/^#{1,4}\s+(.+)$/);
+  if (markdown) return markdown[1].trim();
+  if (/^[A-Z][A-Za-z0-9 /&(),'"-]{2,80}:$/.test(line)) return line.slice(0, -1);
+  return "";
+}
+
+function renderInlineText(value) {
+  const text = String(value || "");
+  let output = "";
+  let cursor = 0;
+  const tick = String.fromCharCode(96);
+  const pattern = new RegExp(tick + "([^" + tick + "]{1,160})" + tick, "g");
+  let match;
+  while ((match = pattern.exec(text))) {
+    output += esc(text.slice(cursor, match.index)) + "<code>" + esc(match[1]) + "</code>";
+    cursor = match.index + match[0].length;
+  }
+  return output + esc(text.slice(cursor));
+}
+
 function renderBriefBlock(block) {
+  if (Array.isArray(block.data?.items)) {
+    return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Brief") + '</h2><div class="card-list">' + block.data.items.slice(0, 8).map((item) => '<article class="node-card"><strong>' + esc(item.label || "Note") + '</strong><p>' + esc(item.text || item.summary || "") + '</p></article>').join("") + '</div></section>';
+  }
   const text = typeof block.data === "string" ? block.data : typeof block.summary === "string" ? block.summary : typeof block.data?.text === "string" ? block.data.text : "No summary available.";
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Brief") + '</h2><p>' + esc(text) + '</p></section>';
 }
@@ -336,14 +424,17 @@ function renderCalloutBlock(block) {
 
 function renderStatsGridBlock(block) {
   const source = block.data || block.summary || diagnostics.summary || {};
-  return '<section class="' + blockClass(block, "block-metrics") + '"><h2>' + esc(block.title || "Stats") + '</h2><div class="metric-row">' + Object.entries(source).slice(0, 8).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/health")).join("") + '</div></section>';
+  const entries = Array.isArray(source.items) ? source.items.map((item) => [item.label || item.key || "Metric", item.value]) : Object.entries(source);
+  return '<section class="' + blockClass(block, "block-metrics") + '"><h2>' + esc(block.title || "Stats") + '</h2><div class="metric-row">' + entries.slice(0, 8).map(([key, value]) => metric(String(key).replaceAll("_", " "), value, "#/health")).join("") + '</div></section>';
 }
 
 function renderTableBlock(block) {
-  const rows = Array.isArray(block.data?.rows) ? block.data.rows : Array.isArray(block.data) ? block.data : [];
+  const allRows = Array.isArray(block.data?.rows) ? block.data.rows : Array.isArray(block.data) ? block.data : [];
+  const rows = allRows.slice(0, 100);
   const columns = normalizeTableColumns(block.data?.columns, rows);
   if (!rows.length || !columns.length) return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><p class="muted">No table rows.</p></section>';
-  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><div class="table-wrap"><table><thead><tr>' + columns.map((column) => '<th>' + esc(column.label) + '</th>').join("") + '</tr></thead><tbody>' + rows.map((row) => '<tr>' + columns.map((column) => '<td>' + esc(cellValue(row?.[column.key])) + '</td>').join("") + '</tr>').join("") + '</tbody></table></div></section>';
+  const capped = allRows.length > rows.length ? '<p class="muted">Showing first ' + rows.length + ' of ' + allRows.length + ' rows.</p>' : "";
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><div class="table-wrap"><table><thead><tr>' + columns.map((column) => '<th>' + esc(column.label) + '</th>').join("") + '</tr></thead><tbody>' + rows.map((row) => '<tr>' + columns.map((column) => '<td>' + esc(cellValue(row?.[column.key])) + '</td>').join("") + '</tr>').join("") + '</tbody></table></div>' + capped + '</section>';
 }
 
 function renderChecklistBlock(block) {
@@ -450,8 +541,36 @@ function renderRunSummaryBlock(block) {
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Run Summary") + '</h2>' + (source.summary ? '<p>' + esc(source.summary) + '</p>' : "") + '<div class="metric-row">' + Object.entries(metrics).filter(([key]) => key !== "notes" && key !== "summary").slice(0, 6).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/runs")).join("") + '</div>' + (notes.length ? '<div class="activity-table">' + notes.slice(0, 8).map((note) => '<article class="activity-row"><time>' + esc(note.at || "") + '</time><strong>' + esc(note.type || "note") + '</strong><span>' + esc(note.summary || note.message || note) + '</span><em>' + esc(note.by || "") + '</em></article>').join("") + '</div>' : "") + '</section>';
 }
 
+function renderCurrentEffortBlock(block) {
+  const runs = deriveRuns();
+  const current = runs.find((run) => run.status === "in_progress") || runs[0];
+  const summaries = new Map((graph.run_summaries || []).map((summary) => [summary.runId, summary]));
+  const summary = current ? summaries.get(current.id) || {} : {};
+  const template = graph.operating_templates || {};
+  const warningCount = (summary.diagnostics || []).filter((diag) => diag.severity === "warning" || diag.severity === "fatal").length + ((template.conflicts || []).length);
+  if (!current) return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Current Effort") + '</h2><p class="muted">No run has been recorded yet.</p></section>';
+  return '<section class="' + blockClass(block, "review-block review-attention") + '"><header class="review-header"><div><h2>' + esc(block.title || "Current Effort") + '</h2><p class="muted">' + esc(current.goal || "Untitled run") + '</p></div><a class="review-count" href="#/runs"><strong>' + esc(current.status || "run") + '</strong></a></header><div class="metric-row">' + metric("Created", (summary.createdNodeIds || []).length, "#/runs") + metric("Touched", (summary.touchedNodeIds || []).length, "#/runs") + metric("Evidence", (summary.evidenceNodeIds || []).length, "#/runs") + metric("Warnings", warningCount, "#/health") + '</div><div class="overview-brief"><p><strong>Template:</strong> ' + esc(template.activeTemplateId || "none") + '</p><p><strong>Template issues:</strong> ' + esc(((template.warnings || []).length + (template.missingSections || []).length + (template.conflicts || []).length)) + '</p>' + (current.summary ? '<p>' + esc(current.summary) + '</p>' : "") + '</div></section>';
+}
+
+function renderAnchors(anchors) {
+  return '<div class="table-wrap"><table><thead><tr><th>Kind</th><th>Reference</th><th>Label</th></tr></thead><tbody>' + anchors.map((anchor) => {
+    const value = anchor.url || anchor.path || anchor.name || anchor.label || "";
+    const reference = anchor.url && safeAnchorHref(anchor.url) ? '<a href="' + esc(anchor.url) + '">' + esc(anchor.url) + '</a>' : '<code>' + esc(value) + '</code>';
+    return '<tr><td>' + esc(anchor.kind || "") + '</td><td>' + reference + '</td><td>' + esc(anchor.label || "") + '</td></tr>';
+  }).join("") + '</tbody></table></div>';
+}
+
+function safeAnchorHref(value) {
+  try {
+    const parsed = new URL(value, window.location.href);
+    return ["http:", "https:", "file:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 function renderRawJsonBlock(block) {
-  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Raw JSON") + '</h2><pre>' + esc(JSON.stringify(block.data || block, null, 2)) + '</pre></section>';
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Raw JSON") + '</h2><pre>' + esc(rawJsonPreview(block.data || block)) + '</pre></section>';
 }
 
 function normalizeTableColumns(columns, rows) {
@@ -471,7 +590,8 @@ function renderKeyValueTable(value) {
 }
 
 function cellValue(value) {
-  return value && typeof value === "object" ? JSON.stringify(value) : value ?? "";
+  const text = value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+  return text.length > 240 ? text.slice(0, 237) + "..." : text;
 }
 
 function blockClass(block, extra) {
@@ -486,10 +606,16 @@ function toneClass(value) {
 
 function resolveBlockItems(block) {
   if (Array.isArray(block.items)) return block.items.map(normalizeBlockNode).filter(Boolean);
+  if (Array.isArray(block.data?.nodeIds)) return block.data.nodeIds.map(normalizeBlockNode).filter(Boolean);
   if (Array.isArray(block.data?.items)) return block.data.items.map(normalizeBlockNode).filter(Boolean);
   if (block.query) return queryNodes(block.query);
   if (block.data?.query) return queryNodes(block.data.query);
   return [];
+}
+
+function rawJsonPreview(value) {
+  const json = JSON.stringify(value, null, 2);
+  return json.length > 12000 ? json.slice(0, 12000) + "\n... truncated ..." : json;
 }
 
 function normalizeBlockNode(item) {

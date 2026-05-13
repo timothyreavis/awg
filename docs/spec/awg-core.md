@@ -13,8 +13,23 @@ Nodes keep `summary` as concise retrieval and scan text. V1.7 adds optional rich
 
 Older nodes without these fields remain valid. Unknown fields are preserved through validation and compilation.
 
-Node-authored `blocks` are JSON data, not markup. The V1.7 MVP block set is `brief`, `callout`, `metric-row`, `table`, `checklist`, `task-queue`, `risk-list`, `decision-list`, `evidence-list`, `timeline`, `run-summary`, and the generic compatibility type `node-list`. AWG does not execute arbitrary HTML, CSS, JavaScript, or plugin code from durable node content.
+Node granularity is based on retrieval and maintenance boundaries:
+
+- Keep `summary` concise and scan-oriented.
+- Use `body` for deeper narrative detail, SOPs, rationale, requirements, examples, and agent-facing context that should not bloat the summary.
+- Use `fields` for operational facts that agents need to update, compare, filter, or validate deterministically.
+- Use `blocks` when the content has a natural human presentation shape such as a checklist, table, metric row, timeline, node list, callout, or brief.
+- Use `freshness` when correctness can decay over time or when a node represents current operating truth.
+- Use `anchors` when a node should stay tied to a file, symbol, URL, command, document, or external reference.
+
+Agents should update affected nodes and related freshness metadata when behavior, policy, ownership, pricing, process, or implementation changes.
+
+Node-authored `blocks` are JSON data, not markup. The V1.7 authored MVP block set is `brief`, `callout`, `metric-row`, `table`, `checklist`, `node-list`, and `timeline`. Internal compiled views may use additional AWG route/view primitives, but durable node content remains stricter. AWG does not execute arbitrary HTML, CSS, JavaScript, or plugin code from durable node content.
 
 Nodes may include optional `anchors` for generic retrieval references. Anchor kinds are `file`, `symbol`, `url`, `command`, `doc`, and `external`; fields such as `path`, `name`, `url`, and `label` are optional and used only when relevant. Anchors are not code intelligence and do not require repository-specific behavior.
 
-Vault-local operating templates should reuse regular core node types such as `process`, `standard`, or `policy`, then mark the node with `template`, `operating-template`, or `template:operating` tags. AWG should not require a custom node type for template discovery.
+Vault-local operating templates should reuse regular core node types such as `process`, `standard`, or `policy`, then mark the node with `template`, `operating-template`, or `template:operating` tags. AWG should not require a custom node type for template discovery. The compiler materializes `graph.operating_templates` and `.awg/compiled/indexes/operating-templates.json` from those nodes, including active roots, selected template, scope conflicts, required sections, warnings, and suggested commands.
+
+Templates should provide these required governance sections through `fields` or section identifiers: `purpose`, `taxonomy`, `freshness_rules`, and `agent_rules`. They may also declare deterministic `fieldRules` such as `{ "nodeType": "task", "field": "owner", "required": true }` so doctor can surface missing structured fields without hard-coding a domain.
+
+Anchors are materialized into `graph.anchor_index` and `.awg/compiled/indexes/anchors.json` so agents and humans can inspect which nodes mention the same file, symbol, URL, command, document, or external reference.

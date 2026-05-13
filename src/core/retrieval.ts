@@ -1,6 +1,7 @@
 import { AWG_VERSION } from "./constants.js";
 import { budgetSections, type BudgetedSection } from "./budget.js";
 import { searchGraph } from "./search.js";
+import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
 import { activeRun, buildRuns, recentRuns, type AgentRun } from "./runs.js";
 import { preflightRun, qualityForRun, runSummaryFor, type HandoffQuality, type RunPreflightResult } from "./runPreflight.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
@@ -62,6 +63,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const tasks = relevantNodes.filter((item) => item.type === "task" && actionable.has(item.status)).sort(byPriority);
   const questions = relevantNodes.filter((item) => item.type === "question" && !["resolved", "completed", "archived"].includes(item.status)).sort(byPriority);
   const sections = budgetSections<unknown>([
+    { section: "templateContext", items: [templateContext(graph, goal)] },
     { section: "matches", items: matches },
     { section: "relatedNodes", items: related.sort(byPriority) },
     { section: "relatedDecisions", items: decisions },
@@ -72,8 +74,9 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "relatedRuns", items: relatedRuns.map((run) => runWithSummary(graph, run)) },
     { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
     { section: "diagnostics", items: diagnostics },
+    { section: "anchors", items: relatedAnchorEntries(graph, relevantIds).slice(0, 10) },
     { section: "recentEvidence", items: evidence }
-  ], budget, renderItem);
+  ], budget, renderItem).filter((section) => !budget || section.items.length || section.omitted);
   return { awg: AWG_VERSION, kind: "lens-output", id: "lens:task", generated_at: graph.generated_at, goal, budget, sections, runContext: { activeRunId: current?.id, relatedRunIds: relatedRuns.map((run) => run.id) } };
 }
 
@@ -93,11 +96,12 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const recommendations = recommendedNextActions(graph.diagnostics.summary);
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
+    { section: "graphHealth", items: [graph.diagnostics.summary] },
+    { section: "templateContext", items: [templateContext(graph)] },
     { section: "runAttribution", items: runSummary ? [runSummary] : [] },
     { section: "recentRunNotes", items: runNotes },
     { section: "preflightWarnings", items: preflight?.warnings ?? [] },
     { section: "handoffQuality", items: [quality] },
-    { section: "graphHealth", items: [graph.diagnostics.summary] },
     { section: "recommendedNextActions", items: recommendations },
     { section: "currentFocus", items: activeTasks.slice(0, 3) },
     { section: "activeTasks", items: activeTasks },
@@ -106,13 +110,14 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "recentCompletedWork", items: recentCompleted },
     { section: "recentEvidence", items: recentEvidence },
     { section: "recentResponses", items: graph.responses.slice(-8).reverse() },
+    { section: "anchorImpact", items: current ? relatedAnchorEntries(graph, new Set(runSummary?.touchedNodeIds ?? [])).slice(0, 10) : [] },
     { section: "staleOrNeedsReview", items: stale }
-  ], budget, renderItem);
-  const output: HandoffOutput = { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections };
+  ], budget, renderItem).filter((section) => !budget || section.items.length || section.omitted);
+  const outputQuality = budget ? { ...quality, checks: [] } : quality;
+  const output: HandoffOutput = { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections, quality: outputQuality };
   if (!budget) {
     output.run = current;
     output.preflight = preflight;
-    output.quality = quality;
   }
   return output;
 }
@@ -154,11 +159,27 @@ function relatedNodeIds(edges: AwgEdge[], start: Set<string>, depth: number): Se
 }
 
 function recommendedNextActions(summary: DiagnosticsSummary): string[] {
-  const out = ["Run awg search before adding duplicate durable context.", "Use awg lens task --goal \"...\" before focused implementation work."];
+  const out = ["Run awg search before adding duplicate durable context.", "Run awg template status --json when work feels under-specified.", "Use awg lens task --goal \"...\" before focused implementation work."];
   if (summary.fatal_error_count) out.unshift("Fix fatal diagnostics before relying on compiled graph output.");
   if (summary.unverified_completion_count) out.push("Attach evidence to completed task nodes.");
   if (summary.stale_node_count) out.push("Review stale or needs-review nodes.");
   return out;
+}
+
+function templateContext(graph: CompiledGraph, goal?: string): unknown {
+  const index = goal ? buildOperatingTemplateIndex(graph.nodes, goal) : graph.operating_templates ?? buildOperatingTemplateIndex(graph.nodes);
+  return {
+    activeTemplateId: index.activeTemplateId,
+    selectedTemplate: index.selectedTemplate,
+    activeTemplateCount: index.activeTemplates.length,
+    conflicts: index.conflicts,
+    warnings: index.warnings
+  };
+}
+
+function relatedAnchorEntries(graph: CompiledGraph, ids: Set<string>): unknown[] {
+  if (!ids.size) return [];
+  return (graph.anchor_index?.entries ?? []).filter((entry) => entry.nodeIds.some((id) => ids.has(id)));
 }
 
 function runMatchesGoal(run: AgentRun, goal: string): boolean {

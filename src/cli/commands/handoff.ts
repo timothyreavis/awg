@@ -12,7 +12,8 @@ import type { AwgEvent } from "../../core/types.js";
 export async function handoffCommand(parsed: ParsedArgs): Promise<void> {
   const storage = new FileAwgStorage();
   const { graph } = await buildAwg(storage, { write: false });
-  const output = buildHandoff(graph, charBudget(num(parsed.flags, "budget", 0) || undefined));
+  const budget = charBudget(num(parsed.flags, "budget", 0) || undefined);
+  let output = buildHandoff(graph, budget);
   if (!parsed.flags["no-record"]) {
     const runs = buildRuns(graph);
     const run = activeRun(runs) ?? recentRuns(runs, 1)[0];
@@ -20,6 +21,8 @@ export async function handoffCommand(parsed: ParsedArgs): Promise<void> {
     const target = run?.id ?? "project";
     const event: AwgEvent = { awg: AWG_VERSION, kind: "event", id: runEventId(target, "handoff", at), type: "handoff_generated", target, run: run?.id, runId: run?.id, by: "agent:codex", at, budget: output.budget, quality: output.quality };
     await storage.appendLogEntry(event);
+    const rebuilt = await buildAwg(storage, { write: false });
+    output = buildHandoff(rebuilt.graph, budget);
   }
   if (parsed.flags.json) return printJson(output);
   console.log("AWG handoff");

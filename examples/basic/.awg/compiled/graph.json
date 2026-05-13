@@ -1,8 +1,19 @@
 {
+  "anchor_index": {
+    "byKind": {},
+    "byNodeId": {},
+    "entries": []
+  },
   "awg": "0.1",
   "diagnostics": {
     "awg": "0.1",
-    "diagnostics": [],
+    "diagnostics": [
+      {
+        "code": "template_no_active_template",
+        "message": "No active operating template is available for this vault.",
+        "severity": "warning"
+      }
+    ],
     "generated_at": "2026-05-11T00:00:00.000Z",
     "summary": {
       "dangling_edge_count": 0,
@@ -14,7 +25,7 @@
       "stale_node_count": 0,
       "unanswered_question_count": 0,
       "unverified_completion_count": 0,
-      "warning_count": 0
+      "warning_count": 1
     }
   },
   "edges": [
@@ -66,6 +77,30 @@
       "updated_at": "2026-05-11T00:00:00.000Z"
     }
   ],
+  "operating_templates": {
+    "activeTemplateId": null,
+    "activeTemplates": [],
+    "conflicts": [],
+    "missingSections": [],
+    "ok": false,
+    "rootsByScope": {},
+    "selectedTemplate": null,
+    "suggestedCommands": [
+      "awg template status --json",
+      "awg search operating-template",
+      "awg lens task --goal \"template governance\""
+    ],
+    "warnings": [
+      {
+        "code": "AWG_TEMPLATE_NO_ACTIVE_TEMPLATE",
+        "message": "No active operating template is available for this vault.",
+        "severity": "warning",
+        "suggestedCommands": [
+          "awg add node --type process --title \"Operating template\" --summary \"...\" --status active --tag operating-template"
+        ]
+      }
+    ]
+  },
   "policies": [],
   "responses": [],
   "run_summaries": [],

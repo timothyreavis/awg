@@ -124,14 +124,18 @@ Start of session:
 - Run \`awg handoff\`.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
+- Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
 During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
+- Use \`body\` for narrative detail, \`fields\` for structured operational data, \`blocks\` for safe presentation primitives, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
@@ -169,12 +173,15 @@ Before starting work:
 - Run \`awg handoff\`.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
+- Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Use \`awg node show <node-id> --json\` when you need full detail for a surfaced node.
 - Read \`.awg/AGENTS.md\`.
 
 During work:
 - Record durable facts, decisions, risks, tasks, questions, constraints, and preferences in AWG.
 - Use \`awg search <query>\` before creating duplicate nodes.
+- Use structured \`fields\`, safe \`blocks\`, \`freshness\`, and \`anchors\` when those make the knowledge easier to maintain or present.
 - Use \`awg lens task --goal "..."\` for scoped work context.
 - Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
 - Link knowledge by AWG node ID, not by file path.
@@ -223,9 +230,9 @@ function claudeTemplate(agentsFile = "AGENTS.md"): string {
 
 Follow the project instructions in \`${agentsFile}\`.
 
-This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context.
+This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context. Use \`awg node show <node-id> --json\` when a surfaced node needs full inspection.
 
-Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Do not edit \`.awg/compiled/*\`.
+Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Run \`awg template status --goal "<goal>" --json\` when scoping work. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Use structured fields, safe blocks, freshness metadata, and anchors when helpful. Do not edit \`.awg/compiled/*\`.
 
 Before stopping, update relevant statuses, add evidence for completed work, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, fix fatal validation errors, record AWG friction as durable knowledge when found, and finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;

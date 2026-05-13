@@ -7,6 +7,7 @@ export const CORE_NODE_TYPES = [
   "concept",
   "entity",
   "task",
+  "issue",
   "decision",
   "question",
   "answer",

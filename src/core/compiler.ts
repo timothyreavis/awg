@@ -2,6 +2,8 @@ import { AWG_VERSION } from "./constants.js";
 import { buildDiagnostics } from "./diagnostics.js";
 import { edgeId } from "./ids.js";
 import { buildResumeLens } from "./lenses.js";
+import { buildAnchorIndex } from "./anchors.js";
+import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
 import { buildRunSummaries } from "./runs.js";
 import { parseAndValidate } from "./validation.js";
 import { renderStaticSite } from "./renderStaticSite.js";
@@ -76,7 +78,9 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   const sortedNodes = [...nodes.values()].sort(byId);
   const sortedEdges = [...edges.values()].sort(byId);
   const sortedResponses = [...responses.values()].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
-  const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, events as never, diagnostics, strict, config);
+  const operatingTemplates = buildOperatingTemplateIndex(sortedNodes);
+  const anchorIndex = buildAnchorIndex(sortedNodes);
+  const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, events as never, diagnostics, strict, config, operatingTemplates);
   const diagnosticsReport = { awg: AWG_VERSION, generated_at: generatedAt, summary: diag.summary, diagnostics: diag.diagnostics };
   const graph: CompiledGraph = {
     awg: AWG_VERSION,
@@ -90,7 +94,9 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     lenses: [...lenses.values()].sort(byId),
     responses: sortedResponses,
     policies: [...policies.values()].sort(byId),
-    diagnostics: diagnosticsReport
+    diagnostics: diagnosticsReport,
+    operating_templates: operatingTemplates,
+    anchor_index: anchorIndex
   };
   graph.run_summaries = buildRunSummaries(graph);
   const resumeLens = buildResumeLens(sortedNodes, sortedResponses, diag.summary, diag.recommended, generatedAt);
@@ -162,6 +168,8 @@ async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): P
   await storage.writeCompiledArtifact("indexes/by-type.json", byType);
   await storage.writeCompiledArtifact("indexes/by-status.json", byStatus);
   await storage.writeCompiledArtifact("indexes/tags.json", tags);
+  if (graph.operating_templates) await storage.writeCompiledArtifact("indexes/operating-templates.json", graph.operating_templates);
+  if (graph.anchor_index) await storage.writeCompiledArtifact("indexes/anchors.json", graph.anchor_index);
 }
 
 async function writeFailedBuildArtifacts(storage: AwgStorage, diagnostics: CompiledGraph["diagnostics"], resumeLens: unknown, currentView: unknown): Promise<void> {

@@ -313,11 +313,14 @@ Start of session:
 - Run \`awg handoff\`.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
+- Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
 During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
+- Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.

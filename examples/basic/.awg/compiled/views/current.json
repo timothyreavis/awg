@@ -12,7 +12,7 @@
         "stale_node_count": 0,
         "unanswered_question_count": 0,
         "unverified_completion_count": 0,
-        "warning_count": 0
+        "warning_count": 1
       },
       "title": "Graph Health",
       "type": "summary"
@@ -106,7 +106,7 @@
         "stale_node_count": 0,
         "unanswered_question_count": 0,
         "unverified_completion_count": 0,
-        "warning_count": 0
+        "warning_count": 1
       },
       "title": "Diagnostics",
       "type": "diagnostics"

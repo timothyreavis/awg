@@ -52,12 +52,7 @@ export interface AwgPresentationBlock {
     | "metric-row"
     | "table"
     | "checklist"
-    | "task-queue"
-    | "risk-list"
-    | "decision-list"
-    | "evidence-list"
     | "timeline"
-    | "run-summary"
     | "node-list"
     | string;
   title?: string;
@@ -75,6 +70,70 @@ export interface AwgAnchor {
   name?: string;
   url?: string;
   label?: string;
+}
+
+export interface OperatingTemplateSummary {
+  id: string;
+  title: string;
+  summary: string;
+  status: string;
+  type: string;
+  scope: string;
+  selectorKey: string;
+  appliesTo: Record<string, unknown>;
+  sectionIds: string[];
+  missingSections: string[];
+  needsReview: boolean;
+  humanReviewRequired: boolean;
+  humanApproved: boolean;
+  updated_at: string;
+}
+
+export interface OperatingTemplateWarning {
+  code: string;
+  severity: DiagnosticSeverity;
+  message: string;
+  nodeIds?: string[];
+  suggestedCommands?: string[];
+}
+
+export interface OperatingTemplateConflict {
+  scope: string;
+  selectorKey: string;
+  templateIds: string[];
+  message: string;
+}
+
+export interface OperatingTemplateMissingSection {
+  templateId: string;
+  section: string;
+  required: boolean;
+  severity: DiagnosticSeverity;
+}
+
+export interface OperatingTemplateIndex {
+  ok: boolean;
+  activeTemplateId: string | null;
+  selectedTemplate: OperatingTemplateSummary | null;
+  activeTemplates: OperatingTemplateSummary[];
+  rootsByScope: Record<string, string[]>;
+  missingSections: OperatingTemplateMissingSection[];
+  conflicts: OperatingTemplateConflict[];
+  warnings: OperatingTemplateWarning[];
+  suggestedCommands: string[];
+}
+
+export interface AnchorIndexEntry {
+  key: string;
+  kind: AwgAnchor["kind"];
+  value: string;
+  nodeIds: string[];
+}
+
+export interface AnchorIndex {
+  entries: AnchorIndexEntry[];
+  byKind: Record<string, AnchorIndexEntry[]>;
+  byNodeId: Record<string, AnchorIndexEntry[]>;
 }
 
 export interface AwgEdge extends AwgBase {
@@ -195,6 +254,8 @@ export interface CompiledGraph {
   policies: AwgPolicy[];
   diagnostics: DiagnosticsReport;
   run_summaries?: unknown[];
+  operating_templates?: OperatingTemplateIndex;
+  anchor_index?: AnchorIndex;
 }
 
 export interface ResumeLensOutput {

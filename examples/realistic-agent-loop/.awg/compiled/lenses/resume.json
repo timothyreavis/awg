@@ -79,7 +79,7 @@
     "stale_run_count": 1,
     "unanswered_question_count": 1,
     "unverified_completion_count": 1,
-    "warning_count": 16
+    "warning_count": 17
   },
   "generated_at": "2026-05-13T11:20:00.000Z",
   "id": "lens:resume",
@@ -265,9 +265,10 @@
   "recommended_maintenance": [
     "Review stale nodes and update freshness metadata.",
     "Add evidence to completed task nodes.",
+    "Review operating template status and resolve governance warnings.",
     "Finish active runs with a summary and generate a handoff before stopping."
   ],
-  "summary": "19 nodes, 8 edges, 16 warnings, 0 fatal errors.",
+  "summary": "19 nodes, 8 edges, 17 warnings, 0 fatal errors.",
   "unanswered_questions": [
     {
       "awg": "0.1",

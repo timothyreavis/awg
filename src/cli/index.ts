@@ -7,6 +7,7 @@ import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
 import { instructionsCommand } from "./commands/instructions.js";
 import { lensCommand } from "./commands/lens.js";
+import { nodeCommand } from "./commands/node.js";
 import { openCommand } from "./commands/open.js";
 import { recentCommand } from "./commands/recent.js";
 import { registerCommand, unregisterCommand } from "./commands/register.js";
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
   if (command === "validate") return validateCommand(parsed);
   if (command === "doctor") return doctorCommand(parsed);
   if (command === "lens") return lensCommand(parsed);
+  if (command === "node") return nodeCommand(parsed);
   if (command === "handoff") return handoffCommand(parsed);
   if (command === "recent") return recentCommand(parsed);
   if (command === "view") return viewCommand(parsed);
@@ -62,7 +64,7 @@ Commands:
   vault prune [--dry-run] [--yes] [--json]
   instructions list
   instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
-  add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+  add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--evidence-required] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
   add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
   add evidence --target <id> --summary <summary> [--run <run-id>|--no-run]
@@ -78,6 +80,7 @@ Commands:
   doctor [--fix-suggestions] [--json]
   lens resume [--budget <n>] [--json]
   lens task --goal <goal> [--budget <n>] [--json]
+  node show <node-id> [--json]
   handoff [--budget <n>] [--json] [--no-record]
   recent [--days <n>] [--json]
   view current [--json] [--text]

@@ -1,4 +1,40 @@
 {
+  "anchor_index": {
+    "byKind": {
+      "file": [
+        {
+          "key": "file\u0000src/core/retrieval.ts",
+          "kind": "file",
+          "nodeIds": [
+            "n:active-task"
+          ],
+          "value": "src/core/retrieval.ts"
+        }
+      ]
+    },
+    "byNodeId": {
+      "n:active-task": [
+        {
+          "key": "file\u0000src/core/retrieval.ts",
+          "kind": "file",
+          "nodeIds": [
+            "n:active-task"
+          ],
+          "value": "src/core/retrieval.ts"
+        }
+      ]
+    },
+    "entries": [
+      {
+        "key": "file\u0000src/core/retrieval.ts",
+        "kind": "file",
+        "nodeIds": [
+          "n:active-task"
+        ],
+        "value": "src/core/retrieval.ts"
+      }
+    ]
+  },
   "awg": "0.1",
   "diagnostics": {
     "awg": "0.1",
@@ -7,6 +43,11 @@
         "code": "unfinished_run_without_recent_note",
         "id": "run:fixture-blocked",
         "message": "Active run has no recent note/update: run:fixture-blocked",
+        "severity": "warning"
+      },
+      {
+        "code": "template_no_active_template",
+        "message": "No active operating template is available for this vault.",
         "severity": "warning"
       },
       {
@@ -113,7 +154,7 @@
       "stale_run_count": 1,
       "unanswered_question_count": 1,
       "unverified_completion_count": 1,
-      "warning_count": 16
+      "warning_count": 17
     }
   },
   "edges": [
@@ -572,6 +613,30 @@
       "updated_at": "2026-05-13T09:24:00.000Z"
     }
   ],
+  "operating_templates": {
+    "activeTemplateId": null,
+    "activeTemplates": [],
+    "conflicts": [],
+    "missingSections": [],
+    "ok": false,
+    "rootsByScope": {},
+    "selectedTemplate": null,
+    "suggestedCommands": [
+      "awg template status --json",
+      "awg search operating-template",
+      "awg lens task --goal \"template governance\""
+    ],
+    "warnings": [
+      {
+        "code": "AWG_TEMPLATE_NO_ACTIVE_TEMPLATE",
+        "message": "No active operating template is available for this vault.",
+        "severity": "warning",
+        "suggestedCommands": [
+          "awg add node --type process --title \"Operating template\" --summary \"...\" --status active --tag operating-template"
+        ]
+      }
+    ]
+  },
   "policies": [],
   "responses": [
     {

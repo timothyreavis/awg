@@ -44,6 +44,51 @@
     "awg": {
       "const": "0.1"
     },
+    "blocks": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "data": {},
+          "schemaVersion": {
+            "const": 1
+          },
+          "sourceNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "targetNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tone": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "data"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "body": {
+      "type": "string"
+    },
     "confidence": {
       "maximum": 1,
       "minimum": 0,
@@ -51,6 +96,55 @@
     },
     "created_at": {
       "type": "string"
+    },
+    "fields": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "freshness": {
+      "additionalProperties": true,
+      "properties": {
+        "last_verified": {
+          "type": "string"
+        },
+        "review_after": {
+          "type": "string"
+        },
+        "source_of_truth": {
+          "type": "string"
+        },
+        "stale_reason": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "current",
+            "historical",
+            "proposed",
+            "superseded",
+            "stale",
+            "needs_review",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "superseded_at": {
+          "type": "string"
+        },
+        "superseded_by": {
+          "type": "string"
+        },
+        "supersedes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "verified_by": {
+          "type": "string"
+        }
+      },
+      "type": "object"
     },
     "id": {
       "pattern": "^n:.+",

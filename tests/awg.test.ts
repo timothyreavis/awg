@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { MVP_BLOCK_TYPES, validatePresentationBlock } from "../src/core/blocks.js";
 import { buildAwg } from "../src/core/compiler.js";
+import { buildNodeDetail } from "../src/core/nodeDetail.js";
 import { decodeNodeRouteId, graphNeighborhood, kanbanColumnsFor, nodeRoute, queryNodes, renderStaticSite, unsupportedBlockFallback } from "../src/core/renderStaticSite.js";
 import { currentSchemaManifest, schemaBodyForFile, schemaContentHash, schemaForFile } from "../src/core/schemas.js";
 import type { AwgNode, Diagnostic } from "../src/core/types.js";
@@ -92,13 +93,16 @@ test("init creates expected files", () => {
   assert.ok(agents.includes("durable project memory"));
   assert.ok(agents.includes("awg doctor --fix-suggestions --json"));
   assert.ok(agents.includes("--auto-handoff"));
+  assert.ok(agents.includes("awg node show <node-id> --json"));
   assert.ok(claude.includes("Follow the project instructions in `AGENTS.md`"));
   assert.ok(claude.includes("awg doctor --fix-suggestions --json"));
   assert.ok(claude.includes("--auto-handoff"));
+  assert.ok(claude.includes("awg node show <node-id> --json"));
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
   assert.ok(vaultAgents.includes("awg run start"));
   assert.ok(vaultAgents.includes("awg doctor --fix-suggestions --json"));
   assert.ok(vaultAgents.includes("--auto-handoff"));
+  assert.ok(vaultAgents.includes("awg node show <node-id> --json"));
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
   assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
 });
@@ -139,6 +143,8 @@ test("packed package installs and exposes the awg bin", () => {
   assert.ok(help.includes("awg <command>"));
   assert.ok(help.includes("--block-json"));
   assert.ok(help.includes("--freshness-json"));
+  assert.ok(help.includes("--evidence-required"));
+  assert.ok(help.includes("node show <node-id> [--json]"));
   const bin = path.join(installDir, "node_modules/.bin/awg");
   const vault = tmp();
   const home = tempHome();
@@ -151,8 +157,8 @@ test("packed package installs and exposes the awg bin", () => {
     "--summary", "Package smoke template.",
     "--status", "active",
     "--tag", "template:operating",
-    "--fields-json", "{\"scope\":\"project\",\"rationale\":\"Package smoke.\",\"affected_scope\":[\"nodes\"],\"migration_notes\":\"None.\",\"review_state\":\"draft\"}",
-    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Packaged block.\"}",
+    "--fields-json", "{\"scope\":\"project\",\"purpose\":\"Package smoke.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Review on material change.\",\"agent_rules\":\"Search before writing.\",\"review_state\":\"reviewed\"}",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":{\"items\":[{\"label\":\"Purpose\",\"text\":\"Packaged block.\"}]}}",
     "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
     "--json"
   ], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } });
@@ -160,6 +166,10 @@ test("packed package installs and exposes the awg bin", () => {
   assert.equal(templateStatus.activeTemplateId, "n:package-template");
   const build = JSON.parse(execFileSync(bin, ["build", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(build.fatal_error_count, 0);
+  const nodeDetail = JSON.parse(execFileSync(bin, ["node", "show", "n:package-template", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  assert.equal(nodeDetail.ok, true);
+  assert.equal(nodeDetail.node.id, "n:package-template");
+  assert.equal(nodeDetail.node.blocks[0].type, "brief");
   const doctor = JSON.parse(execFileSync(bin, ["doctor", "--fix-suggestions", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(doctor.summary.fatal_error_count, 0);
 });
@@ -486,6 +496,151 @@ test("search finds id title summary and filters deterministically", () => {
   assert.ok(run(cwd, ["search", "n:upgrade-task"]).includes("n:upgrade-task"));
 });
 
+test("node show returns full node detail without mutating logs", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Inspect node detail", "--agent", "tester", "--json"]));
+  run(cwd, [
+    "add", "node",
+    "--id", "n:detail",
+    "--type", "task",
+    "--title", "Detail task",
+    "--summary", "Detail summary.",
+    "--status", "in_progress",
+    "--body", "Full body.\nSecond line.",
+    "--fields-json", "{\"owner\":\"agent\",\"crossVaultRefs\":[{\"vaultId\":\"vault:other\",\"rel\":\"affects\",\"reason\":\"Demo impact.\",\"status\":\"open\"}]}",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":{\"items\":[{\"label\":\"Need\",\"text\":\"Show full detail.\"}]}}",
+    "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
+    "--anchor", "file:src/core/nodeDetail.ts"
+  ]);
+  run(cwd, ["add", "node", "--id", "n:neighbor", "--type", "concept", "--title", "Neighbor", "--summary", "Related neighbor."]);
+  run(cwd, ["add", "edge", "--from", "n:detail", "--rel", "relates_to", "--to", "n:neighbor"]);
+  run(cwd, ["add", "response", "--type", "note", "--target", "n:detail", "--summary", "Human note."]);
+  const evidence = JSON.parse(run(cwd, ["add", "evidence", "--target", "n:detail", "--summary", "Detail verified.", "--source", "terminal", "--command", "npm test", "--status", "passed", "--json"]));
+  run(cwd, ["build"]);
+  const compiledFiles = [".awg/compiled/graph.json", ".awg/compiled/views/current.json", ".awg/compiled/lenses/resume.json"];
+  const compiledBefore = compiledFiles.map((file) => readFileSync(path.join(cwd, file), "utf8"));
+  const before = (await new FileAwgStorage(cwd).readLogEntries()).length;
+  const detail = JSON.parse(run(cwd, ["node", "show", "n:detail", "--json"]));
+  const text = run(cwd, ["node", "show", "n:detail"]);
+  const after = (await new FileAwgStorage(cwd).readLogEntries()).length;
+  assert.equal(after, before);
+  assert.deepEqual(compiledFiles.map((file) => readFileSync(path.join(cwd, file), "utf8")), compiledBefore);
+  assert.equal(detail.ok, true);
+  assert.equal(detail.nodeId, "n:detail");
+  assert.equal(detail.node.body, "Full body.\nSecond line.");
+  assert.equal(detail.node.fields.owner, "agent");
+  assert.equal(detail.node.fields.crossVaultRefs[0].vaultId, "vault:other");
+  assert.equal(detail.node.blocks[0].type, "brief");
+  assert.equal(detail.node.freshness.state, "current");
+  assert.deepEqual(detail.node.anchors, [{ kind: "file", path: "src/core/nodeDetail.ts", label: "src/core/nodeDetail.ts" }]);
+  assert.ok(detail.edges.outgoing.some((edge: { to: string; rel: string }) => edge.to === "n:neighbor" && edge.rel === "relates_to"));
+  assert.ok(detail.edges.incoming.some((edge: { from: string; to: string }) => edge.from === evidence.evidenceNodeId && edge.to === "n:detail"));
+  assert.equal(detail.responses[0].summary, "Human note.");
+  assert.equal(detail.evidence.nodes[0].id, evidence.evidenceNodeId);
+  assert.ok(detail.history.snapshotCount >= 2);
+  assert.ok(detail.history.snapshots.some((snapshot: { node: { summary: string } }) => snapshot.node.summary === "Detail summary."));
+  assert.equal(detail.runAttribution.directRunId, started.runId);
+  const runAttribution = detail.runAttribution.runs.find((item: { runId: string }) => item.runId === started.runId);
+  assert.ok(runAttribution.roles.includes("created_node"));
+  assert.ok(runAttribution.roles.includes("response_target"));
+  assert.ok(runAttribution.roles.includes("evidence_target"));
+  assert.ok(text.includes("Body:"));
+  assert.ok(text.includes("Full body."));
+  assert.ok(text.includes("Additional Fields:"));
+  assert.ok(text.includes("evidence_required") || text.includes("evidence"));
+  assert.ok(text.includes("Run Attribution:"));
+  const missingJson = JSON.parse(runFail(cwd, ["node", "show", "n:missing", "--json"]));
+  assert.equal(missingJson.ok, false);
+  assert.equal(missingJson.code, "node_not_found");
+  assert.ok(runFail(cwd, ["node", "show", "n:missing"]).includes("Node not found: n:missing"));
+  const built = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.equal(buildNodeDetail({ ...built.graph, run_summaries: [{ runId: "run:partial" }] }, "n:detail")?.runAttribution.runs.length, 0);
+});
+
+test("node show keeps diagnostic run attribution scoped to the inspected node", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const runA = JSON.parse(run(cwd, ["run", "start", "--goal", "Create orphan A", "--json"]));
+  run(cwd, ["add", "node", "--id", "n:orphan-a", "--type", "task", "--title", "Orphan A", "--summary", "Orphan A."]);
+  run(cwd, ["run", "finish", "--status", "partial", "--summary", "Left orphan A."]);
+  const runB = JSON.parse(run(cwd, ["run", "start", "--goal", "Create orphan B", "--json"]));
+  run(cwd, ["add", "node", "--id", "n:orphan-b", "--type", "task", "--title", "Orphan B", "--summary", "Orphan B."]);
+  run(cwd, ["run", "finish", "--status", "partial", "--summary", "Left orphan B."]);
+  const detail = JSON.parse(run(cwd, ["node", "show", "n:orphan-a", "--json"]));
+  const attributedRunIds = detail.runAttribution.runs.map((item: { runId: string }) => item.runId);
+  assert.ok(attributedRunIds.includes(runA.runId));
+  assert.ok(!attributedRunIds.includes(runB.runId));
+});
+
+test("edge-only evidence is consistent across node detail diagnostics and run summaries", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(file), { recursive: true }));
+  const at = new Date().toISOString();
+  const finishedAt = new Date(Date.now() + 1000).toISOString();
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:edge-evidence:start", type: "run_started", target: "run:edge-evidence", run: "run:edge-evidence", by: "agent:codex", at, goal: "Edge evidence" }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:done", type: "task", title: "Done", summary: "Done.", status: "completed", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at, run: "run:edge-evidence" }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:proof", type: "evidence", title: "Proof", summary: "Proof.", status: "active", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at, run: "run:edge-evidence" }),
+    JSON.stringify({ awg: "0.1", kind: "edge", id: "e:proof-supports-done", from: "n:proof", rel: "supports", to: "n:done", created_at: at, run: "run:edge-evidence" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:edge-evidence:finish", type: "run_finished", target: "run:edge-evidence", run: "run:edge-evidence", by: "agent:codex", at: finishedAt, status: "completed", summary: "Finished with edge evidence." })
+  ].join("\n") + "\n");
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.ok(!result.diagnostics.diagnostics.some((diag) => diag.code === "completed_task_without_evidence" && diag.id === "n:done"));
+  assert.ok(!result.diagnostics.diagnostics.some((diag) => diag.code === "completed_run_without_evidence_or_changes" && diag.id === "run:edge-evidence"));
+  const summary = (result.graph.run_summaries as Array<{ runId: string; completedTasksMissingEvidence: string[] }>).find((item) => item.runId === "run:edge-evidence");
+  assert.ok(summary);
+  assert.ok(!summary.completedTasksMissingEvidence.includes("n:done"));
+  const detail = buildNodeDetail(result.graph, "n:done");
+  assert.equal(detail?.evidence.nodes[0].id, "n:proof");
+});
+
+test("malformed inline evidence does not satisfy evidence gates", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(file), { recursive: true }));
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(file, `${JSON.stringify({ awg: "0.1", kind: "node", id: "n:bad-evidence", type: "task", title: "Bad evidence", summary: "Malformed evidence.", status: "completed", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at, evidence: [{}], run: "run:bad-evidence" })}\n`);
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.ok(result.diagnostics.diagnostics.some((diag) => diag.code === "completed_task_without_evidence" && diag.id === "n:bad-evidence"));
+  const summary = (result.graph.run_summaries as Array<{ runId: string; completedTasksMissingEvidence: string[] }>).find((item) => item.runId === "run:bad-evidence");
+  assert.ok(summary?.completedTasksMissingEvidence.includes("n:bad-evidence"));
+  const detail = buildNodeDetail(result.graph, "n:bad-evidence");
+  assert.deepEqual(detail?.evidence.nodes, []);
+});
+
+test("unresolved inline evidence ids do not satisfy evidence gates", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(file), { recursive: true }));
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(file, `${JSON.stringify({ awg: "0.1", kind: "node", id: "n:missing-evidence-ref", type: "task", title: "Missing evidence ref", summary: "Broken evidence reference.", status: "completed", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at, evidence: [{ id: "n:missing-proof" }], run: "run:missing-evidence-ref" })}\n`);
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  assert.ok(result.diagnostics.diagnostics.some((diag) => diag.code === "completed_task_without_evidence" && diag.id === "n:missing-evidence-ref"));
+  const detail = buildNodeDetail(result.graph, "n:missing-evidence-ref");
+  assert.deepEqual(detail?.evidence.nodes, []);
+});
+
+test("node show exposes duplicate node snapshots without raw jsonl inspection", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(file), { recursive: true }));
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:dup", type: "task", title: "Dup", summary: "Original.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z", fields: { version: 1 } }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:dup", type: "task", title: "Dup", summary: "Replacement.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-02T00:00:00.000Z", fields: { version: 2 } })
+  ].join("\n") + "\n");
+  const detail = JSON.parse(run(cwd, ["node", "show", "n:dup", "--json"]));
+  assert.equal(detail.node.summary, "Replacement.");
+  assert.equal(detail.history.snapshotCount, 2);
+  assert.deepEqual(detail.history.snapshots.map((snapshot: { node: { fields: { version: number } } }) => snapshot.node.fields.version), [1, 2]);
+  assert.ok(detail.diagnostics.some((diag: { code: string }) => diag.code === "duplicate_id_upsert"));
+});
+
 test("update node appends an upsert and event without touching compiled source", async () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -525,7 +680,7 @@ test("rich node writes support body fields blocks freshness anchors and fail bef
     "--body", "Narrative detail.",
     "--field", "priority=2",
     "--field-json", "{\"owner\":\"codex\"}",
-    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Block text.\"}",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":{\"items\":[{\"label\":\"Summary\",\"text\":\"Block text.\"}]}}",
     "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
     "--anchor", "file:src/core/types.ts",
     "--json"
@@ -540,7 +695,7 @@ test("rich node writes support body fields blocks freshness anchors and fail bef
   assert.ok(runFail(cwd, ["update", "node", "n:rich", "--anchors-json"]).includes("--anchors-json requires a JSON value or @file"));
   assert.ok(runFail(cwd, ["update", "node", "n:rich", "--freshness-json", "{\"state\":\"bogus\"}"]).includes("--freshness-json state must be one of"));
   assert.ok(runFail(cwd, ["update", "node", "n:rich", "--anchors-json", "[{\"kind\":\"bogus\"}]"]).includes("--anchors-json[0].kind must be one of"));
-  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Bad refs.\",\"sourceNodeIds\":[1]}"]).includes("invalid block"));
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":{\"text\":\"Bad refs.\"},\"sourceNodeIds\":[1]}"]).includes("invalid block"));
   assert.equal((await new FileAwgStorage(cwd).readLogEntries()).length, beforeFail);
   const updated = JSON.parse(run(cwd, [
     "update", "node", "n:rich",
@@ -558,12 +713,12 @@ test("rich node writes support body fields blocks freshness anchors and fail bef
   const replaced = JSON.parse(run(cwd, [
     "update", "node", "n:rich",
     "--clear-blocks",
-    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Replacement only.\"}",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":{\"text\":\"Replacement only.\"}}",
     "--json"
   ]));
   assert.equal(replaced.ok, true);
   assert.equal(replaced.node.blocks.length, 1);
-  assert.equal(replaced.node.blocks[0].data, "Replacement only.");
+  assert.equal(replaced.node.blocks[0].data.text, "Replacement only.");
   run(cwd, ["build"]);
   const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
   const node = graph.nodes.find((item: { id: string }) => item.id === "n:rich");
@@ -576,7 +731,10 @@ test("block diagnostics and viewer fallbacks are safe for unsupported blocks", (
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
   assert.ok(runFail(cwd, ["add", "node", "--id", "n:blocky", "--type", "task", "--title", "Blocky", "--summary", "Blocky.", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"chart\",\"data\":{}}]"]).toLowerCase().includes("unsupported"));
-  run(cwd, ["add", "node", "--id", "n:blocky", "--type", "task", "--title", "Blocky", "--summary", "Blocky.", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"checklist\",\"data\":[{\"label\":\"Done\",\"done\":true},null]},{\"schemaVersion\":1,\"type\":\"timeline\",\"data\":[null,\"Fallback\"]}]"]);
+  const hugeBlockFile = path.join(cwd, "huge-block.json");
+  writeFileSync(hugeBlockFile, JSON.stringify({ schemaVersion: 1, type: "brief", data: { text: "A".repeat(100_001) } }));
+  assert.ok(runFail(cwd, ["add", "node", "--id", "n:huge-block", "--type", "task", "--title", "Huge block", "--summary", "Huge.", "--blocks-json", `@${hugeBlockFile}`]).includes("Block data is too large"));
+  run(cwd, ["add", "node", "--id", "n:blocky", "--type", "task", "--title", "Blocky", "--summary", "Blocky.", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"checklist\",\"data\":{\"items\":[{\"label\":\"Done\",\"status\":\"done\"}]}},{\"schemaVersion\":1,\"type\":\"timeline\",\"data\":{\"items\":[{\"label\":\"Fallback\",\"summary\":\"Fallback\"}]}}]"]);
   run(cwd, ["add", "node", "--id", "n:list-block", "--type", "task", "--title", "List block", "--summary", "List block.", "--blocks-json", "{\"schemaVersion\":1,\"type\":\"node-list\",\"title\":\"Tasks\",\"data\":{\"query\":{\"type\":\"task\"}}}"]);
   run(cwd, ["build"]);
   const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
@@ -594,23 +752,27 @@ test("block diagnostics and viewer fallbacks are safe for unsupported blocks", (
     JSON.stringify({ awg: "0.1", kind: "node", id: "n:related", type: "concept", title: "Related", summary: "Related.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }),
     JSON.stringify({ awg: "0.1", kind: "edge", id: "e:bad-block-related", from: "n:bad-block", rel: "relates_to", to: "n:related", created_at: "2026-01-01T00:00:00.000Z" })
   ].join("\n") + "\n");
-  const strictOutput = runFail(strictCwd, ["build", "--strict", "--json"]);
-  assert.ok(strictOutput.includes('"fatal_error_count": 1'));
+  const strictOutput = JSON.parse(runFail(strictCwd, ["build", "--strict", "--json"]));
+  assert.ok(strictOutput.fatal_error_count >= 1);
   assert.ok(JSON.parse(readFileSync(path.join(strictCwd, ".awg/compiled/reports/diagnostics.json"), "utf8")).diagnostics.some((diag: { code: string; severity: string }) => diag.code === "unsupported_block_type" && diag.severity === "fatal"));
 });
 
-test("V1.7 presentation block contract accepts operating block primitives", () => {
-  for (const type of ["task-queue", "risk-list", "decision-list", "evidence-list", "run-summary"]) {
+test("V1.7 presentation block contract accepts only safe authored MVP primitives", () => {
+  for (const type of ["brief", "callout", "metric-row", "table", "checklist", "node-list", "timeline"]) {
     assert.ok((MVP_BLOCK_TYPES as readonly string[]).includes(type));
   }
+  for (const type of ["task-queue", "risk-list", "decision-list", "evidence-list", "run-summary"]) {
+    assert.ok(!(MVP_BLOCK_TYPES as readonly string[]).includes(type));
+    assert.ok(validatePresentationBlock({ schemaVersion: 1, type, data: { query: { type: "task" } } }).some((diag) => diag.code === "unsupported_block_type"));
+  }
   const blocks = [
-    { schemaVersion: 1, type: "task-queue", data: { query: { type: "task" } } },
-    { schemaVersion: 1, type: "risk-list", data: { query: { type: "risk" } } },
-    { schemaVersion: 1, type: "decision-list", data: { items: [{ id: "n:decision" }] } },
-    { schemaVersion: 1, type: "evidence-list", data: { items: [{ title: "Evidence", summary: "Verified." }, null] } },
-    { schemaVersion: 1, type: "run-summary", data: { summary: "Run complete.", metrics: { changed_nodes: 2 } } },
+    { schemaVersion: 1, type: "brief", data: { items: [{ label: "One", text: "Summary." }] } },
+    { schemaVersion: 1, type: "callout", data: { text: "Review this." } },
+    { schemaVersion: 1, type: "metric-row", data: { items: [{ label: "Changed", value: 2 }] } },
     { schemaVersion: 1, type: "table", data: { columns: [{ key: "status", label: "Status" }, "owner"], rows: [{ status: "active", owner: "codex" }] } },
-    { schemaVersion: 1, type: "checklist", data: [{ label: "Done item", status: "done" }] }
+    { schemaVersion: 1, type: "checklist", data: { items: [{ label: "Done item", status: "done" }] } },
+    { schemaVersion: 1, type: "node-list", data: { nodeIds: ["n:decision"] } },
+    { schemaVersion: 1, type: "timeline", data: { items: [{ label: "Started", at: "2026-05-13" }] } }
   ];
   for (const block of blocks) assert.deepEqual(validatePresentationBlock(block), []);
   assert.ok(validatePresentationBlock({ schemaVersion: 1, type: "table", data: { columns: [{ label: "Missing key" }], rows: [] } }).some((diag) => diag.code === "invalid_block_data"));
@@ -619,14 +781,44 @@ test("V1.7 presentation block contract accepts operating block primitives", () =
 test("template status is read only and emits deterministic json", async () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
-  run(cwd, ["add", "node", "--id", "n:template", "--type", "process", "--title", "Project operating template", "--summary", "Project conventions.", "--status", "active", "--fields-json", "{\"scope\":\"project\",\"rationale\":\"Keep conventions local.\",\"affected_scope\":[\"nodes\"],\"migration_notes\":\"None.\",\"review_state\":\"draft\"}", "--tag", "template:operating"]);
+  run(cwd, ["add", "node", "--id", "n:ordinary", "--type", "concept", "--title", "Ordinary", "--summary", "Ordinary node."]);
+  const noTemplate = JSON.parse(run(cwd, ["template", "status", "--json"]));
+  assert.equal(noTemplate.ok, false);
+  const noTemplateDoctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+  assert.ok(noTemplateDoctor.diagnostics.some((diag: { code: string }) => diag.code === "template_no_active_template"));
+  assert.ok(noTemplateDoctor.fixSuggestions.some((suggestion: { code: string }) => suggestion.code === "AWG_HEALTH_CREATE_OPERATING_TEMPLATE"));
+  assert.equal(existsSync(path.join(cwd, ".awg/compiled/graph.json")), false);
+  run(cwd, ["add", "node", "--id", "n:template", "--type", "process", "--title", "Project operating template", "--summary", "Project conventions.", "--status", "active", "--fields-json", "{\"scope\":\"project\",\"purpose\":\"Keep conventions local.\",\"taxonomy\":{\"types\":[\"task\"]},\"freshness_rules\":\"Review on behavior changes.\",\"agent_rules\":\"Search before creating nodes.\",\"review_state\":\"reviewed\",\"human_review_required\":true,\"human_approved\":true,\"fieldRules\":[{\"nodeType\":\"task\",\"field\":\"owner\",\"required\":true}]}", "--tag", "template:operating"]);
   const before = (await new FileAwgStorage(cwd).readLogEntries()).length;
   const status = JSON.parse(run(cwd, ["template", "status", "--goal", "project conventions", "--json"]));
   assert.equal(status.ok, true);
   assert.equal(status.activeTemplateId, "n:template");
   assert.equal(status.activeTemplates[0].scope, "project");
+  assert.equal(status.activeTemplates[0].humanApproved, true);
+  assert.equal(status.selectedTemplate.id, "n:template");
   assert.deepEqual(status.missingSections, []);
   assert.equal((await new FileAwgStorage(cwd).readLogEntries()).length, before);
+  run(cwd, ["add", "node", "--id", "n:templated-task", "--type", "task", "--title", "Templated task", "--summary", "Missing owner."]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(graph.operating_templates.activeTemplateId, "n:template");
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "missing_required_field" && diag.id === "n:templated-task"));
+  assert.ok(existsSync(path.join(cwd, ".awg/compiled/indexes/operating-templates.json")));
+  const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+  assert.ok(doctor.fixSuggestions.some((suggestion: { code: string; suggestedCommands: string[] }) => suggestion.code === "AWG_HEALTH_ADD_TEMPLATE_FIELD" && suggestion.suggestedCommands[0].includes("--field owner=...")));
+  assert.equal(existsSync(path.join(cwd, ".awg/compiled/graph.json")), true);
+});
+
+test("template field rules respect deterministic appliesTo boundaries", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:seo-template", "--type", "process", "--title", "SEO operating template", "--summary", "SEO conventions.", "--status", "active", "--tag", "template:operating", "--fields-json", "{\"scope\":\"seo\",\"appliesTo\":{\"client\":\"acme\"},\"purpose\":\"SEO work.\",\"taxonomy\":{\"types\":[\"task\"]},\"freshness_rules\":\"Review after audits.\",\"agent_rules\":\"Use site evidence.\",\"review_state\":\"reviewed\",\"fieldRules\":[{\"nodeType\":\"task\",\"field\":\"owner\",\"required\":true}]}"]);
+  run(cwd, ["add", "node", "--id", "n:plain-task", "--type", "task", "--title", "Plain task", "--summary", "Not SEO."]);
+  run(cwd, ["add", "node", "--id", "n:seo-task", "--type", "task", "--title", "SEO task", "--summary", "SEO.", "--fields-json", "{\"client\":\"acme\"}"]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "missing_required_field" && diag.id === "n:seo-task"));
+  assert.ok(!graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "missing_required_field" && diag.id === "n:plain-task"));
 });
 
 test("rich content participates in deterministic search", () => {
@@ -637,6 +829,12 @@ test("rich content participates in deterministic search", () => {
   assert.deepEqual(fromBody.results.map((item: { id: string }) => item.id), ["n:search-rich"]);
   const fromFields = JSON.parse(run(cwd, ["search", "field-owner", "--json"]));
   assert.deepEqual(fromFields.results.map((item: { id: string }) => item.id), ["n:search-rich"]);
+  run(cwd, ["add", "node", "--id", "n:secret-ish", "--type", "concept", "--title", "Secretish", "--summary", "Search safe.", "--fields-json", "{\"api_key\":\"sk-123456789012345678901234567890\"}"]);
+  const secretSearch = JSON.parse(run(cwd, ["search", "123456789012345678901234567890", "--json"]));
+  assert.deepEqual(secretSearch.results.map((item: { id: string }) => item.id), []);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "sensitive_value_detected" && diag.id === "n:secret-ish"));
 });
 
 test("manual duplicate node upserts still warn unless paired with update event", () => {
@@ -682,7 +880,7 @@ test("add evidence creates evidence node edge and satisfies completed task evide
 test("task lens and handoff include scoped context and respect budgets", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
-  run(cwd, ["add", "node", "--id", "n:task-a", "--type", "task", "--title", "Implement upgrade command", "--summary", "Build upgrade.", "--status", "in_progress", "--importance", "0.9"]);
+  run(cwd, ["add", "node", "--id", "n:task-a", "--type", "task", "--title", "Implement upgrade command", "--summary", "Build upgrade.", "--status", "in_progress", "--importance", "0.9", "--anchor", "file:src/upgrade.ts"]);
   run(cwd, ["add", "node", "--id", "n:risk-a", "--type", "risk", "--title", "Upgrade risk", "--summary", "Schema compatibility risk.", "--status", "active"]);
   run(cwd, ["add", "node", "--id", "n:unrelated", "--type", "task", "--title", "Unrelated", "--summary", "Other work.", "--status", "active"]);
   run(cwd, ["add", "edge", "--from", "n:task-a", "--rel", "blocks", "--to", "n:risk-a"]);
@@ -691,15 +889,19 @@ test("task lens and handoff include scoped context and respect budgets", () => {
   assert.equal(lens.id, "lens:task");
   assert.ok(lens.sections.find((section: { section: string }) => section.section === "matches").items.some((item: { id: string }) => item.id === "n:task-a"));
   assert.ok(JSON.stringify(lens).includes("n:risk-a"));
+  assert.ok(JSON.stringify(lens).includes("templateContext"));
+  assert.ok(JSON.stringify(lens).includes("src/upgrade.ts"));
   assert.ok(!JSON.stringify(lens).includes("n:unrelated"));
   assert.ok(lens.sections.some((section: { omitted: number }) => typeof section.omitted === "number"));
   const handoff = JSON.parse(run(cwd, ["handoff", "--budget", "1000", "--json"]));
   assert.equal(handoff.kind, "handoff");
+  assert.ok(JSON.stringify(handoff).includes("templateContext"));
   assert.ok(JSON.stringify(handoff).includes("activeTasks"));
   assert.ok(JSON.stringify(handoff).includes("recentEvidence"));
   const tinyHandoff = run(cwd, ["handoff", "--budget", "200", "--json"]);
   assert.ok(tinyHandoff.length < 1800);
   const tinyParsed = JSON.parse(tinyHandoff);
+  assert.equal(typeof tinyParsed.quality.score, "number");
   assert.ok(["activeRun", "mostRecentRun", "graphHealth"].includes(tinyParsed.sections[0].section));
   assert.ok(tinyParsed.sections.some((section: { omitted: number }) => section.omitted > 0));
   assert.ok(run(cwd, ["handoff", "--budget", "600"]).includes("AWG handoff"));
@@ -740,7 +942,7 @@ test("write commands attribute durable writes to active explicit and suppressed 
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
   const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Attribution", "--json"]));
-  run(cwd, ["add", "node", "--id", "n:attr-task", "--type", "task", "--title", "Attr task", "--summary", "Attributed.", "--status", "in_progress"]);
+  run(cwd, ["add", "node", "--id", "n:attr-task", "--type", "task", "--title", "Attr task", "--summary", "Attributed.", "--status", "in_progress", "--evidence-required"]);
   run(cwd, ["add", "edge", "--from", "n:attr-task", "--rel", "relates_to", "--to", "n:attr-task"]);
   run(cwd, ["add", "response", "--type", "note", "--target", "n:attr-task", "--summary", "Attributed response."]);
   run(cwd, ["update", "node", "n:attr-task", "--status", "completed"]);
@@ -752,6 +954,7 @@ test("write commands attribute durable writes to active explicit and suppressed 
   run(cwd, ["build"]);
   const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
   assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:attr-task").run, started.runId);
+  assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:attr-task").evidence_required, true);
   assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:no-run").run, undefined);
   assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:explicit-run").run, started.runId);
   const summary = graph.run_summaries.find((item: { runId: string }) => item.runId === started.runId);
@@ -789,6 +992,7 @@ test("doctor fix suggestions are structured conservative and non-mutating", asyn
   const before = await new FileAwgStorage(cwd).readLogEntries();
   const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
   assert.ok(doctor.fixSuggestions.some((suggestion: { code: string; suggestedCommands: string[] }) => suggestion.code === "AWG_HEALTH_COMPLETED_WITHOUT_EVIDENCE" && suggestion.suggestedCommands[0].includes("awg add evidence")));
+  assert.equal(existsSync(path.join(cwd, ".awg/compiled/graph.json")), false);
   const after = await new FileAwgStorage(cwd).readLogEntries();
   assert.equal(after.length, before.length);
 });
@@ -817,6 +1021,7 @@ test("handoff json records handoff event without breaking parseable output", () 
   run(cwd, ["run", "finish", "--status", "partial", "--summary", "Stopped after JSON handoff prep."]);
   const handoff = JSON.parse(run(cwd, ["handoff", "--json"]));
   assert.equal(handoff.kind, "handoff");
+  assert.equal(handoff.quality.checks.find((check: { id: string }) => check.id === "handoff_generated").ok, true);
   const list = JSON.parse(run(cwd, ["run", "list", "--json"]));
   assert.equal(list.runs[0].id, started.runId);
   assert.equal(list.runs[0].handoffs.length, 1);
@@ -1051,7 +1256,12 @@ test("viewer generation includes route shell and theme assets", async () => {
   assert.ok(js.includes("normalizeBlockNode"));
   assert.ok(js.includes("Missing node reference"));
   assert.ok(js.includes("byId.get(item) || missingBlockNode(item)"));
+  assert.ok(js.includes("safeAnchorHref"));
+  assert.ok(js.includes("rawJsonPreview(block.data || block)"));
   assert.ok(js.includes("normalizeTableColumns"));
+  assert.ok(js.includes("renderBodyOutline(node.body)"));
+  assert.ok(js.includes("function renderBodyOutline"));
+  assert.ok(js.includes("function renderInlineText"));
   assert.ok(js.includes("item && typeof item === \"object\""));
   assert.ok(js.includes('"Needs Attention"'));
   assert.ok(js.includes('"Active Work"'));
@@ -1068,12 +1278,42 @@ test("viewer generation includes route shell and theme assets", async () => {
   assert.ok(css.includes(".callout-warning"));
   assert.ok(css.includes(".checklist"));
   assert.ok(css.includes(".timeline-row"));
+  assert.ok(css.includes(".prose h4"));
+  assert.ok(css.includes(".prose code"));
   assert.ok(css.includes(".block{grid-column:1 / -1}"));
   assert.ok(css.includes(".block-compact{grid-column:span 1"));
   assert.ok(css.includes(".column-blocked"));
   assert.ok(css.includes("@media(max-width:640px){.route-root"));
   assert.ok(!css.includes("\n(max-width:640px)"));
   assert.ok(css.includes(':root[data-theme="dark"]'));
+});
+
+test("viewer node bodies use a safe outline renderer instead of raw markdown or html", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, [
+    "add",
+    "node",
+    "--id",
+    "n:outline",
+    "--type",
+    "concept",
+    "--title",
+    "Outline",
+    "--summary",
+    "Structured body.",
+    "--body",
+    "Problem:\n- Escape <script>\n1. Render `code`."
+  ]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.equal(graph.nodes[0].body, "Problem:\n- Escape <script>\n1. Render `code`.");
+  assert.ok(js.includes("node.body ? nodeSection(\"Body\", renderBodyOutline(node.body))"));
+  assert.ok(js.includes("outlineHeading(trimmed)"));
+  assert.ok(js.includes("renderInlineText"));
+  assert.ok(js.includes("esc(match[1])"));
+  assert.ok(!js.includes("'<div class=\"prose\"><p>' + esc(node.body)"));
 });
 
 test("viewer route helpers encode node ids with special characters", () => {
@@ -1329,6 +1569,7 @@ test("instructions install codex creates and patches AGENTS.md without clobberin
   assert.ok(first.includes("Keep this."));
   assert.ok(first.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
   assert.ok(first.includes("id=codex hash=sha256:"));
+  assert.ok(first.includes("awg node show <node-id> --json"));
   run(cwd, ["instructions", "install", "codex"]);
   const second = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
   assert.equal((second.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
@@ -1471,6 +1712,7 @@ test("instructions install claude-code patches existing CLAUDE.md", () => {
   const text = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
   assert.ok(text.includes("Keep this."));
   assert.ok(text.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.ok(text.includes("awg node show <node-id> --json"));
   assert.equal(existsSync(path.join(cwd, ".awg/instructions/claude-code.md")), false);
 });
 
@@ -1485,6 +1727,8 @@ test("instructions install snippets preserve existing user-authored content", ()
   const antigravity = readFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "utf8");
   assert.ok(claude.includes("Keep this."));
   assert.ok(antigravity.includes("Keep this too."));
+  assert.ok(claude.includes("awg node show <node-id> --json"));
+  assert.ok(antigravity.includes("awg node show <node-id> --json"));
   assert.equal((claude.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
   assert.equal((antigravity.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
 });
@@ -1528,6 +1772,7 @@ test("upgrade creates missing schemas and preserves config fields", () => {
   assert.deepEqual(nodeSchema, schemaForFile("node"));
   assert.ok(vaultAgents.includes("awg doctor --fix-suggestions --json"));
   assert.ok(vaultAgents.includes("--auto-handoff"));
+  assert.ok(vaultAgents.includes("awg node show <node-id> --json"));
 });
 
 test("upgrade preserves customized project schemas", () => {

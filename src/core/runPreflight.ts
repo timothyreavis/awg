@@ -1,4 +1,6 @@
 import type { AgentRun, RunSummary } from "./runs.js";
+import { isBlockDiagnosticCode } from "./blocks.js";
+import { hasEvidenceReference } from "./evidence.js";
 import type { CompiledGraph } from "./types.js";
 
 export interface RunPreflightWarning {
@@ -24,12 +26,19 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   const warnings: RunPreflightWarning[] = [];
   const touched = summary?.touchedNodeIds ?? run.changed_nodes;
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const incomingByTarget = new Map<string, CompiledGraph["edges"]>();
+  for (const edge of graph.edges) {
+    const incoming = incomingByTarget.get(edge.to) ?? [];
+    incoming.push(edge);
+    incomingByTarget.set(edge.to, incoming);
+  }
+  const hasNodeEvidence = (id: string): boolean => hasEvidenceReference(nodes.get(id), incomingByTarget.get(id) ?? [], nodes);
   const addNodeWarning = (code: string, message: string, nodeIds: string[], suggestedFix?: string): void => {
     if (nodeIds.length) warnings.push({ code, severity: "warning", message, nodeIds, suggestedFix });
   };
 
   addNodeWarning("AWG_RUN_COMPLETED_TASK_WITHOUT_EVIDENCE", "Task completed in this run has no evidence.", summary?.completedTasksMissingEvidence ?? [], "Run `awg add evidence --target <node-id> --summary \"...\"`.");
-  addNodeWarning("AWG_RUN_EVIDENCE_REQUIRED_WITHOUT_EVIDENCE", "Touched node requires evidence but has none.", touched.filter((id) => Boolean(nodes.get(id)?.evidence_required) && !hasEvidence(nodes.get(id))), "Run `awg add evidence --target <node-id> --summary \"...\"`.");
+  addNodeWarning("AWG_RUN_EVIDENCE_REQUIRED_WITHOUT_EVIDENCE", "Touched node requires evidence but has none.", touched.filter((id) => Boolean(nodes.get(id)?.evidence_required) && !hasNodeEvidence(id)), "Run `awg add evidence --target <node-id> --summary \"...\"`.");
   addNodeWarning("AWG_RUN_ACTIVE_BLOCKER_TOUCHED", "Blocker touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "blocker" && activeStatus(nodes.get(id)?.status)), "Resolve, review, or leave an explicit run note.");
   addNodeWarning("AWG_RUN_ACTIVE_RISK_TOUCHED", "Risk touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "risk" && activeStatus(nodes.get(id)?.status)), "Review the risk or leave an explicit run note.");
   addNodeWarning("AWG_RUN_PROPOSED_DECISION_TOUCHED", "Decision touched during this run is still proposed.", summary?.proposedDecisionIds ?? [], "Update the decision status when implementation depends on it.");
@@ -37,6 +46,9 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   addNodeWarning("AWG_RUN_DUPLICATEISH_NODE_CREATED", "Node created during this run has a duplicate-looking title or alias.", idsForDiagnostics(summary, "duplicate_alias"), "Use `awg search` and update existing nodes instead of duplicating context.");
   addNodeWarning("AWG_RUN_DOCTOR_WARNING_TOUCHED", "Doctor warning affects a node touched during this run.", idsForDiagnostics(summary), "Run `awg doctor --fix-suggestions --json` and address relevant suggestions.");
   addNodeWarning("AWG_RUN_STALE_TOUCHED_NODE", "Touched node is stale or needs review.", summary?.staleOrNeedsReviewNodeIds ?? [], "Review and update the node status or review_after metadata.");
+  addNodeWarning("AWG_RUN_INVALID_BLOCK_TOUCHED", "Touched node has invalid or unsupported presentation blocks.", idsForDiagnostics(summary, isBlockDiagnosticCode), "Replace node blocks with supported V1.7 data primitives.");
+  addNodeWarning("AWG_RUN_TEMPLATE_FIELD_MISSING", "Touched node is missing a field required by the active operating template.", idsForDiagnostics(summary, "missing_required_field"), "Update the node with the required structured field.");
+  addNodeWarning("AWG_RUN_SENSITIVE_VALUE_TOUCHED", "Touched node appears to contain a secret-like value.", idsForDiagnostics(summary, "sensitive_value_detected"), "Redact the value and keep only a safe reference.");
 
   if (!run.notes.length) warnings.push({ code: "AWG_RUN_NO_NOTES", severity: "warning", message: "Run has no notes.", suggestedFix: "Run `awg run note \"...\"` with meaningful progress or blockers." });
   if (!touched.length && !(summary?.createdEdgeIds.length || summary?.responseIds.length || summary?.evidenceNodeIds.length)) warnings.push({ code: "AWG_RUN_NO_CHANGES", severity: "warning", message: "Run has no changed or touched graph objects.", suggestedFix: "Record durable work before finishing, or finish as partial/abandoned." });
@@ -59,7 +71,12 @@ export function qualityForRun(graph: CompiledGraph, run: AgentRun | undefined, p
     { id: "proposed_decisions_not_silent", ok: (summary?.proposedDecisionIds.length ?? 0) === 0, weight: 10, count: summary?.proposedDecisionIds.length ?? 0 },
     { id: "doctor_clean_for_touched_nodes", ok: (summary?.diagnostics.filter((d) => d.severity === "fatal" || d.severity === "warning").length ?? 0) === 0, weight: 15, count: summary?.diagnostics.filter((d) => d.severity === "fatal" || d.severity === "warning").length ?? 0 },
     { id: "handoff_generated", ok: Boolean(summary?.handoffGenerated), weight: 10 },
-    { id: "stale_touched_nodes_surfaced", ok: (summary?.staleOrNeedsReviewNodeIds.length ?? 0) === 0, weight: 10, count: summary?.staleOrNeedsReviewNodeIds.length ?? 0 }
+    { id: "stale_touched_nodes_surfaced", ok: (summary?.staleOrNeedsReviewNodeIds.length ?? 0) === 0, weight: 10, count: summary?.staleOrNeedsReviewNodeIds.length ?? 0 },
+    { id: "active_template_discovered", ok: (graph.operating_templates?.activeTemplates.length ?? 0) > 0, weight: 5, count: graph.operating_templates?.activeTemplates.length ?? 0 },
+    { id: "template_conflicts_absent", ok: (graph.operating_templates?.conflicts.length ?? 0) === 0, weight: 5, count: graph.operating_templates?.conflicts.length ?? 0 },
+    { id: "invalid_blocks_absent_for_touched_nodes", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_INVALID_BLOCK_TOUCHED"), weight: 10 },
+    { id: "template_required_fields_present", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_TEMPLATE_FIELD_MISSING"), weight: 10 },
+    { id: "secret_like_values_absent", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_SENSITIVE_VALUE_TOUCHED"), weight: 10 }
   ];
   const total = checks.reduce((sum, check) => sum + check.weight, 0);
   const earned = checks.reduce((sum, check) => sum + (check.ok ? check.weight : 0), 0);
@@ -70,16 +87,15 @@ export function runSummaryFor(graph: CompiledGraph, runId: string): RunSummary |
   return (graph.run_summaries as RunSummary[] | undefined)?.find((summary) => summary.runId === runId);
 }
 
-function hasEvidence(node: unknown): boolean {
-  return Boolean(node && typeof node === "object" && Array.isArray((node as { evidence?: unknown[] }).evidence) && (node as { evidence?: unknown[] }).evidence!.length);
-}
-
 function activeStatus(status: unknown): boolean {
   return typeof status === "string" && ["active", "blocked", "in_progress", "needs_review", "proposed", "stale"].includes(status);
 }
 
-function idsForDiagnostics(summary: RunSummary | undefined, code?: string): string[] {
-  return [...new Set((summary?.diagnostics ?? []).filter((diag) => !code || diag.code === code).map((diag) => diag.id).filter((id): id is string => Boolean(id)))].sort();
+function idsForDiagnostics(summary: RunSummary | undefined, code?: string | ((code: string) => boolean)): string[] {
+  return [...new Set((summary?.diagnostics ?? []).filter((diag) => {
+    if (!code) return true;
+    return typeof code === "string" ? diag.code === code : code(diag.code);
+  }).map((diag) => diag.id).filter((id): id is string => Boolean(id)))].sort();
 }
 
 function dedupeWarnings(warnings: RunPreflightWarning[]): RunPreflightWarning[] {

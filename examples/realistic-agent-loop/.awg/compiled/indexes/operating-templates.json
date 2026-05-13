@@ -1,0 +1,24 @@
+{
+  "activeTemplateId": null,
+  "activeTemplates": [],
+  "conflicts": [],
+  "missingSections": [],
+  "ok": false,
+  "rootsByScope": {},
+  "selectedTemplate": null,
+  "suggestedCommands": [
+    "awg template status --json",
+    "awg search operating-template",
+    "awg lens task --goal \"template governance\""
+  ],
+  "warnings": [
+    {
+      "code": "AWG_TEMPLATE_NO_ACTIVE_TEMPLATE",
+      "message": "No active operating template is available for this vault.",
+      "severity": "warning",
+      "suggestedCommands": [
+        "awg add node --type process --title \"Operating template\" --summary \"...\" --status active --tag operating-template"
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import type { AwgEvent, AwgNode, CompiledGraph, Diagnostic } from "./types.js";
+import { hasEvidenceReference } from "./evidence.js";
 import { runIdFromObject } from "./runAttribution.js";
 
 export const RUN_STATUSES = ["in_progress", "completed", "partial", "blocked", "failed", "abandoned"] as const;
@@ -176,7 +177,7 @@ export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" |
     linked.add(edge.to);
   }
 
-  return [...summaries.values()].map((summary) => finalizeRunSummary(summary, graph.nodes, graph.diagnostics.diagnostics, linked)).sort((a, b) => a.runId.localeCompare(b.runId));
+  return [...summaries.values()].map((summary) => finalizeRunSummary(summary, graph.nodes, graph.edges, graph.diagnostics.diagnostics, linked)).sort((a, b) => a.runId.localeCompare(b.runId));
 }
 
 export function activeRun(runs: AgentRun[]): AgentRun | undefined {
@@ -205,11 +206,17 @@ interface MutableRunSummary {
   handoffIds: Set<string>;
 }
 
-function finalizeRunSummary(summary: MutableRunSummary, nodes: AwgNode[], diagnostics: Diagnostic[], linked: Set<string>): RunSummary {
+function finalizeRunSummary(summary: MutableRunSummary, nodes: AwgNode[], edges: CompiledGraph["edges"], diagnostics: Diagnostic[], linked: Set<string>): RunSummary {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const incomingByTarget = new Map<string, CompiledGraph["edges"]>();
+  for (const edge of edges) {
+    const incoming = incomingByTarget.get(edge.to) ?? [];
+    incoming.push(edge);
+    incomingByTarget.set(edge.to, incoming);
+  }
   const touched = [...summary.touchedNodeIds].filter((id) => nodeById.has(id)).sort();
   const diag = diagnostics.filter((item) => item.id && summary.touchedNodeIds.has(item.id)).sort((a, b) => (a.id ?? "").localeCompare(b.id ?? "") || a.code.localeCompare(b.code));
-  const nodeHasEvidence = (node: AwgNode | undefined) => Boolean(node && Array.isArray(node.evidence) && node.evidence.length);
+  const nodeHasEvidence = (node: AwgNode | undefined) => Boolean(node && hasEvidenceReference(node, incomingByTarget.get(node.id) ?? [], nodeById));
   const active = (node: AwgNode | undefined) => Boolean(node && ["active", "blocked", "in_progress", "needs_review", "proposed", "stale"].includes(node.status));
   return {
     runId: summary.runId,

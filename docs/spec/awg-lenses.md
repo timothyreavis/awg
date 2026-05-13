@@ -37,3 +37,17 @@ Budgets are approximate character budgets, not tokenizer budgets. They preserve 
 All retrieval is local and deterministic. AWG does not use embeddings, AI calls, remote APIs, vector search, daemon processes, or repository file crawling for lenses.
 
 V1.7 extends deterministic search input with bounded text extracted from node `body`, `fields`, `blocks`, and `freshness` in addition to ids, titles, summaries, tags, statuses, types, and anchors. Rich content can improve matching, but summaries remain the concise retrieval and scanning surface.
+
+V1.7 also adds template and anchor context to retrieval:
+
+- `awg template status --json` reads the compiler-derived operating-template index and can select the best active template for a goal.
+- `awg lens task --goal "<goal>"` includes selected template context, related anchor entries, and related run context while still using deterministic text and graph matching.
+- `awg handoff` includes template context, anchor impact for the active/recent run, and V1.7 quality checks for template discovery, template conflicts, invalid touched blocks, missing template-required fields, and secret-like touched values.
+
+Node detail retrieval:
+
+- `awg node show <node-id>` returns a read-only full-detail view for one node after `search`, `lens task`, or `handoff` surfaces an id.
+- `awg node show <node-id> --json` returns the full node, incoming/outgoing edges, responses, evidence nodes and evidence edges, diagnostics affecting the node or related edges, derived run attribution roles, and node snapshot history for duplicate/upsert inspection.
+- The command rebuilds from canonical logs with `write: false`; it does not append events, update compiled artifacts, or record handoffs.
+
+Budgeted handoff and lens output may omit empty sections. Non-empty sections keep stable `omitted` counts so agents can tell when lower-priority context was truncated.

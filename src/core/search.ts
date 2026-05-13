@@ -82,11 +82,35 @@ function scoreNode(node: AwgNode, q: string, terms: string[], queryMatchesInacti
 }
 
 function boundedRichText(value: unknown): string {
-  if (value === undefined || value === null) return "";
-  const text = typeof value === "string" ? value : JSON.stringify(value);
-  return text.slice(0, 4000);
+  return richTextFragments(value).join(" ").slice(0, 4000);
 }
 
 function normalize(value: unknown): string {
   return String(value ?? "").toLowerCase().trim();
+}
+
+function richTextFragments(value: unknown, depth = 0): string[] {
+  if (depth > 5 || value === undefined || value === null) return [];
+  if (typeof value === "string") return looksSecretLike(value) ? [] : [value];
+  if (typeof value === "number" || typeof value === "boolean") return [String(value)];
+  if (Array.isArray(value)) return value.slice(0, 60).flatMap((item) => richTextFragments(item, depth + 1));
+  if (typeof value !== "object") return [];
+  const out: string[] = [];
+  for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+    if (isSensitiveKey(key)) continue;
+    out.push(key, ...richTextFragments(item, depth + 1));
+  }
+  return out;
+}
+
+function isSensitiveKey(key: string): boolean {
+  return /password|secret|token|api[_-]?key|private[_-]?key|credential/i.test(key);
+}
+
+function looksSecretLike(value: string): boolean {
+  if (/redacted|placeholder|example|\.\.\./i.test(value)) return false;
+  return /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(value)
+    || /\bAKIA[0-9A-Z]{16}\b/.test(value)
+    || /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{24,}\b/.test(value)
+    || /\bsk-[A-Za-z0-9]{20,}\b/.test(value);
 }

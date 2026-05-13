@@ -51,6 +51,7 @@ async function addNode(parsed: ParsedArgs): Promise<void> {
   const source = str(parsed.flags, "source");
   const createdBy = str(parsed.flags, "created-by", "agent:codex");
   if (source) node.source = source;
+  if (parsed.flags["evidence-required"] !== undefined) node.evidence_required = true;
   node.provenance = { created_by: createdBy, updated_by: createdBy, source: source ?? "agent_generated", human_approved: false };
   await storage.appendLogEntry(node);
   if (runId) await storage.appendLogEntry(attachRun({ awg: AWG_VERSION, kind: "event", id: runEventId(runId, "node", at), type: "node_created", target: node.id, by: createdBy, at }, runId) as AwgEvent);
