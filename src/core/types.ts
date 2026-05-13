@@ -23,8 +23,50 @@ export interface AwgNode extends AwgBase {
   aliases?: string[];
   evidence?: unknown[];
   anchors?: AwgAnchor[];
+  body?: string;
+  fields?: Record<string, unknown>;
+  blocks?: AwgPresentationBlock[];
+  freshness?: AwgFreshness;
   review_after?: string;
   superseded_by?: string;
+}
+
+export interface AwgFreshness {
+  state?: "current" | "historical" | "proposed" | "superseded" | "stale" | "needs_review" | "unknown" | "not_applicable";
+  last_verified?: string;
+  review_after?: string;
+  verified_by?: string;
+  source_of_truth?: string;
+  stale_reason?: string;
+  supersedes?: string[];
+  superseded_by?: string;
+  superseded_at?: string;
+  [key: string]: unknown;
+}
+
+export interface AwgPresentationBlock {
+  schemaVersion: 1;
+  type:
+    | "brief"
+    | "callout"
+    | "metric-row"
+    | "table"
+    | "checklist"
+    | "task-queue"
+    | "risk-list"
+    | "decision-list"
+    | "evidence-list"
+    | "timeline"
+    | "run-summary"
+    | "node-list"
+    | string;
+  title?: string;
+  summary?: string;
+  tone?: "info" | "success" | "warning" | "danger" | "neutral" | string;
+  data: unknown;
+  sourceNodeIds?: string[];
+  targetNodeIds?: string[];
+  [key: string]: unknown;
 }
 
 export interface AwgAnchor {

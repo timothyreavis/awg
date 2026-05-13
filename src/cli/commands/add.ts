@@ -8,6 +8,7 @@ import type { AwgEdge, AwgEvent, AwgNode, AwgResponse } from "../../core/types.j
 import { nowIso } from "../../util/time.js";
 import { arr, str, type ParsedArgs } from "../args.js";
 import { printJson } from "../format.js";
+import { applyRichNodePatch, richNodePatch } from "../nodeContent.js";
 
 export async function addCommand(parsed: ParsedArgs): Promise<void> {
   const [, sub] = parsed.positionals;
@@ -30,6 +31,8 @@ async function addNode(parsed: ParsedArgs): Promise<void> {
   const storage = new FileAwgStorage();
   const { graph } = await buildAwg(storage, { write: false });
   const runId = resolveWriteRunId(graph, parsed.flags);
+  const rich = richNodePatch(parsed);
+  const applied = applyRichNodePatch(undefined, rich);
   const node: AwgNode = attachRun({
     awg: AWG_VERSION,
     kind: "node",
@@ -43,16 +46,15 @@ async function addNode(parsed: ParsedArgs): Promise<void> {
     created_at: at,
     updated_at: at,
     tags: arr(parsed.flags, "tag")
+    , ...applied.patch
   }, runId);
-  const body = str(parsed.flags, "body");
   const source = str(parsed.flags, "source");
   const createdBy = str(parsed.flags, "created-by", "agent:codex");
-  if (body) node.body = body;
   if (source) node.source = source;
   node.provenance = { created_by: createdBy, updated_by: createdBy, source: source ?? "agent_generated", human_approved: false };
   await storage.appendLogEntry(node);
   if (runId) await storage.appendLogEntry(attachRun({ awg: AWG_VERSION, kind: "event", id: runEventId(runId, "node", at), type: "node_created", target: node.id, by: createdBy, at }, runId) as AwgEvent);
-  if (parsed.flags.json) return printJson({ ok: true, nodeId: node.id, node });
+  if (parsed.flags.json) return printJson({ ok: true, nodeId: node.id, node, updated: applied.updatedKeys, warnings: applied.warnings });
   console.log(`Added node ${node.id}`);
 }
 

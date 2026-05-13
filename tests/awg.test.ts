@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { MVP_BLOCK_TYPES, validatePresentationBlock } from "../src/core/blocks.js";
 import { buildAwg } from "../src/core/compiler.js";
 import { decodeNodeRouteId, graphNeighborhood, kanbanColumnsFor, nodeRoute, queryNodes, renderStaticSite, unsupportedBlockFallback } from "../src/core/renderStaticSite.js";
 import { currentSchemaManifest, schemaBodyForFile, schemaContentHash, schemaForFile } from "../src/core/schemas.js";
@@ -136,6 +137,31 @@ test("packed package installs and exposes the awg bin", () => {
   execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], { cwd: installDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   const help = execFileSync(path.join(installDir, "node_modules/.bin/awg"), ["--help"], { cwd: installDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   assert.ok(help.includes("awg <command>"));
+  assert.ok(help.includes("--block-json"));
+  assert.ok(help.includes("--freshness-json"));
+  const bin = path.join(installDir, "node_modules/.bin/awg");
+  const vault = tmp();
+  const home = tempHome();
+  execFileSync(bin, ["init", "--empty", "--no-register"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } });
+  execFileSync(bin, [
+    "add", "node",
+    "--id", "n:package-template",
+    "--type", "process",
+    "--title", "Package template",
+    "--summary", "Package smoke template.",
+    "--status", "active",
+    "--tag", "template:operating",
+    "--fields-json", "{\"scope\":\"project\",\"rationale\":\"Package smoke.\",\"affected_scope\":[\"nodes\"],\"migration_notes\":\"None.\",\"review_state\":\"draft\"}",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Packaged block.\"}",
+    "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
+    "--json"
+  ], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } });
+  const templateStatus = JSON.parse(execFileSync(bin, ["template", "status", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  assert.equal(templateStatus.activeTemplateId, "n:package-template");
+  const build = JSON.parse(execFileSync(bin, ["build", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  assert.equal(build.fatal_error_count, 0);
+  const doctor = JSON.parse(execFileSync(bin, ["doctor", "--fix-suggestions", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  assert.equal(doctor.summary.fatal_error_count, 0);
 });
 
 test("setup creates global config and registry in temp home", () => {
@@ -485,6 +511,132 @@ test("update node appends an upsert and event without touching compiled source",
   assert.ok((await new FileAwgStorage(cwd).readLogEntries()).length >= 3);
   assert.ok(runFail(cwd, ["update", "node", "n:update", "--status", "not-real"]).includes("--status must be one of"));
   assert.ok(runFail(cwd, ["update", "node", "n:missing", "--status", "active"]).includes("Node not found"));
+});
+
+test("rich node writes support body fields blocks freshness anchors and fail before append on malformed JSON", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const created = JSON.parse(run(cwd, [
+    "add", "node",
+    "--id", "n:rich",
+    "--type", "task",
+    "--title", "Rich",
+    "--summary", "Concise retrieval text.",
+    "--body", "Narrative detail.",
+    "--field", "priority=2",
+    "--field-json", "{\"owner\":\"codex\"}",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Block text.\"}",
+    "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
+    "--anchor", "file:src/core/types.ts",
+    "--json"
+  ]));
+  assert.equal(created.ok, true);
+  assert.deepEqual(created.node.fields, { owner: "codex", priority: 2 });
+  assert.equal(created.node.blocks[0].type, "brief");
+  assert.equal(created.node.freshness.state, "current");
+  const beforeFail = (await new FileAwgStorage(cwd).readLogEntries()).length;
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--field-json", "{bad"]).includes("--field-json contains malformed JSON"));
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--blocks-json"]).includes("--blocks-json requires a JSON value or @file"));
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--anchors-json"]).includes("--anchors-json requires a JSON value or @file"));
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--freshness-json", "{\"state\":\"bogus\"}"]).includes("--freshness-json state must be one of"));
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--anchors-json", "[{\"kind\":\"bogus\"}]"]).includes("--anchors-json[0].kind must be one of"));
+  assert.ok(runFail(cwd, ["update", "node", "n:rich", "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Bad refs.\",\"sourceNodeIds\":[1]}"]).includes("invalid block"));
+  assert.equal((await new FileAwgStorage(cwd).readLogEntries()).length, beforeFail);
+  const updated = JSON.parse(run(cwd, [
+    "update", "node", "n:rich",
+    "--field", "priority=3",
+    "--unset-field", "owner",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"callout\",\"tone\":\"warning\",\"data\":{\"text\":\"Check this.\"}}",
+    "--review-after", "2020-01-01",
+    "--unset-anchor", "file:src/core/types.ts",
+    "--json"
+  ]));
+  assert.equal(updated.ok, true);
+  assert.deepEqual(updated.node.fields, { priority: 3 });
+  assert.equal(updated.node.blocks.length, 2);
+  assert.deepEqual(updated.node.anchors, []);
+  const replaced = JSON.parse(run(cwd, [
+    "update", "node", "n:rich",
+    "--clear-blocks",
+    "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Replacement only.\"}",
+    "--json"
+  ]));
+  assert.equal(replaced.ok, true);
+  assert.equal(replaced.node.blocks.length, 1);
+  assert.equal(replaced.node.blocks[0].data, "Replacement only.");
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const node = graph.nodes.find((item: { id: string }) => item.id === "n:rich");
+  assert.equal(node.body, "Narrative detail.");
+  assert.equal(node.freshness.review_after, "2020-01-01");
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "stale_node" && diag.id === "n:rich"));
+});
+
+test("block diagnostics and viewer fallbacks are safe for unsupported blocks", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  assert.ok(runFail(cwd, ["add", "node", "--id", "n:blocky", "--type", "task", "--title", "Blocky", "--summary", "Blocky.", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"chart\",\"data\":{}}]"]).toLowerCase().includes("unsupported"));
+  run(cwd, ["add", "node", "--id", "n:blocky", "--type", "task", "--title", "Blocky", "--summary", "Blocky.", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"checklist\",\"data\":[{\"label\":\"Done\",\"done\":true},null]},{\"schemaVersion\":1,\"type\":\"timeline\",\"data\":[null,\"Fallback\"]}]"]);
+  run(cwd, ["add", "node", "--id", "n:list-block", "--type", "task", "--title", "List block", "--summary", "List block.", "--blocks-json", "{\"schemaVersion\":1,\"type\":\"node-list\",\"title\":\"Tasks\",\"data\":{\"query\":{\"type\":\"task\"}}}"]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(!graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "unsupported_block_type" && diag.id === "n:blocky"));
+  const html = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.ok(html.includes("Unsupported block type"));
+  assert.ok(html.includes("block.data?.query"));
+  assert.equal(unsupportedBlockFallback({ type: "chart" }), "Unsupported block type: chart");
+  const strictCwd = tmp();
+  run(strictCwd, ["init", "--empty"]);
+  const file = path.join(strictCwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:bad-block", type: "task", title: "Bad block", summary: "Bad block.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z", blocks: [{ schemaVersion: 1, type: "chart", data: {} }] }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:related", type: "concept", title: "Related", summary: "Related.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "edge", id: "e:bad-block-related", from: "n:bad-block", rel: "relates_to", to: "n:related", created_at: "2026-01-01T00:00:00.000Z" })
+  ].join("\n") + "\n");
+  const strictOutput = runFail(strictCwd, ["build", "--strict", "--json"]);
+  assert.ok(strictOutput.includes('"fatal_error_count": 1'));
+  assert.ok(JSON.parse(readFileSync(path.join(strictCwd, ".awg/compiled/reports/diagnostics.json"), "utf8")).diagnostics.some((diag: { code: string; severity: string }) => diag.code === "unsupported_block_type" && diag.severity === "fatal"));
+});
+
+test("V1.7 presentation block contract accepts operating block primitives", () => {
+  for (const type of ["task-queue", "risk-list", "decision-list", "evidence-list", "run-summary"]) {
+    assert.ok((MVP_BLOCK_TYPES as readonly string[]).includes(type));
+  }
+  const blocks = [
+    { schemaVersion: 1, type: "task-queue", data: { query: { type: "task" } } },
+    { schemaVersion: 1, type: "risk-list", data: { query: { type: "risk" } } },
+    { schemaVersion: 1, type: "decision-list", data: { items: [{ id: "n:decision" }] } },
+    { schemaVersion: 1, type: "evidence-list", data: { items: [{ title: "Evidence", summary: "Verified." }, null] } },
+    { schemaVersion: 1, type: "run-summary", data: { summary: "Run complete.", metrics: { changed_nodes: 2 } } },
+    { schemaVersion: 1, type: "table", data: { columns: [{ key: "status", label: "Status" }, "owner"], rows: [{ status: "active", owner: "codex" }] } },
+    { schemaVersion: 1, type: "checklist", data: [{ label: "Done item", status: "done" }] }
+  ];
+  for (const block of blocks) assert.deepEqual(validatePresentationBlock(block), []);
+  assert.ok(validatePresentationBlock({ schemaVersion: 1, type: "table", data: { columns: [{ label: "Missing key" }], rows: [] } }).some((diag) => diag.code === "invalid_block_data"));
+});
+
+test("template status is read only and emits deterministic json", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:template", "--type", "process", "--title", "Project operating template", "--summary", "Project conventions.", "--status", "active", "--fields-json", "{\"scope\":\"project\",\"rationale\":\"Keep conventions local.\",\"affected_scope\":[\"nodes\"],\"migration_notes\":\"None.\",\"review_state\":\"draft\"}", "--tag", "template:operating"]);
+  const before = (await new FileAwgStorage(cwd).readLogEntries()).length;
+  const status = JSON.parse(run(cwd, ["template", "status", "--goal", "project conventions", "--json"]));
+  assert.equal(status.ok, true);
+  assert.equal(status.activeTemplateId, "n:template");
+  assert.equal(status.activeTemplates[0].scope, "project");
+  assert.deepEqual(status.missingSections, []);
+  assert.equal((await new FileAwgStorage(cwd).readLogEntries()).length, before);
+});
+
+test("rich content participates in deterministic search", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:search-rich", "--type", "task", "--title", "Opaque", "--summary", "Does not mention the key phrase.", "--body", "Contains retrieval-only phrase alpaca-blue.", "--fields-json", "{\"owner\":\"field-owner\"}", "--freshness-json", "{\"state\":\"unknown\"}"]);
+  const fromBody = JSON.parse(run(cwd, ["search", "alpaca-blue", "--json"]));
+  assert.deepEqual(fromBody.results.map((item: { id: string }) => item.id), ["n:search-rich"]);
+  const fromFields = JSON.parse(run(cwd, ["search", "field-owner", "--json"]));
+  assert.deepEqual(fromFields.results.map((item: { id: string }) => item.id), ["n:search-rich"]);
 });
 
 test("manual duplicate node upserts still warn unless paired with update event", () => {
@@ -892,6 +1044,15 @@ test("viewer generation includes route shell and theme assets", async () => {
   assert.ok(js.includes("block-metrics"));
   assert.ok(js.includes("block-compact"));
   assert.ok(js.includes('layout === "compact"'));
+  assert.ok(js.includes('"task-queue"'));
+  assert.ok(js.includes('"run-summary"'));
+  assert.ok(js.includes("renderSummaryBlock"));
+  assert.ok(js.includes("objectRecord(block.summary)"));
+  assert.ok(js.includes("normalizeBlockNode"));
+  assert.ok(js.includes("Missing node reference"));
+  assert.ok(js.includes("byId.get(item) || missingBlockNode(item)"));
+  assert.ok(js.includes("normalizeTableColumns"));
+  assert.ok(js.includes("item && typeof item === \"object\""));
   assert.ok(js.includes('"Needs Attention"'));
   assert.ok(js.includes('"Active Work"'));
   assert.ok(js.includes('!["node-list", "summary", "diagnostics", "diagnostic-list"].includes(block.type)'));
@@ -904,6 +1065,9 @@ test("viewer generation includes route shell and theme assets", async () => {
   assert.ok(css.includes(".top-summary{align-self:stretch;display:grid"));
   assert.ok(css.includes(".top-summary .metric{min-height:100%"));
   assert.ok(css.includes(".block-metrics"));
+  assert.ok(css.includes(".callout-warning"));
+  assert.ok(css.includes(".checklist"));
+  assert.ok(css.includes(".timeline-row"));
   assert.ok(css.includes(".block{grid-column:1 / -1}"));
   assert.ok(css.includes(".block-compact{grid-column:span 1"));
   assert.ok(css.includes(".column-blocked"));

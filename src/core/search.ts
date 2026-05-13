@@ -64,6 +64,10 @@ function scoreNode(node: AwgNode, q: string, terms: string[], queryMatchesInacti
   add("slug", node.slug, 950, 400);
   add("title", node.title, 700, 320);
   add("summary", node.summary, 360, 140);
+  add("body", boundedRichText(node.body), 120, 50);
+  add("fields", boundedRichText(node.fields), 120, 50);
+  add("blocks", boundedRichText(node.blocks), 100, 40);
+  add("freshness", boundedRichText(node.freshness), 100, 40);
   add("tag", node.tags, 240, 100);
   add("type", node.type, 180, 80);
   add("status", node.status, 160, 70);
@@ -75,6 +79,12 @@ function scoreNode(node: AwgNode, q: string, terms: string[], queryMatchesInacti
   if (!queryMatchesInactive && inactive.has(node.status)) score -= 60;
   if (!inactive.has(node.status)) score += 35;
   return { id: node.id, type: node.type, title: node.title, summary: node.summary, status: node.status, score, matches: [...matches].sort(), updated_at: node.updated_at };
+}
+
+function boundedRichText(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return text.slice(0, 4000);
 }
 
 function normalize(value: unknown): string {

@@ -248,12 +248,19 @@ const themes = [
 const settings = loadSettings();
 const blockRenderers = {
   brief: renderBriefBlock,
-  summary: renderBriefBlock,
+  summary: renderSummaryBlock,
   "metric-row": renderStatsGridBlock,
+  callout: renderCalloutBlock,
+  table: renderTableBlock,
+  checklist: renderChecklistBlock,
+  timeline: renderTimelineBlock,
   "stats-grid": renderStatsGridBlock,
   "attention-list": renderNodeListBlock,
   "attention-required": renderNodeListBlock,
   "node-list": renderNodeListBlock,
+  "task-queue": renderNodeListBlock,
+  "risk-list": renderNodeListBlock,
+  "decision-list": renderNodeListBlock,
   "node-table": renderNodeTableBlock,
   "decision-review": renderNodeListBlock,
   "task-review": renderNodeListBlock,
@@ -264,7 +271,22 @@ const blockRenderers = {
   diagnostics: renderDiagnosticListBlock,
   "kanban-board": renderKanbanBlock,
   "graph-neighborhood": renderGraphBlock,
+  "run-summary": renderRunSummaryBlock,
   "raw-json": renderRawJsonBlock
+};
+const nodeBlockRenderers = {
+  brief: renderBriefBlock,
+  callout: renderCalloutBlock,
+  "metric-row": renderStatsGridBlock,
+  table: renderTableBlock,
+  checklist: renderChecklistBlock,
+  "node-list": renderNodeListBlock,
+  "task-queue": renderNodeListBlock,
+  "risk-list": renderNodeListBlock,
+  "decision-list": renderNodeListBlock,
+  "evidence-list": renderEvidenceListBlock,
+  timeline: renderTimelineBlock,
+  "run-summary": renderRunSummaryBlock
 };
 initShell();
 window.addEventListener("hashchange", renderRoute);
@@ -484,6 +506,10 @@ function renderNodeDetail(id) {
   const evidenceCount = Array.isArray(node.evidence) ? node.evidence.length : 0;
   const nodeEvents = (graph.events || []).filter((event) => event.target === id);
   const sections = [
+    node.body ? nodeSection("Body", '<div class="prose"><p>' + esc(node.body) + '</p></div>') : "",
+    node.fields && Object.keys(node.fields).length ? nodeSection("Fields", renderKeyValueTable(node.fields)) : "",
+    node.freshness ? nodeSection("Freshness", renderKeyValueTable(node.freshness)) : "",
+    Array.isArray(node.blocks) && node.blocks.length ? nodeSection("Blocks", node.blocks.map(renderNodeAuthoredBlock).join("")) : "",
     outgoing.length || incoming.length ? nodeSection("Connected work", renderRelationshipIndex(outgoing, incoming)) : "",
     evidenceCount ? nodeSection("Evidence", renderEvidence(node.evidence)) : "",
     nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
@@ -506,19 +532,66 @@ function renderBlock(block) {
   return renderer(block);
 }
 
+function renderNodeAuthoredBlock(block) {
+  const renderer = Object.prototype.hasOwnProperty.call(nodeBlockRenderers, block?.type) ? nodeBlockRenderers[block.type] : undefined;
+  if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+  try {
+    return renderer(block);
+  } catch (error) {
+    return '<section class="block unsupported"><h2>Malformed block</h2><p class="muted">' + esc(error instanceof Error ? error.message : String(error)) + '</p><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+  }
+}
+
 function renderBriefBlock(block) {
-  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Brief") + '</h2><p>' + esc(typeof block.summary === "string" ? block.summary : JSON.stringify(block.summary || "No summary available.")) + '</p></section>';
+  const text = typeof block.data === "string" ? block.data : typeof block.summary === "string" ? block.summary : typeof block.data?.text === "string" ? block.data.text : "No summary available.";
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Brief") + '</h2><p>' + esc(text) + '</p></section>';
+}
+
+function renderSummaryBlock(block) {
+  const source = objectRecord(block.data) || objectRecord(block.summary);
+  if (source) return renderStatsGridBlock({ ...block, title: block.title || "Summary", data: source });
+  return renderBriefBlock(block);
+}
+
+function renderCalloutBlock(block) {
+  const text = typeof block.data === "string" ? block.data : block.data?.text || block.summary || "";
+  return '<section class="' + blockClass(block, "callout callout-" + toneClass(block.tone)) + '"><h2>' + esc(block.title || "Callout") + '</h2><p>' + esc(text) + '</p></section>';
 }
 
 function renderStatsGridBlock(block) {
-  const source = block.summary || diagnostics.summary || {};
+  const source = block.data || block.summary || diagnostics.summary || {};
   return '<section class="' + blockClass(block, "block-metrics") + '"><h2>' + esc(block.title || "Stats") + '</h2><div class="metric-row">' + Object.entries(source).slice(0, 8).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/health")).join("") + '</div></section>';
+}
+
+function renderTableBlock(block) {
+  const rows = Array.isArray(block.data?.rows) ? block.data.rows : Array.isArray(block.data) ? block.data : [];
+  const columns = normalizeTableColumns(block.data?.columns, rows);
+  if (!rows.length || !columns.length) return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><p class="muted">No table rows.</p></section>';
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><div class="table-wrap"><table><thead><tr>' + columns.map((column) => '<th>' + esc(column.label) + '</th>').join("") + '</tr></thead><tbody>' + rows.map((row) => '<tr>' + columns.map((column) => '<td>' + esc(cellValue(row?.[column.key])) + '</td>').join("") + '</tr>').join("") + '</tbody></table></div></section>';
+}
+
+function renderChecklistBlock(block) {
+  const items = Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Checklist") + '</h2>' + (items.length ? '<ul class="checklist">' + items.map((item) => {
+    const objectItem = item && typeof item === "object" && !Array.isArray(item) ? item : undefined;
+    const checked = objectItem ? Boolean(objectItem.done || objectItem.checked || ["done", "completed"].includes(objectItem.status)) : false;
+    const label = objectItem ? objectItem.label || objectItem.title || objectItem.summary : item;
+    return '<li><span class="checkmark">' + (checked ? "x" : "") + '</span><span>' + esc(label) + '</span></li>';
+  }).join("") + '</ul>' : '<p class="muted">No checklist items.</p>') + '</section>';
+}
+
+function renderTimelineBlock(block) {
+  const items = Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Timeline") + '</h2>' + (items.length ? '<div class="timeline">' + items.map((item) => {
+    const objectItem = item && typeof item === "object" && !Array.isArray(item) ? item : {};
+    return '<div class="timeline-row"><time>' + esc(objectItem.at || objectItem.date || "") + '</time><strong>' + esc(objectItem.title || objectItem.label || "") + '</strong><p>' + esc(objectItem.summary || objectItem.body || (typeof item === "string" ? item : "")) + '</p></div>';
+  }).join("") + '</div>' : '<p class="muted">No timeline items.</p>') + '</section>';
 }
 
 function renderNodeListBlock(block) {
   const items = resolveBlockItems(block).slice(0, block.limit || 8);
   const title = String(block.title || "").toLowerCase();
-  const isReview = ["attention-list", "decision-review", "risk-review", "question-review", "task-review"].includes(block.type) || title.includes("recently completed");
+  const isReview = ["attention-list", "decision-review", "risk-review", "question-review", "task-review", "task-queue", "risk-list", "decision-list"].includes(block.type) || title.includes("recently completed");
   if (isReview) return renderReviewBlock(block, items);
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Nodes") + '</h2>' + (items.length ? '<div class="card-list">' + items.map(renderNodeCard).join("") + '</div>' : '<p class="muted">No matching nodes.</p>') + '</section>';
 }
@@ -568,7 +641,8 @@ function renderDiagnosticListBlock(block) {
 }
 
 function renderEvidenceListBlock(block) {
-  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Evidence") + '</h2>' + renderEvidence(block.items || []) + '</section>';
+  const items = Array.isArray(block.items) ? block.items : Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Evidence") + '</h2>' + renderEvidence(items) + '</section>';
 }
 
 function renderKanbanBlock(block) {
@@ -593,8 +667,35 @@ function renderGraphBlock(block) {
   return '<div class="graph-wrap"><svg class="graph-svg" viewBox="0 0 720 420" role="img" aria-label="Graph neighborhood">' + edgeLines + nodeEls + '</svg>' + capped + '</div>';
 }
 
+function renderRunSummaryBlock(block) {
+  const source = block.data && typeof block.data === "object" && !Array.isArray(block.data) ? block.data : {};
+  const metrics = source.metrics && typeof source.metrics === "object" && !Array.isArray(source.metrics) ? source.metrics : source;
+  const notes = Array.isArray(source.notes) ? source.notes : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Run Summary") + '</h2>' + (source.summary ? '<p>' + esc(source.summary) + '</p>' : "") + '<div class="metric-row">' + Object.entries(metrics).filter(([key]) => key !== "notes" && key !== "summary").slice(0, 6).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/runs")).join("") + '</div>' + (notes.length ? '<div class="activity-table">' + notes.slice(0, 8).map((note) => '<article class="activity-row"><time>' + esc(note.at || "") + '</time><strong>' + esc(note.type || "note") + '</strong><span>' + esc(note.summary || note.message || note) + '</span><em>' + esc(note.by || "") + '</em></article>').join("") + '</div>' : "") + '</section>';
+}
+
 function renderRawJsonBlock(block) {
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Raw JSON") + '</h2><pre>' + esc(JSON.stringify(block.data || block, null, 2)) + '</pre></section>';
+}
+
+function normalizeTableColumns(columns, rows) {
+  const raw = Array.isArray(columns) ? columns : Array.from(new Set(rows.flatMap((row) => row && typeof row === "object" && !Array.isArray(row) ? Object.keys(row) : [])));
+  return raw.map((column) => {
+    if (column && typeof column === "object" && !Array.isArray(column)) {
+      const key = String(column.key || "");
+      return key ? { key, label: String(column.label || key).replaceAll("_", " ") } : null;
+    }
+    const key = String(column || "");
+    return key ? { key, label: key.replaceAll("_", " ") } : null;
+  }).filter(Boolean);
+}
+
+function renderKeyValueTable(value) {
+  return '<div class="table-wrap"><table><tbody>' + Object.entries(value || {}).map(([key, item]) => '<tr><th>' + esc(key.replaceAll("_", " ")) + '</th><td><code>' + esc(cellValue(item)) + '</code></td></tr>').join("") + '</tbody></table></div>';
+}
+
+function cellValue(value) {
+  return value && typeof value === "object" ? JSON.stringify(value) : value ?? "";
 }
 
 function blockClass(block, extra) {
@@ -602,10 +703,51 @@ function blockClass(block, extra) {
   return ["block", extra || "", compact ? "block-compact" : ""].filter(Boolean).join(" ");
 }
 
+function toneClass(value) {
+  const tone = String(value || "info").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return ["info", "success", "warning", "danger", "neutral"].includes(tone) ? tone : "info";
+}
+
 function resolveBlockItems(block) {
-  if (Array.isArray(block.items)) return block.items.filter((item) => item && item.id);
+  if (Array.isArray(block.items)) return block.items.map(normalizeBlockNode).filter(Boolean);
+  if (Array.isArray(block.data?.items)) return block.data.items.map(normalizeBlockNode).filter(Boolean);
   if (block.query) return queryNodes(block.query);
+  if (block.data?.query) return queryNodes(block.data.query);
   return [];
+}
+
+function normalizeBlockNode(item) {
+  if (typeof item === "string") return byId.get(item) || missingBlockNode(item);
+  if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+  const id = typeof item.id === "string" && item.id ? item.id : undefined;
+  if (!id) return undefined;
+  const source = byId.has(id) ? { ...byId.get(id), ...item } : item;
+  return {
+    id,
+    title: String(source.title || id),
+    summary: String(source.summary || (byId.has(id) ? "" : "Referenced by a block but not present in the compiled graph.")),
+    type: String(source.type || "artifact"),
+    status: String(source.status || (byId.has(id) ? "active" : "needs_review")),
+    importance: numeric(source.importance, 0),
+    confidence: numeric(source.confidence, 0),
+    created_at: source.created_at,
+    updated_at: source.updated_at,
+    tags: Array.isArray(source.tags) ? source.tags : [],
+    evidence: Array.isArray(source.evidence) ? source.evidence : undefined
+  };
+}
+
+function missingBlockNode(id) {
+  return {
+    id,
+    title: "Missing node reference",
+    summary: id,
+    type: "artifact",
+    status: "needs_review",
+    importance: 0,
+    confidence: 0,
+    tags: []
+  };
 }
 
 function queryNodes(query) {
@@ -732,7 +874,7 @@ function diagnosticTarget(diag) {
 function renderEvidence(evidence) {
   if (!Array.isArray(evidence) || !evidence.length) return '<p class="muted">No evidence recorded.</p>';
   return '<div class="evidence-list">' + evidence.map((item) => {
-    const entry = typeof item === "string" ? { label: item, summary: "", source: "" } : item;
+    const entry = item && typeof item === "object" && !Array.isArray(item) ? item : { label: item, summary: "", source: "" };
     const label = entry.label || entry.title || entry.source || "Evidence";
     const summary = entry.summary || entry.note || "";
     const source = entry.source || entry.url || "";
@@ -902,7 +1044,8 @@ function renderNodeMeta(node) {
   const items = [];
   if (sameInstant(node.created_at, node.updated_at)) items.push(relativeMeta("Created", node.created_at));
   else items.push(relativeMeta("Updated", node.updated_at));
-  if (node.review_after) items.push(relativeMeta("Review", node.review_after));
+  const reviewAfter = node.freshness?.review_after || node.review_after;
+  if (reviewAfter) items.push(relativeMeta("Review", reviewAfter));
   return items.length ? '<div class="node-meta-line">' + items.join("") + '</div>' : "";
 }
 function metaItem(label, value) { return '<div class="meta-item"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>'; }
@@ -912,6 +1055,8 @@ function optionList(values, selectedValue) { return values.map((value) => '<opti
 function unique(values) { return [...new Set(values.filter(Boolean))].sort(); }
 function firstGraphFocus(options) { return (graph.nodes.find((node) => !["archived", "superseded"].includes(node.status) && (!options.types?.length || options.types.includes(node.type)) && (!options.statuses?.length || options.statuses.includes(node.status))) || graph.nodes.find((node) => !["archived", "superseded"].includes(node.status)))?.id; }
 function pct(value) { return Math.round(Number(value || 0) * 100) + "%"; }
+function numeric(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+function objectRecord(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : undefined; }
 function shortDate(value) { return value ? String(value).slice(0, 10) : "unknown"; }
 function humanDate(value) {
   if (!value) return "Unknown";
@@ -989,6 +1134,7 @@ function viewerCss(): string {
 }
 *{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg-wash),var(--bg);color:var(--text);font-family:var(--font-sans);line-height:1.45}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code,pre{font-family:var(--font-mono)}pre{overflow:auto;background:var(--bg-subtle);padding:var(--space-4);border-radius:var(--radius-2)}
 .awg-app{min-height:100vh;display:grid;grid-template-columns:240px 1fr}.sidebar{background:var(--sidebar-bg);border-right:var(--border-width) solid var(--border);box-shadow:var(--sidebar-shadow);backdrop-filter:var(--surface-filter);padding:var(--space-5);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:var(--space-5)}.brand{display:grid;color:var(--text);font-size:22px;font-weight:750;line-height:1.1}.brand small{color:var(--text-muted);font-size:12px;font-weight:500;margin-top:3px}nav{display:grid;gap:var(--space-1)}nav a{color:var(--text-muted);padding:9px 10px;border:var(--border-width) solid transparent;border-radius:var(--radius-1);transition:background var(--duration-fast),border-color var(--duration-fast),color var(--duration-fast)}nav a.active,nav a:hover{background:var(--nav-active-bg);border-color:var(--nav-active-border);color:var(--text);text-decoration:none}.sidebar-footer{margin-top:auto}.main{min-width:0}.topbar{display:flex;justify-content:space-between;gap:var(--space-5);align-items:stretch;border-bottom:var(--border-width) solid var(--border);padding:0 var(--space-6);background:var(--topbar-bg);backdrop-filter:var(--surface-filter)}.topbar>div:first-child{padding:var(--space-5) 0}.eyebrow{margin:0;color:var(--text-subtle);font-size:12px;text-transform:uppercase;letter-spacing:.08em}h1{margin:4px 0 0;font-size:28px}h2{margin:0 0 var(--space-3);font-size:18px}h3{margin:var(--space-4) 0 var(--space-2);font-size:15px}.route-root{padding:var(--space-6)}.surface,.panel,.block{background:var(--surface);border:var(--border-width) solid var(--border);border-radius:var(--radius-2);box-shadow:var(--panel-shadow);backdrop-filter:var(--surface-filter);padding:var(--space-5)}.block{grid-column:1 / -1}.block-compact{grid-column:span 1;align-self:start}.block-metrics{grid-column:1 / -1;align-self:start;padding:0;overflow:hidden}.block-metrics h2{margin:0;padding:var(--space-5);border-bottom:var(--border-width) solid var(--box-grid-border)}.block-metrics .metric-row{border:0;border-radius:0;box-shadow:none}.block-metrics .metric{min-height:168px}.surface-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}.three-pane{display:grid;grid-template-columns:260px minmax(360px,1fr) 300px;gap:var(--space-4);align-items:start}.split{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}.chip-row{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}.top-summary{align-self:stretch;display:grid;grid-template-columns:repeat(5,minmax(92px,1fr));gap:0;background:var(--box-grid-bg);border-left:var(--border-width) solid var(--box-grid-border);border-right:var(--border-width) solid var(--box-grid-border);overflow:hidden}.metric-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;align-items:stretch;background:var(--box-grid-bg);border:var(--border-width) solid var(--box-grid-border);border-radius:calc(var(--radius-2) + 10px);box-shadow:var(--panel-shadow);overflow:hidden}.metric{position:relative;display:grid;align-content:start;gap:14px;min-height:142px;background:transparent;border:0;border-radius:0;box-shadow:1px 0 0 var(--metric-divider),0 1px 0 var(--metric-divider);padding:var(--space-5);color:var(--text);text-decoration:none}.metric:hover{background:color-mix(in srgb,var(--accent),transparent 92%);text-decoration:none}.metric-label{color:var(--text-subtle);font-size:12px;font-weight:800;letter-spacing:.22em;text-transform:uppercase}.metric-state{display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:14px;font-weight:650}.metric-state i{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--metric-signal,var(--text-subtle));box-shadow:0 0 0 3px color-mix(in srgb,var(--metric-signal,var(--text-subtle)),transparent 82%)}.metric strong{font-size:36px;line-height:1;letter-spacing:0}.metric-info{--metric-signal:var(--info)}.metric-warning{--metric-signal:var(--warning)}.metric-danger{--metric-signal:var(--danger)}.metric-success{--metric-signal:var(--success)}.top-summary .metric{min-height:100%;min-width:0;gap:2px;background:transparent;border:0;border-radius:0;box-shadow:1px 0 0 var(--metric-divider);padding:var(--space-4) 14px;align-content:center}.top-summary .metric-label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}.top-summary .metric-state{display:none}.top-summary .metric strong{font-size:18px}.graph-surface{background:var(--surface);border:var(--border-width) solid var(--border);border-radius:var(--radius-2);box-shadow:var(--panel-shadow);backdrop-filter:var(--surface-filter);overflow:hidden}.graph-toolbar{display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(4,minmax(120px,1fr));gap:var(--space-3);align-items:end;padding:var(--space-4) var(--space-5);background:var(--box-grid-bg);border-bottom:var(--border-width) solid var(--box-grid-border)}.graph-toolbar label{display:grid;gap:6px;color:var(--text-muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.graph-toolbar select{width:100%;min-width:0}.graph-main{padding:0}.graph-footer{padding:var(--space-4) var(--space-5);border-top:var(--border-width) solid var(--border);background:var(--bg-subtle)}.graph-footer-node{display:flex;justify-content:space-between;gap:var(--space-5);align-items:center}.graph-footer-node h2{margin:0 0 4px;font-size:16px}.graph-footer-node p{margin:0;color:var(--text-muted);max-width:720px}.graph-footer-node .chip-row{justify-content:flex-end;flex-shrink:0}.health-surface{background:var(--surface);border:var(--border-width) solid var(--border);border-radius:var(--radius-2);box-shadow:var(--panel-shadow);backdrop-filter:var(--surface-filter);overflow:hidden}.health-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--box-grid-bg);border-bottom:var(--border-width) solid var(--box-grid-border)}.health-kpis .metric{min-height:96px;border-radius:0;box-shadow:1px 0 0 var(--metric-divider);padding:var(--space-5) var(--space-6);align-content:center}.health-kpis .metric-label{letter-spacing:.08em}.health-kpis .metric-state{display:none}.health-kpis .metric strong{font-size:28px}.health-body{padding:var(--space-6)}.badge,.chip{display:inline-flex;align-items:center;min-height:24px;border-radius:999px;border:var(--border-width) solid var(--border);background:var(--badge-bg);color:var(--text);padding:3px 8px;font-size:12px;font-weight:650}.badge-status{border-color:color-mix(in srgb,var(--status-active),var(--border) 65%)}.status-proposed{color:var(--status-proposed)}.status-active{color:var(--status-active)}.status-in-progress{color:var(--status-in-progress)}.status-blocked{color:var(--danger);border-color:color-mix(in srgb,var(--danger),var(--border) 55%);background:color-mix(in srgb,var(--danger),var(--badge-bg) 86%)}.status-needs-review,.status-stale{color:var(--warning);border-color:color-mix(in srgb,var(--warning),var(--border) 55%);background:color-mix(in srgb,var(--warning),var(--badge-bg) 88%)}.status-completed,.status-resolved{color:var(--success);border-color:color-mix(in srgb,var(--success),var(--border) 60%);background:color-mix(in srgb,var(--success),var(--badge-bg) 88%)}.severity-fatal,.severity-error{border-left:3px solid var(--diagnostic-error)}.severity-warning{border-left:3px solid var(--diagnostic-warning)}.severity-info{border-left:3px solid var(--diagnostic-info)}.review-block{padding:0;overflow:hidden}.review-block h2{margin:0;font-size:18px}.review-header{display:flex;justify-content:space-between;gap:var(--space-4);align-items:stretch;background:var(--box-grid-bg);border-bottom:var(--border-width) solid var(--box-grid-border)}.review-header>div{padding:16px var(--space-5)}.review-count{display:grid;align-content:center;justify-items:center;min-width:86px;padding:12px var(--space-4);border-left:var(--border-width) solid var(--metric-divider);color:var(--text);text-decoration:none}.review-count:hover{background:color-mix(in srgb,var(--accent),transparent 92%);text-decoration:none}.review-count strong{font-size:24px;line-height:1}.review-list{display:grid}.review-row{display:grid;grid-template-columns:28px minmax(0,1fr) var(--review-status-w,max-content) var(--review-type-w,max-content) var(--review-score-w,max-content) var(--review-health-w,max-content) var(--review-tags-w,max-content);gap:var(--space-3);align-items:center;min-height:58px;padding:10px var(--space-5) 10px 12px;border-bottom:var(--border-width) solid var(--border);color:var(--text);text-decoration:none}.review-row:last-child{border-bottom:0}.review-row:hover{background:color-mix(in srgb,var(--accent),transparent 94%);text-decoration:none}.review-marker{justify-self:center;width:8px;height:8px;border-radius:999px;color:var(--status-active);background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor,transparent 84%)}.review-marker.status-draft{color:var(--status-draft)}.review-marker.status-proposed{color:var(--status-proposed)}.review-marker.status-active{color:var(--status-active)}.review-marker.status-accepted{color:var(--status-accepted)}.review-marker.status-in-progress{color:var(--status-in-progress)}.review-marker.status-blocked{color:var(--danger)}.review-marker.status-needs-review{color:var(--warning)}.review-marker.status-stale{color:var(--warning)}.review-marker.status-completed{color:var(--success)}.review-marker.status-resolved{color:var(--success)}.review-marker.status-rejected{color:var(--status-rejected)}.review-marker.status-superseded{color:var(--status-superseded)}.review-marker.status-archived{color:var(--status-archived)}.review-main{min-width:0}.review-main strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.review-main small{display:block;margin-top:3px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.review-status,.review-type,.review-score,.review-health,.review-tags{min-width:0;color:var(--text-subtle);font-size:12px}.review-status{justify-self:stretch;display:flex;justify-content:center}.review-type,.review-score{text-align:left;white-space:nowrap}.review-health{min-height:22px}.review-tags{display:flex;gap:var(--space-2);justify-content:flex-end;overflow:hidden}.review-tag,.review-signal{display:inline-flex;align-items:center;min-height:22px;border-radius:999px;background:var(--bg-subtle);border:var(--border-width) solid var(--border);padding:2px 7px;color:var(--text-muted);font-size:11px;font-weight:700;white-space:nowrap}.review-signal-warning{color:var(--warning);border-color:color-mix(in srgb,var(--warning),var(--border) 55%)}.overview-brief{padding:var(--space-5);display:grid;gap:var(--space-4)}.overview-brief p{margin:0;color:var(--text);font-size:16px}.review-risk .review-header{box-shadow:inset 3px 0 0 var(--danger)}.review-decision .review-header{box-shadow:inset 3px 0 0 var(--status-proposed)}.review-question .review-header{box-shadow:inset 3px 0 0 var(--warning)}.review-attention .review-header{box-shadow:inset 3px 0 0 var(--accent)}.review-completed .review-header{box-shadow:inset 3px 0 0 var(--success)}.review-brief .review-header{box-shadow:inset 3px 0 0 var(--info)}.card-list{display:grid;gap:var(--space-3)}.node-card{display:block;background:var(--card-bg);border:var(--border-width) solid var(--card-border);border-radius:var(--radius-2);box-shadow:var(--card-shadow);padding:var(--space-3);color:var(--text)}.card-title{display:inline-block;color:var(--text)}.node-card p{margin:6px 0;color:var(--text-muted)}.node-card small,td small{display:block;color:var(--text-subtle);margin-top:4px}.kanban{display:grid;grid-template-columns:repeat(6,minmax(220px,1fr));gap:var(--space-3);overflow:auto}.kanban-column{position:relative;min-width:220px;background:var(--kanban-column-bg);border:var(--border-width) solid var(--border);border-radius:var(--radius-2);box-shadow:var(--card-shadow);overflow:hidden;padding:var(--space-3)}.kanban-column::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--column-accent,var(--border-strong))}.column-proposed{--column-accent:var(--status-proposed)}.column-active{--column-accent:var(--status-active)}.column-in-progress{--column-accent:var(--status-in-progress)}.column-blocked{--column-accent:var(--status-blocked)}.column-needs-review{--column-accent:var(--status-needs-review)}.column-done{--column-accent:var(--status-completed)}.column-archived{--column-accent:var(--status-archived)}.kanban-column h2{position:relative;display:flex;justify-content:space-between;font-size:14px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:var(--border-width) solid var(--border);padding:10px;vertical-align:top}th{color:var(--text-muted);font-size:12px;text-transform:uppercase}.filters,.toolbar{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-4)}input,select,.button{min-height:36px;border:var(--border-width) solid var(--border-strong);border-radius:var(--radius-1);background:var(--control-bg);color:var(--text);padding:0 10px;font:inherit}.button{display:inline-flex;align-items:center}.danger{color:var(--danger)}.field-label{display:block;margin:var(--space-3) 0 var(--space-1);font-size:12px;color:var(--text-muted);font-weight:700}.diagnostic-list{display:grid;gap:var(--space-2)}.diagnostic{background:var(--bg-subtle);border:var(--border-width) solid var(--border);border-radius:var(--radius-1);padding:var(--space-3)}.diagnostic p{margin:6px 0}.node-detail{max-width:1080px;margin:0 auto;padding:0;overflow:hidden}.node-hero{display:flex;justify-content:space-between;gap:var(--space-5);align-items:flex-start;padding:var(--space-6) var(--space-6) var(--space-5);border-bottom:var(--border-width) solid var(--border)}.node-hero h2{margin:var(--space-3) 0 var(--space-1);font-size:28px;line-height:1.15}.node-id{margin:0;color:var(--text-subtle);font-family:var(--font-mono);font-size:13px}.node-meta-line{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:var(--space-3);color:var(--text-muted);font-size:13px}.node-meta-line span{white-space:nowrap}.node-hero-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;justify-content:flex-end}.node-summary{margin:0;padding:var(--space-5) var(--space-6);font-size:18px;line-height:1.55;color:var(--text);background:var(--bg-subtle);border-bottom:var(--border-width) solid var(--border)}.node-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:var(--border-width) solid var(--box-grid-border);background:var(--box-grid-bg)}.node-kpi{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:56px;padding:12px var(--space-5);color:var(--text);box-shadow:1px 0 0 var(--metric-divider);text-decoration:none}.node-kpi:hover{background:color-mix(in srgb,var(--accent),transparent 92%);text-decoration:none}.node-kpi span{color:var(--text-muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.node-kpi strong{font-size:22px;line-height:1}.node-sections{display:grid;padding:var(--space-2) var(--space-6) var(--space-6)}.node-section{padding:var(--space-5) 0}.node-section+.node-section{padding-top:var(--space-4)}.node-section header{margin-bottom:var(--space-3)}.node-section header h3{margin:0;font-size:18px;color:var(--text);letter-spacing:0;text-transform:none}.node-section-body{min-width:0}.evidence-list{display:grid}.evidence-row,.diagnostic-row{display:grid;gap:var(--space-3);align-items:start;padding:12px 0;border-bottom:var(--border-width) solid var(--border);color:var(--text);text-decoration:none}.evidence-row{grid-template-columns:10px minmax(0,1fr)}.evidence-marker{width:8px;height:8px;margin-top:6px;border-radius:999px;background:var(--success);box-shadow:0 0 0 3px color-mix(in srgb,var(--success),transparent 84%)}.evidence-main,.diagnostic-main{min-width:0}.evidence-main strong,.diagnostic-main strong{display:block}.evidence-main small,.diagnostic-main small{display:block;margin-top:3px;color:var(--text-muted)}.evidence-main code{display:inline-block;max-width:100%;margin-top:6px;color:var(--text-subtle);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.diagnostic-list{display:grid}.diagnostic-row{grid-template-columns:92px minmax(0,1fr)}.diagnostic-row:hover{background:color-mix(in srgb,var(--accent),transparent 94%);text-decoration:none}.diagnostic-severity{width:max-content;border-radius:999px;padding:3px 8px;background:var(--badge-bg);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.severity-warning .diagnostic-severity{color:var(--warning)}.severity-fatal .diagnostic-severity,.severity-error .diagnostic-severity{color:var(--danger)}.severity-info .diagnostic-severity{color:var(--info)}.activity-table{display:grid}.activity-row{display:grid;grid-template-columns:96px minmax(120px,170px) minmax(0,1fr) minmax(80px,120px);gap:var(--space-3);align-items:center;min-height:34px;padding:5px 0;border-bottom:var(--border-width) solid var(--border);font-size:13px}.activity-row time{color:var(--text-muted);white-space:nowrap}.activity-row strong,.activity-row span,.activity-row em{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.activity-row strong{font-weight:650}.activity-row span{color:var(--text-muted)}.activity-row em{color:var(--text-subtle);font-style:normal;text-align:right}.relationship-index{display:grid;gap:var(--space-2)}.relationship-count{margin:0;color:var(--text-muted);font-size:13px}.relationship-list{}.relationship-row{display:grid;grid-template-columns:44px minmax(96px,140px) minmax(0,1fr) max-content;gap:var(--space-3);align-items:center;min-height:42px;padding:6px 0;border-bottom:var(--border-width) solid var(--border);color:var(--text);text-decoration:none}.relationship-row:hover{background:color-mix(in srgb,var(--accent),transparent 94%);text-decoration:none}.relationship-direction{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:22px;border-radius:999px;background:var(--bg-subtle);color:var(--text-muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.relationship-rel{color:var(--text-muted);font-family:var(--font-mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.relationship-node{min-width:0}.relationship-node strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.relationship-status{justify-self:end}.node-section ul{margin:0;padding-left:18px}.node-section li+li{margin-top:7px}.action-bar{display:flex;flex-wrap:wrap;gap:var(--space-2)}.raw-panel{margin:0 var(--space-6) var(--space-6);border-top:var(--border-width) solid var(--border);padding-top:var(--space-4)}.detail-header{display:flex;justify-content:space-between;gap:var(--space-4)}dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 12px}dt{color:var(--text-muted)}dd{margin:0}.graph-wrap{min-height:520px}.graph-svg{display:block;width:100%;height:520px;background:var(--bg-subtle);border:0;border-radius:0}.graph-svg line{stroke:var(--graph-edge-color);stroke-width:1.5}.graph-svg circle{fill:var(--graph-node-bg);stroke:var(--border-strong);stroke-width:2}.graph-svg .focus circle{stroke:var(--graph-focus-color);stroke-width:4}.graph-svg text{fill:var(--text-muted);font-size:11px;text-anchor:middle}.empty{max-width:560px;background:var(--surface);border:var(--border-width) solid var(--border);border-radius:var(--radius-2);padding:var(--space-6)}.muted{color:var(--text-muted)}.unsupported{border-color:var(--warning)}
+.callout{border-left:3px solid var(--info);background:color-mix(in srgb,var(--info),var(--surface) 94%)}.callout-success{border-left-color:var(--success);background:color-mix(in srgb,var(--success),var(--surface) 94%)}.callout-warning{border-left-color:var(--warning);background:color-mix(in srgb,var(--warning),var(--surface) 94%)}.callout-danger{border-left-color:var(--danger);background:color-mix(in srgb,var(--danger),var(--surface) 94%)}.callout-neutral{border-left-color:var(--border-strong)}.checklist{display:grid;gap:8px;list-style:none;margin:0;padding:0}.checklist li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;margin:0}.checkmark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;border:var(--border-width) solid var(--border-strong);color:var(--success);font-size:12px;font-weight:800;background:var(--bg-subtle)}.timeline{display:grid;border-left:var(--border-width) solid var(--border);margin-left:8px}.timeline-row{display:grid;grid-template-columns:minmax(96px,150px) minmax(0,1fr);gap:6px var(--space-3);position:relative;padding:0 0 var(--space-4) var(--space-4)}.timeline-row::before{content:"";position:absolute;left:-5px;top:5px;width:9px;height:9px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent),transparent 84%)}.timeline-row time{color:var(--text-muted);font-size:12px}.timeline-row strong{min-width:0}.timeline-row p{grid-column:2;margin:0;color:var(--text-muted)}
 :root[data-density="compact"] .route-root{padding:var(--space-4)}:root[data-density="compact"] .surface,:root[data-density="compact"] .panel,:root[data-density="compact"] .block{padding:var(--space-3)}:root[data-density="compact"] .node-card{padding:var(--space-2)}
 @media(max-width:1000px){.awg-app{grid-template-columns:1fr}.sidebar{position:static;height:auto}.block-metrics,.block-compact{grid-column:1 / -1}.three-pane,.split,.relationship-index,.graph-toolbar{grid-template-columns:1fr}.graph-footer-node{display:grid}.graph-footer-node .chip-row{justify-content:flex-start}.kanban{grid-template-columns:repeat(3,minmax(220px,1fr))}.topbar{display:block;padding:var(--space-5) var(--space-6)}.topbar>div:first-child{padding:0}.top-summary{margin-top:var(--space-3);border:var(--border-width) solid var(--box-grid-border);border-radius:var(--radius-2)}.health-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.review-row{grid-template-columns:10px minmax(0,1fr);align-items:start}.review-status,.review-type,.review-score,.review-health,.review-tags{grid-column:2;justify-self:start}.review-tags{justify-content:flex-start;flex-wrap:wrap}.review-header{display:grid}.review-count{border-left:0;border-top:var(--border-width) solid var(--metric-divider);justify-items:start}}

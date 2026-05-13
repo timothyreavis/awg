@@ -24,6 +24,8 @@ function suggestFix(diag: { code: string; id?: string }): { code: string; nodeId
   if (diag.code === "completed_task_without_evidence") return { code: "AWG_HEALTH_COMPLETED_WITHOUT_EVIDENCE", nodeIds: [id], suggestedCommands: [`awg add evidence --target ${id} --summary "..." --source terminal`] };
   if (diag.code === "orphan_node") return { code: "AWG_HEALTH_ORPHAN_NODE", nodeIds: [id], suggestedCommands: [`awg add edge --from ${id} --rel relates_to --to <related-node-id>`] };
   if (diag.code === "stale_node") return { code: "AWG_HEALTH_STALE_NODE", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };
+  if (diag.code === "current_node_missing_verification") return { code: "AWG_HEALTH_VERIFY_CURRENT_NODE", nodeIds: [id], suggestedCommands: [`awg update node ${id} --freshness-json '{"last_verified":"YYYY-MM-DD","verified_by":"agent:codex"}'`] };
+  if (diag.code === "unsupported_block_type" || diag.code.startsWith("invalid_block")) return { code: "AWG_HEALTH_REVIEW_NODE_BLOCKS", nodeIds: [id], suggestedCommands: [`awg update node ${id} --clear-blocks`] };
   if (diag.code === "active_risk_with_completed_mitigation") return { code: "AWG_HEALTH_REVIEW_ACTIVE_RISK", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };
   if (diag.code === "active_blocker_linked_to_resolved_work") return { code: "AWG_HEALTH_REVIEW_ACTIVE_BLOCKER", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status resolved`] };
   if (diag.code === "decision_implemented_while_proposed") return { code: "AWG_HEALTH_REVIEW_PROPOSED_DECISION", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };

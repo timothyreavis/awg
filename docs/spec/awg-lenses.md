@@ -35,3 +35,5 @@ V1.6 makes runs the unit of attribution and finish quality:
 Budgets are approximate character budgets, not tokenizer budgets. They preserve section structure, emit higher-priority items first, and include omitted counts. JSON output remains valid even when sections are truncated.
 
 All retrieval is local and deterministic. AWG does not use embeddings, AI calls, remote APIs, vector search, daemon processes, or repository file crawling for lenses.
+
+V1.7 extends deterministic search input with bounded text extracted from node `body`, `fields`, `blocks`, and `freshness` in addition to ids, titles, summaries, tags, statuses, types, and anchors. Rich content can improve matching, but summaries remain the concise retrieval and scanning surface.

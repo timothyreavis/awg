@@ -1,4 +1,5 @@
 import { isPastDate } from "../util/time.js";
+import { validateNodeBlocks } from "./blocks.js";
 import { buildRuns } from "./runs.js";
 import type { AwgEdge, AwgEvent, AwgNode, AwgResponse, Diagnostic, DiagnosticsSummary } from "./types.js";
 
@@ -61,7 +62,10 @@ export function buildDiagnostics(
   const aliases = new Map<string, string>();
   for (const node of nodes) {
     if (!linked.has(node.id)) diagnostics.push({ severity: severity("orphan_node"), code: "orphan_node", message: `Node has no graph edges: ${node.id}`, id: node.id });
-    if (node.review_after && isPastDate(node.review_after)) diagnostics.push({ severity: severity("stale_node"), code: "stale_node", message: `Node review_after is past: ${node.id}`, id: node.id });
+    diagnostics.push(...validateNodeBlocks(node, severity("invalid_block")));
+    const reviewAfter = typeof node.freshness?.review_after === "string" ? node.freshness.review_after : node.review_after;
+    if (reviewAfter && isPastDate(reviewAfter)) diagnostics.push({ severity: severity("stale_node"), code: "stale_node", message: `Node review_after is past: ${node.id}`, id: node.id });
+    if (node.freshness?.state === "current" && !node.freshness.last_verified) diagnostics.push({ severity: severity("current_node_missing_verification"), code: "current_node_missing_verification", message: `Current node has no freshness.last_verified: ${node.id}`, id: node.id });
     if (node.type === "task" && node.status === "completed" && (!Array.isArray(node.evidence) || node.evidence.length === 0)) {
       diagnostics.push({ severity: severity("completed_task_without_evidence"), code: "completed_task_without_evidence", message: `Completed task has no evidence: ${node.id}`, id: node.id });
     }

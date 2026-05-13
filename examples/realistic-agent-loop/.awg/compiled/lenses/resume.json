@@ -76,10 +76,10 @@
     "ok": true,
     "orphan_node_count": 8,
     "stale_node_count": 1,
-    "stale_run_count": 0,
+    "stale_run_count": 1,
     "unanswered_question_count": 1,
     "unverified_completion_count": 1,
-    "warning_count": 15
+    "warning_count": 16
   },
   "generated_at": "2026-05-13T11:20:00.000Z",
   "id": "lens:resume",
@@ -267,7 +267,7 @@
     "Add evidence to completed task nodes.",
     "Finish active runs with a summary and generate a handoff before stopping."
   ],
-  "summary": "19 nodes, 8 edges, 15 warnings, 0 fatal errors.",
+  "summary": "19 nodes, 8 edges, 16 warnings, 0 fatal errors.",
   "unanswered_questions": [
     {
       "awg": "0.1",

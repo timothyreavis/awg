@@ -11,10 +11,10 @@
         "ok": true,
         "orphan_node_count": 8,
         "stale_node_count": 1,
-        "stale_run_count": 0,
+        "stale_run_count": 1,
         "unanswered_question_count": 1,
         "unverified_completion_count": 1,
-        "warning_count": 15
+        "warning_count": 16
       },
       "title": "Graph Health",
       "type": "summary"
@@ -492,10 +492,10 @@
         "ok": true,
         "orphan_node_count": 8,
         "stale_node_count": 1,
-        "stale_run_count": 0,
+        "stale_run_count": 1,
         "unanswered_question_count": 1,
         "unverified_completion_count": 1,
-        "warning_count": 15
+        "warning_count": 16
       },
       "title": "Diagnostics",
       "type": "diagnostics"

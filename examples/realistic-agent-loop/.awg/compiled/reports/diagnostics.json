@@ -2,6 +2,12 @@
   "awg": "0.1",
   "diagnostics": [
     {
+      "code": "unfinished_run_without_recent_note",
+      "id": "run:fixture-blocked",
+      "message": "Active run has no recent note/update: run:fixture-blocked",
+      "severity": "warning"
+    },
+    {
       "code": "orphan_node",
       "id": "n:active-risk",
       "message": "Node has no graph edges: n:active-risk",
@@ -102,9 +108,9 @@
     "ok": true,
     "orphan_node_count": 8,
     "stale_node_count": 1,
-    "stale_run_count": 0,
+    "stale_run_count": 1,
     "unanswered_question_count": 1,
     "unverified_completion_count": 1,
-    "warning_count": 15
+    "warning_count": 16
   }
 }

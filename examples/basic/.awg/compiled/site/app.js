@@ -24,12 +24,19 @@ const themes = [
 const settings = loadSettings();
 const blockRenderers = {
   brief: renderBriefBlock,
-  summary: renderBriefBlock,
+  summary: renderSummaryBlock,
   "metric-row": renderStatsGridBlock,
+  callout: renderCalloutBlock,
+  table: renderTableBlock,
+  checklist: renderChecklistBlock,
+  timeline: renderTimelineBlock,
   "stats-grid": renderStatsGridBlock,
   "attention-list": renderNodeListBlock,
   "attention-required": renderNodeListBlock,
   "node-list": renderNodeListBlock,
+  "task-queue": renderNodeListBlock,
+  "risk-list": renderNodeListBlock,
+  "decision-list": renderNodeListBlock,
   "node-table": renderNodeTableBlock,
   "decision-review": renderNodeListBlock,
   "task-review": renderNodeListBlock,
@@ -40,7 +47,22 @@ const blockRenderers = {
   diagnostics: renderDiagnosticListBlock,
   "kanban-board": renderKanbanBlock,
   "graph-neighborhood": renderGraphBlock,
+  "run-summary": renderRunSummaryBlock,
   "raw-json": renderRawJsonBlock
+};
+const nodeBlockRenderers = {
+  brief: renderBriefBlock,
+  callout: renderCalloutBlock,
+  "metric-row": renderStatsGridBlock,
+  table: renderTableBlock,
+  checklist: renderChecklistBlock,
+  "node-list": renderNodeListBlock,
+  "task-queue": renderNodeListBlock,
+  "risk-list": renderNodeListBlock,
+  "decision-list": renderNodeListBlock,
+  "evidence-list": renderEvidenceListBlock,
+  timeline: renderTimelineBlock,
+  "run-summary": renderRunSummaryBlock
 };
 initShell();
 window.addEventListener("hashchange", renderRoute);
@@ -260,6 +282,10 @@ function renderNodeDetail(id) {
   const evidenceCount = Array.isArray(node.evidence) ? node.evidence.length : 0;
   const nodeEvents = (graph.events || []).filter((event) => event.target === id);
   const sections = [
+    node.body ? nodeSection("Body", '<div class="prose"><p>' + esc(node.body) + '</p></div>') : "",
+    node.fields && Object.keys(node.fields).length ? nodeSection("Fields", renderKeyValueTable(node.fields)) : "",
+    node.freshness ? nodeSection("Freshness", renderKeyValueTable(node.freshness)) : "",
+    Array.isArray(node.blocks) && node.blocks.length ? nodeSection("Blocks", node.blocks.map(renderNodeAuthoredBlock).join("")) : "",
     outgoing.length || incoming.length ? nodeSection("Connected work", renderRelationshipIndex(outgoing, incoming)) : "",
     evidenceCount ? nodeSection("Evidence", renderEvidence(node.evidence)) : "",
     nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
@@ -282,19 +308,66 @@ function renderBlock(block) {
   return renderer(block);
 }
 
+function renderNodeAuthoredBlock(block) {
+  const renderer = Object.prototype.hasOwnProperty.call(nodeBlockRenderers, block?.type) ? nodeBlockRenderers[block.type] : undefined;
+  if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+  try {
+    return renderer(block);
+  } catch (error) {
+    return '<section class="block unsupported"><h2>Malformed block</h2><p class="muted">' + esc(error instanceof Error ? error.message : String(error)) + '</p><pre>' + esc(JSON.stringify(block, null, 2)) + '</pre></section>';
+  }
+}
+
 function renderBriefBlock(block) {
-  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Brief") + '</h2><p>' + esc(typeof block.summary === "string" ? block.summary : JSON.stringify(block.summary || "No summary available.")) + '</p></section>';
+  const text = typeof block.data === "string" ? block.data : typeof block.summary === "string" ? block.summary : typeof block.data?.text === "string" ? block.data.text : "No summary available.";
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Brief") + '</h2><p>' + esc(text) + '</p></section>';
+}
+
+function renderSummaryBlock(block) {
+  const source = objectRecord(block.data) || objectRecord(block.summary);
+  if (source) return renderStatsGridBlock({ ...block, title: block.title || "Summary", data: source });
+  return renderBriefBlock(block);
+}
+
+function renderCalloutBlock(block) {
+  const text = typeof block.data === "string" ? block.data : block.data?.text || block.summary || "";
+  return '<section class="' + blockClass(block, "callout callout-" + toneClass(block.tone)) + '"><h2>' + esc(block.title || "Callout") + '</h2><p>' + esc(text) + '</p></section>';
 }
 
 function renderStatsGridBlock(block) {
-  const source = block.summary || diagnostics.summary || {};
+  const source = block.data || block.summary || diagnostics.summary || {};
   return '<section class="' + blockClass(block, "block-metrics") + '"><h2>' + esc(block.title || "Stats") + '</h2><div class="metric-row">' + Object.entries(source).slice(0, 8).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/health")).join("") + '</div></section>';
+}
+
+function renderTableBlock(block) {
+  const rows = Array.isArray(block.data?.rows) ? block.data.rows : Array.isArray(block.data) ? block.data : [];
+  const columns = normalizeTableColumns(block.data?.columns, rows);
+  if (!rows.length || !columns.length) return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><p class="muted">No table rows.</p></section>';
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Table") + '</h2><div class="table-wrap"><table><thead><tr>' + columns.map((column) => '<th>' + esc(column.label) + '</th>').join("") + '</tr></thead><tbody>' + rows.map((row) => '<tr>' + columns.map((column) => '<td>' + esc(cellValue(row?.[column.key])) + '</td>').join("") + '</tr>').join("") + '</tbody></table></div></section>';
+}
+
+function renderChecklistBlock(block) {
+  const items = Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Checklist") + '</h2>' + (items.length ? '<ul class="checklist">' + items.map((item) => {
+    const objectItem = item && typeof item === "object" && !Array.isArray(item) ? item : undefined;
+    const checked = objectItem ? Boolean(objectItem.done || objectItem.checked || ["done", "completed"].includes(objectItem.status)) : false;
+    const label = objectItem ? objectItem.label || objectItem.title || objectItem.summary : item;
+    return '<li><span class="checkmark">' + (checked ? "x" : "") + '</span><span>' + esc(label) + '</span></li>';
+  }).join("") + '</ul>' : '<p class="muted">No checklist items.</p>') + '</section>';
+}
+
+function renderTimelineBlock(block) {
+  const items = Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Timeline") + '</h2>' + (items.length ? '<div class="timeline">' + items.map((item) => {
+    const objectItem = item && typeof item === "object" && !Array.isArray(item) ? item : {};
+    return '<div class="timeline-row"><time>' + esc(objectItem.at || objectItem.date || "") + '</time><strong>' + esc(objectItem.title || objectItem.label || "") + '</strong><p>' + esc(objectItem.summary || objectItem.body || (typeof item === "string" ? item : "")) + '</p></div>';
+  }).join("") + '</div>' : '<p class="muted">No timeline items.</p>') + '</section>';
 }
 
 function renderNodeListBlock(block) {
   const items = resolveBlockItems(block).slice(0, block.limit || 8);
   const title = String(block.title || "").toLowerCase();
-  const isReview = ["attention-list", "decision-review", "risk-review", "question-review", "task-review"].includes(block.type) || title.includes("recently completed");
+  const isReview = ["attention-list", "decision-review", "risk-review", "question-review", "task-review", "task-queue", "risk-list", "decision-list"].includes(block.type) || title.includes("recently completed");
   if (isReview) return renderReviewBlock(block, items);
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Nodes") + '</h2>' + (items.length ? '<div class="card-list">' + items.map(renderNodeCard).join("") + '</div>' : '<p class="muted">No matching nodes.</p>') + '</section>';
 }
@@ -344,7 +417,8 @@ function renderDiagnosticListBlock(block) {
 }
 
 function renderEvidenceListBlock(block) {
-  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Evidence") + '</h2>' + renderEvidence(block.items || []) + '</section>';
+  const items = Array.isArray(block.items) ? block.items : Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Evidence") + '</h2>' + renderEvidence(items) + '</section>';
 }
 
 function renderKanbanBlock(block) {
@@ -369,8 +443,35 @@ function renderGraphBlock(block) {
   return '<div class="graph-wrap"><svg class="graph-svg" viewBox="0 0 720 420" role="img" aria-label="Graph neighborhood">' + edgeLines + nodeEls + '</svg>' + capped + '</div>';
 }
 
+function renderRunSummaryBlock(block) {
+  const source = block.data && typeof block.data === "object" && !Array.isArray(block.data) ? block.data : {};
+  const metrics = source.metrics && typeof source.metrics === "object" && !Array.isArray(source.metrics) ? source.metrics : source;
+  const notes = Array.isArray(source.notes) ? source.notes : [];
+  return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Run Summary") + '</h2>' + (source.summary ? '<p>' + esc(source.summary) + '</p>' : "") + '<div class="metric-row">' + Object.entries(metrics).filter(([key]) => key !== "notes" && key !== "summary").slice(0, 6).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/runs")).join("") + '</div>' + (notes.length ? '<div class="activity-table">' + notes.slice(0, 8).map((note) => '<article class="activity-row"><time>' + esc(note.at || "") + '</time><strong>' + esc(note.type || "note") + '</strong><span>' + esc(note.summary || note.message || note) + '</span><em>' + esc(note.by || "") + '</em></article>').join("") + '</div>' : "") + '</section>';
+}
+
 function renderRawJsonBlock(block) {
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Raw JSON") + '</h2><pre>' + esc(JSON.stringify(block.data || block, null, 2)) + '</pre></section>';
+}
+
+function normalizeTableColumns(columns, rows) {
+  const raw = Array.isArray(columns) ? columns : Array.from(new Set(rows.flatMap((row) => row && typeof row === "object" && !Array.isArray(row) ? Object.keys(row) : [])));
+  return raw.map((column) => {
+    if (column && typeof column === "object" && !Array.isArray(column)) {
+      const key = String(column.key || "");
+      return key ? { key, label: String(column.label || key).replaceAll("_", " ") } : null;
+    }
+    const key = String(column || "");
+    return key ? { key, label: key.replaceAll("_", " ") } : null;
+  }).filter(Boolean);
+}
+
+function renderKeyValueTable(value) {
+  return '<div class="table-wrap"><table><tbody>' + Object.entries(value || {}).map(([key, item]) => '<tr><th>' + esc(key.replaceAll("_", " ")) + '</th><td><code>' + esc(cellValue(item)) + '</code></td></tr>').join("") + '</tbody></table></div>';
+}
+
+function cellValue(value) {
+  return value && typeof value === "object" ? JSON.stringify(value) : value ?? "";
 }
 
 function blockClass(block, extra) {
@@ -378,10 +479,51 @@ function blockClass(block, extra) {
   return ["block", extra || "", compact ? "block-compact" : ""].filter(Boolean).join(" ");
 }
 
+function toneClass(value) {
+  const tone = String(value || "info").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return ["info", "success", "warning", "danger", "neutral"].includes(tone) ? tone : "info";
+}
+
 function resolveBlockItems(block) {
-  if (Array.isArray(block.items)) return block.items.filter((item) => item && item.id);
+  if (Array.isArray(block.items)) return block.items.map(normalizeBlockNode).filter(Boolean);
+  if (Array.isArray(block.data?.items)) return block.data.items.map(normalizeBlockNode).filter(Boolean);
   if (block.query) return queryNodes(block.query);
+  if (block.data?.query) return queryNodes(block.data.query);
   return [];
+}
+
+function normalizeBlockNode(item) {
+  if (typeof item === "string") return byId.get(item) || missingBlockNode(item);
+  if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+  const id = typeof item.id === "string" && item.id ? item.id : undefined;
+  if (!id) return undefined;
+  const source = byId.has(id) ? { ...byId.get(id), ...item } : item;
+  return {
+    id,
+    title: String(source.title || id),
+    summary: String(source.summary || (byId.has(id) ? "" : "Referenced by a block but not present in the compiled graph.")),
+    type: String(source.type || "artifact"),
+    status: String(source.status || (byId.has(id) ? "active" : "needs_review")),
+    importance: numeric(source.importance, 0),
+    confidence: numeric(source.confidence, 0),
+    created_at: source.created_at,
+    updated_at: source.updated_at,
+    tags: Array.isArray(source.tags) ? source.tags : [],
+    evidence: Array.isArray(source.evidence) ? source.evidence : undefined
+  };
+}
+
+function missingBlockNode(id) {
+  return {
+    id,
+    title: "Missing node reference",
+    summary: id,
+    type: "artifact",
+    status: "needs_review",
+    importance: 0,
+    confidence: 0,
+    tags: []
+  };
 }
 
 function queryNodes(query) {
@@ -508,7 +650,7 @@ function diagnosticTarget(diag) {
 function renderEvidence(evidence) {
   if (!Array.isArray(evidence) || !evidence.length) return '<p class="muted">No evidence recorded.</p>';
   return '<div class="evidence-list">' + evidence.map((item) => {
-    const entry = typeof item === "string" ? { label: item, summary: "", source: "" } : item;
+    const entry = item && typeof item === "object" && !Array.isArray(item) ? item : { label: item, summary: "", source: "" };
     const label = entry.label || entry.title || entry.source || "Evidence";
     const summary = entry.summary || entry.note || "";
     const source = entry.source || entry.url || "";
@@ -678,7 +820,8 @@ function renderNodeMeta(node) {
   const items = [];
   if (sameInstant(node.created_at, node.updated_at)) items.push(relativeMeta("Created", node.created_at));
   else items.push(relativeMeta("Updated", node.updated_at));
-  if (node.review_after) items.push(relativeMeta("Review", node.review_after));
+  const reviewAfter = node.freshness?.review_after || node.review_after;
+  if (reviewAfter) items.push(relativeMeta("Review", reviewAfter));
   return items.length ? '<div class="node-meta-line">' + items.join("") + '</div>' : "";
 }
 function metaItem(label, value) { return '<div class="meta-item"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>'; }
@@ -688,6 +831,8 @@ function optionList(values, selectedValue) { return values.map((value) => '<opti
 function unique(values) { return [...new Set(values.filter(Boolean))].sort(); }
 function firstGraphFocus(options) { return (graph.nodes.find((node) => !["archived", "superseded"].includes(node.status) && (!options.types?.length || options.types.includes(node.type)) && (!options.statuses?.length || options.statuses.includes(node.status))) || graph.nodes.find((node) => !["archived", "superseded"].includes(node.status)))?.id; }
 function pct(value) { return Math.round(Number(value || 0) * 100) + "%"; }
+function numeric(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+function objectRecord(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : undefined; }
 function shortDate(value) { return value ? String(value).slice(0, 10) : "unknown"; }
 function humanDate(value) {
   if (!value) return "Unknown";

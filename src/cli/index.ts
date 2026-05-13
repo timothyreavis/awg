@@ -13,6 +13,7 @@ import { registerCommand, unregisterCommand } from "./commands/register.js";
 import { searchCommand } from "./commands/search.js";
 import { runCommand } from "./commands/run.js";
 import { setupCommand } from "./commands/setup.js";
+import { templateCommand } from "./commands/template.js";
 import { updateCommand } from "./commands/update.js";
 import { upgradeCommand } from "./commands/upgrade.js";
 import { validateCommand } from "./commands/validate.js";
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   const [command] = parsed.positionals;
   if (!command || command === "help" || parsed.flags.help) return help();
   if (command === "setup") return setupCommand(parsed);
+  if (command === "template") return templateCommand(parsed);
   if (command === "upgrade") return upgradeCommand(parsed);
   if (command === "init") return initCommand(parsed);
   if (command === "register") return registerCommand(parsed);
@@ -50,6 +52,7 @@ function help(): void {
 
 Commands:
   setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
+  template status [--goal <goal>] [--json]
   upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
   init [--empty] [--force] [--register] [--no-register]
   register [--name <name>] [--scope project|org|user]
@@ -59,11 +62,11 @@ Commands:
   vault prune [--dry-run] [--yes] [--json]
   instructions list
   instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
-  add node --type <type> --title <title> --summary <summary> [--run <run-id>|--no-run]
+  add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
   add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
   add evidence --target <id> --summary <summary> [--run <run-id>|--no-run]
-  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--run <run-id>|--no-run] [--json]
+  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
   run start --goal <goal> [--agent <name>] [--force] [--json]
   run note <note> [--run <run-id>] [--json]
@@ -75,7 +78,7 @@ Commands:
   doctor [--fix-suggestions] [--json]
   lens resume [--budget <n>] [--json]
   lens task --goal <goal> [--budget <n>] [--json]
-  handoff [--budget <n>] [--json]
+  handoff [--budget <n>] [--json] [--no-record]
   recent [--days <n>] [--json]
   view current [--json] [--text]
   open [--global] [--no-launch]`);

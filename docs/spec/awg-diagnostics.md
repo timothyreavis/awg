@@ -6,4 +6,6 @@ V1.5 adds agent-loop warnings for stale active runs, active runs without recent 
 
 V1.6 adds run-finish preflight and structured repair suggestions. Preflight is deterministic and checks the finishing run for completed touched tasks without evidence, evidence-required touched nodes without evidence, active touched blockers/risks, proposed touched decisions, orphan or duplicate-ish nodes created during the run, missing notes, missing changed objects, missing handoff, stale/needs-review touched nodes, and doctor diagnostics affecting touched nodes.
 
+V1.7 adds foundation diagnostics for structured node content. Node blocks are checked for the MVP schemaVersion 1 contract, unsupported block types, malformed block data, and invalid references. Nodes marked `freshness.state: current` with no `freshness.last_verified` receive stale-pressure warnings. Top-level `review_after` remains compatibility input, while nested `freshness.review_after` is the current canonical review date.
+
 `awg doctor --fix-suggestions --json` is non-mutating. It returns conservative command-like suggestions for common diagnostics, such as adding evidence to a completed task, linking an orphan node, marking stale nodes for review, reviewing active risks, resolving blockers, or reviewing proposed decisions.

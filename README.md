@@ -147,12 +147,13 @@ awg vault info [--json]
 awg vault prune [--dry-run] [--yes] [--json]
 awg instructions list
 awg instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
+awg template status [--goal <goal>] [--json]
 awg search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
-awg add node --type <type> --title <title> --summary <summary> [--run <run-id>|--no-run] [--json]
+awg add node --type <type> --title <title> --summary <summary> [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
 awg add edge --from <node-id> --rel <relation> --to <node-id> [--run <run-id>|--no-run]
 awg add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
 awg add evidence --target <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--run <run-id>|--no-run] [--json]
-awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
 awg run start --goal <goal> [--agent <name>] [--force] [--json]
 awg run note <note> [--run <run-id>] [--json]
 awg run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--auto-handoff] [--force] [--json]
@@ -163,7 +164,7 @@ awg validate [--json] [--strict]
 awg doctor [--fix-suggestions] [--json]
 awg lens resume [--budget <n>] [--json]
 awg lens task --goal <goal> [--budget <n>] [--json]
-awg handoff [--budget <n>] [--json]
+awg handoff [--budget <n>] [--json] [--no-record]
 awg recent [--days <n>] [--json]
 awg view current [--json] [--text]
 awg open [--global] [--no-launch]
@@ -171,7 +172,13 @@ awg open [--global] [--no-launch]
 
 ## Agent Retrieval and Maintenance
 
-`awg search <query>` performs deterministic local search over node id, slug, title, summary, type, status, tags, and optional anchors. It ranks exact id/slug matches first, then title and summary matches, with small boosts for importance, recency relative to the compiled graph timestamp, and actionable statuses. It never uses embeddings, AI, remote APIs, vector databases, or repository file crawling.
+`awg search <query>` performs deterministic local search over node id, slug, title, summary, type, status, tags, optional anchors, and bounded text extracted from optional node `body`, `fields`, `blocks`, and `freshness`. It ranks exact id/slug matches first, then title and summary matches, with small boosts for importance, recency relative to the compiled graph timestamp, and actionable statuses. It never uses embeddings, AI, remote APIs, vector databases, or repository file crawling.
+
+Nodes keep `summary` as concise retrieval/scanning text. Optional `body` stores narrative detail, `fields` stores operational JSON data, `blocks` stores typed presentation blocks, and `freshness` stores currentness metadata such as `state`, `last_verified`, `review_after`, `verified_by`, `source_of_truth`, `supersedes`, and `superseded_by`. Older nodes without these fields remain valid, and unknown fields are preserved.
+
+Node-authored presentation blocks are data, not markup. The V1.7 write path accepts only the MVP block set: `brief`, `callout`, `metric-row`, `table`, `checklist`, `task-queue`, `risk-list`, `decision-list`, `evidence-list`, `timeline`, `run-summary`, and the generic compatibility type `node-list`. Malformed structural CLI block JSON, unsupported block types, malformed block data, and malformed `sourceNodeIds` / `targetNodeIds` references fail before appending to canonical JSONL. The static viewer renders supported node blocks with centralized styling and safe fallbacks; AWG does not execute arbitrary HTML, CSS, JavaScript, or plugin code from durable content.
+
+`awg template status` is a read-only discovery surface for vault-local operating templates stored as AWG knowledge. Prefer regular core node types such as `process`, `standard`, or `policy` tagged `template`, `operating-template`, or `template:operating`; the legacy/custom `template` node type is only recognized for compatibility. The command reports active templates, scopes, missing governance sections, conflicts, warnings, and suggested inspection commands. It does not initialize, apply, migrate, publish, or mutate templates.
 
 An agent run is one focused work session. `awg run start --goal "<goal>"` appends a run-start event, `awg run note "..."` records meaningful progress or blockers, and `awg run finish --status completed|partial|blocked|failed --summary "..."` records the final outcome. Durable write commands attach to the active run by default; use `--run <run-id>` for an explicit active run and `--no-run` to suppress attribution. The compiler derives created, updated, touched, evidenced, completed, unresolved, diagnostic, and handoff state for each run from canonical log metadata. `awg run status` reports the active run and `awg run list --json` includes derived attribution summaries. Run history is canonical AWG event data, not hidden mutable state.
 
@@ -198,13 +205,13 @@ Handoff quality scoring is deterministic and explainable. Checks have fixed weig
 
 `--budget <n>` uses an approximate deterministic character budget. Section structure is preserved, high-priority items are emitted first, and omitted counts are included when lower-priority items are truncated. JSON mode always remains valid JSON.
 
-Agent-facing commands support stable `--json` output for parsing: `add node`, `add edge`, `add response`, `add evidence`, `update node`, `run start`, `run note`, `run finish`, `run status`, `run list`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
+Agent-facing commands support stable `--json` output for parsing: `add node`, `add edge`, `add response`, `add evidence`, `update node`, `template status`, `run start`, `run note`, `run finish`, `run status`, `run list`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
 
 Use `awg update node <node-id>` to keep durable state current. It appends a new node snapshot and a node update event; it does not mutate compiled artifacts and it does not create missing nodes by default.
 
 Use `awg add evidence --target <node-id> --summary "..."` when claiming work is complete or verified. It validates the target, creates a generic `evidence` node, links it to the target with a supporting edge, and records inline evidence on the target so current diagnostics can recognize completed task evidence.
 
-`awg doctor` includes agent-loop warnings for stale active runs, active runs without recent notes, completed runs without evidence or changed nodes, finished runs without handoff records, completed tasks without evidence, orphan nodes, duplicate-looking titles/aliases, active blockers linked to completed work, and active risks with completed mitigation that still need review. These are warnings unless the underlying graph state is malformed. `awg doctor --fix-suggestions --json` adds conservative structured suggestions with command-like repairs; it does not mutate canonical logs.
+`awg doctor` includes agent-loop warnings for stale active runs, active runs without recent notes, completed runs without evidence or changed nodes, finished runs without handoff records, completed tasks without evidence, orphan nodes, duplicate-looking titles/aliases, invalid or unsupported blocks, active blockers linked to completed work, active risks with completed mitigation that still need review, and nodes marked `freshness.state: current` that are missing `freshness.last_verified`. These are warnings unless the underlying graph state is malformed. `awg doctor --fix-suggestions --json` adds conservative structured suggestions with command-like repairs; it does not mutate canonical logs.
 
 The `examples/realistic-agent-loop` fixture is a compact dogfood project with active and completed work, evidence, duplicate-ish nodes, orphans, stale review state, risks, blockers, decisions, questions, responses, and multiple runs. It is intended for tests, docs, demos, and manual viewer inspection.
 
@@ -221,6 +228,15 @@ Nodes may optionally include generic `anchors` for retrieval and handoff context
 ```
 
 Valid anchor kinds are `file`, `symbol`, `url`, `command`, `doc`, and `external`. Anchors are optional and domain-agnostic; AWG does not perform code intelligence.
+
+Rich node writes can use inline JSON or `@file` JSON input for JSON flags:
+
+```sh
+awg add node --type task --title "Launch checklist" --summary "Track launch state." \
+  --field owner=codex \
+  --freshness-json '{"state":"current","last_verified":"2026-05-13"}' \
+  --block-json '{"schemaVersion":1,"type":"checklist","data":[{"label":"Run tests","done":true}]}'
+```
 
 ## Storage Layout
 
@@ -286,7 +302,7 @@ The static viewer uses reusable UI primitives rather than one-off pages:
 
 The overview is curated, the graph is exploratory, Kanban is operational, node detail is inspectable, and every summary item should link deeper when possible. Styling is tokenized through CSS variables for semantic, status, diagnostic, and component colors.
 
-The internal block renderer supports safe known block types such as briefs, metric rows, attention lists, node lists/tables, decision/risk/question reviews, evidence and diagnostic lists, Kanban boards, graph neighborhoods, and raw JSON. Unsupported blocks render a clear fallback plus raw data. Future plugin/block rendering is planned, but AWG does not execute arbitrary plugin code, HTML, JavaScript, or agent-provided scripts.
+The internal compiled-view renderer supports safe known route and view block types such as briefs, metric rows, attention lists, node lists/tables, decision/risk/question reviews, evidence and diagnostic lists, Kanban boards, graph neighborhoods, and raw JSON. Node-authored durable `blocks` are stricter: only the V1.7 MVP block set is accepted by the CLI, and unsupported historical blocks render a clear fallback plus raw data. Future plugin/block rendering is planned, but AWG does not execute arbitrary plugin code, HTML, JavaScript, CSS, or agent-provided scripts.
 
 See `docs/spec/awg-viewer-surface.md` for the route model, token system, static limitations, and future plugin boundary.
 
@@ -320,6 +336,8 @@ AWG reports operational graph health, including:
 - completed tasks without evidence
 - unanswered questions
 - low-confidence active nodes
+- invalid or unsupported typed presentation blocks
+- nodes marked `freshness.state: current` missing freshness verification
 
 ## Development
 

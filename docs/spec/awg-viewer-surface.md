@@ -28,24 +28,42 @@ The viewer is organized around reusable primitives rather than one-off pages:
 - details
 - actions
 
-The internal block renderer maps known block types to render functions. Unsupported blocks render a visible fallback and raw JSON. Agents may eventually generate view manifests that reference block types, but AWG does not execute arbitrary agent-provided HTML or JavaScript.
+The internal block renderer maps known block types to render functions. Unsupported blocks render a visible fallback and raw JSON. Agents may eventually generate view manifests that reference block types, but AWG does not execute arbitrary agent-provided HTML, CSS, JavaScript, or plugin code.
 
-Supported initial block types include:
+There are two block scopes:
+
+- Generated/compiled view blocks may use AWG's internal route/view primitives.
+- Node-authored durable `blocks` are restricted to the V1.7 MVP block set and are rendered with a stricter allowlist.
+
+Node-authored MVP block types are:
 
 - `brief`
+- `callout`
 - `metric-row`
+- `table`
+- `checklist`
+- `task-queue`
+- `risk-list`
+- `decision-list`
+- `evidence-list`
+- `node-list`
+- `timeline`
+- `run-summary`
+
+Additional internal view block types include:
+
 - `stats-grid`
 - `attention-list`
-- `node-list`
 - `node-table`
 - `decision-review`
 - `risk-review`
 - `question-review`
-- `evidence-list`
 - `diagnostic-list`
 - `kanban-board`
 - `graph-neighborhood`
 - `raw-json`
+
+CLI-authored node blocks must include `schemaVersion: 1`, `type`, and `data`. Malformed structural blocks, unsupported block types, malformed block data, and malformed `sourceNodeIds` / `targetNodeIds` references fail before append. Historical malformed blocks and unsupported compiled-view blocks must not crash the viewer; they render a visible fallback.
 
 ## Query Helpers
 
