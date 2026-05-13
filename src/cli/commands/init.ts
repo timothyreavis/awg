@@ -60,6 +60,7 @@ async function writeProjectVault(root: string, parsed: ParsedArgs, options: { pr
   await writeFile(root, path.join(root, ".awg/config.json"), stableStringify({
     awg: AWG_VERSION,
     project: { title: path.basename(root) },
+    doctor: { activeRunStaleHours: 24, runNoteStaleHours: 4, recentRunWindowDays: 7 },
     validation: { allow_unknown_node_types: true, strict_links: false },
     storage: { adapter: "file", canonical: ".awg/log/**/*.awg.jsonl" }
   }), options);
@@ -119,22 +120,35 @@ async function writeStarterLog(root: string): Promise<void> {
 function agentsTemplate(): string {
   return `# AWG Agent Instructions
 
-- Before starting work, run \`awg handoff\`, \`awg lens resume\`, or read \`.awg/compiled/lenses/resume.json\`.
-- If the lens is missing or stale, run \`awg build\`.
-- Store durable knowledge as AWG nodes/edges/responses/events.
-- Use \`awg search <query>\` before creating duplicate nodes.
-- Use \`awg lens task --goal "..."\` for scoped work context.
-- Prefer \`awg add\`, \`awg update node\`, and \`awg add evidence\` commands over manually editing JSONL.
-- Do not edit \`.awg/compiled/*\` manually.
-- Do not link by file path when linking knowledge. Link by AWG node ID.
-- Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
-- When making a durable decision, create or update a decision node.
-- When identifying a risk/blocker, create a risk/task node with review metadata if possible.
-- When completing work, update/add task status and add evidence.
-- After writing AWG data, run \`awg build\`.
-- Fix fatal validation errors before stopping.
-- Review \`awg doctor\` warnings and resolve obvious stale items.
-- End by running \`awg handoff\` and ensuring \`.awg/compiled/lenses/resume.json\` reflects the current state.
+Start of session:
+- Run \`awg handoff\`.
+- Run \`awg run start --goal "<goal>"\`.
+- Use \`awg search <query>\` before creating durable nodes.
+- Use \`awg lens task --goal "<goal>"\` for scoped context.
+
+During work:
+- Update existing nodes instead of creating duplicates.
+- Attach durable knowledge as nodes, edges, responses, and evidence.
+- Link related nodes by AWG node ID, not by file path.
+- Add run notes for meaningful progress or blockers.
+- Add evidence for completed work or verification claims.
+
+Before finishing:
+- Update task, risk, blocker, and decision statuses.
+- Add evidence for completed work.
+- Run \`awg build\`.
+- Run \`awg doctor\`.
+- Fix fatal validation errors and review warnings.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..."\`.
+- Run \`awg handoff\`.
+
+Anti-patterns:
+- Do not create duplicate nodes without searching.
+- Do not mark work complete without evidence.
+- Do not ignore stale risks or blockers.
+- Do not leave orphan durable knowledge.
+- Do not write only to chat when knowledge should persist.
+- Do not edit \`.awg/compiled/*\` as source.
 `;
 }
 
@@ -151,8 +165,10 @@ function rootAgentsTemplate(): string {
 This project uses AWG as its durable project memory.
 
 Before starting work:
-- Run \`awg handoff\` or \`awg lens resume\`.
-- If the lens is missing or stale, run \`awg build\`, then rerun \`awg lens resume\`.
+- Run \`awg handoff\`.
+- Run \`awg run start --goal "<goal>"\`.
+- Use \`awg search <query>\` before creating durable nodes.
+- Use \`awg lens task --goal "<goal>"\` for scoped context.
 - Read \`.awg/AGENTS.md\`.
 
 During work:
@@ -167,6 +183,8 @@ Before stopping:
 - Run \`awg build\`.
 - Run \`awg doctor\`.
 - Fix fatal validation errors.
+- Add evidence for completed work.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..."\`.
 - Run \`awg handoff\`.
 - Ensure \`awg lens resume\` reflects the current project state.
 `;
@@ -203,11 +221,11 @@ function claudeTemplate(agentsFile = "AGENTS.md"): string {
 
 Follow the project instructions in \`${agentsFile}\`.
 
-This project uses AWG as its durable project memory. Before starting work, run \`awg lens resume\`. If the lens is missing or stale, run \`awg build\`, then rerun \`awg lens resume\`.
+This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context.
 
 Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Do not edit \`.awg/compiled/*\`.
 
-Before stopping, run \`awg build\` and \`awg doctor\`, fix fatal validation errors, and ensure \`awg lens resume\` reflects the current project state.
+Before stopping, update relevant statuses, add evidence for completed work, run \`awg build\` and \`awg doctor\`, fix fatal validation errors, finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..."\`, and run \`awg handoff\`.
 `;
 }
 

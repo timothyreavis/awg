@@ -151,6 +151,15 @@
   },
   {
     "awg": "0.1",
+    "created_at": "2026-05-13T05:19:03.028Z",
+    "from": "n:awg-v15-agent-run-loop",
+    "id": "e:82ffe44b1326a418",
+    "kind": "edge",
+    "rel": "applies_to",
+    "to": "n:awg-project-purpose"
+  },
+  {
+    "awg": "0.1",
     "created_at": "2026-05-12T22:47:28.211Z",
     "from": "n:overview-ui-demo-question-agent-recipes",
     "id": "e:842c0cefb13e40f6",
@@ -168,6 +177,16 @@
     "reason": "Global registry and switcher writes must remain inside ~/.awg.",
     "rel": "applies_to",
     "to": "n:setup-register-open-behavior"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T05:18:55.050Z",
+    "from": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+    "id": "e:904d9f39759683c4",
+    "kind": "edge",
+    "reason": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dry run passed.",
+    "rel": "supports",
+    "to": "n:awg-v15-agent-run-loop"
   },
   {
     "awg": "0.1",

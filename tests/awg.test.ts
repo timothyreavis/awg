@@ -88,7 +88,7 @@ test("init creates expected files", () => {
   assert.ok(readFileSync(path.join(cwd, "AGENTS.md"), "utf8").includes("durable project memory"));
   assert.ok(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8").includes("Follow the project instructions in `AGENTS.md`"));
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
-  assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg lens resume"));
+  assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg run start"));
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
   assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
 });
@@ -258,7 +258,7 @@ test("init completes a partial .awg without clobbering existing instruction snip
   run(cwd, ["setup", "--yes"], { HOME: home });
   run(cwd, ["init", "--empty"], { HOME: home });
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
-  assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg lens resume"));
+  assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg run start"));
   assert.equal(readFileSync(path.join(cwd, ".awg/instructions/antigravity.md"), "utf8"), "# User rules\n\nKeep this.\n");
   assert.equal(readRegistry(home).vaults.length, 1);
 });
@@ -537,9 +537,74 @@ test("task lens and handoff include scoped context and respect budgets", () => {
   const tinyHandoff = run(cwd, ["handoff", "--budget", "200", "--json"]);
   assert.ok(tinyHandoff.length < 1800);
   const tinyParsed = JSON.parse(tinyHandoff);
-  assert.equal(tinyParsed.sections[0].section, "graphHealth");
+  assert.ok(["activeRun", "mostRecentRun", "graphHealth"].includes(tinyParsed.sections[0].section));
   assert.ok(tinyParsed.sections.some((section: { omitted: number }) => section.omitted > 0));
   assert.ok(run(cwd, ["handoff", "--budget", "600"]).includes("AWG handoff"));
+});
+
+test("run commands track start note finish status and list with json", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Test run loop", "--agent", "codex", "--json"]));
+  assert.equal(started.ok, true);
+  assert.ok(started.runId.startsWith("run:"));
+  assert.equal(started.run.status, "in_progress");
+  assert.ok(runFail(cwd, ["run", "start", "--goal", "Second"]).includes("Active run already exists"));
+  const noted = JSON.parse(run(cwd, ["run", "note", "Created a useful note.", "--json"]));
+  assert.equal(noted.runId, started.runId);
+  assert.equal(noted.note.summary, "Created a useful note.");
+  run(cwd, ["add", "node", "--id", "n:run-task", "--type", "task", "--title", "Run task", "--summary", "Run task.", "--status", "in_progress"]);
+  run(cwd, ["update", "node", "n:run-task", "--status", "completed"]);
+  run(cwd, ["add", "evidence", "--target", "n:run-task", "--summary", "Evidence during active run.", "--status", "passed"]);
+  const status = JSON.parse(run(cwd, ["run", "status", "--json"]));
+  assert.equal(status.activeRun.id, started.runId);
+  assert.equal(status.activeRun.notes[0].summary, "Created a useful note.");
+  assert.equal(status.activeRun.changed_nodes[0], "n:run-task");
+  assert.equal(status.activeRun.evidence.length, 1);
+  const finished = JSON.parse(run(cwd, ["run", "finish", "--status", "completed", "--summary", "Finished cleanly.", "--json"]));
+  assert.equal(finished.runId, started.runId);
+  assert.equal(finished.status, "completed");
+  const after = JSON.parse(run(cwd, ["run", "status", "--json"]));
+  assert.equal(after.activeRun, null);
+  const listed = JSON.parse(run(cwd, ["run", "list", "--json"]));
+  assert.equal(listed.runs[0].id, started.runId);
+  assert.equal(listed.runs[0].summary, "Finished cleanly.");
+  assert.ok(runFail(cwd, ["run", "note", "No active"]).includes("No active run"));
+  assert.ok(runFail(cwd, ["run", "finish", "--run", "run:missing", "--status", "completed"]).includes("Run not found"));
+});
+
+test("handoff and recent include run context", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Upgrade handoff", "--agent", "codex", "--json"]));
+  run(cwd, ["run", "note", "Investigated handoff context."]);
+  run(cwd, ["add", "node", "--id", "n:handoff-task", "--type", "task", "--title", "Upgrade handoff", "--summary", "Improve handoff.", "--status", "in_progress"]);
+  const handoff = JSON.parse(run(cwd, ["handoff", "--budget", "1400", "--json"]));
+  assert.equal(handoff.kind, "handoff");
+  assert.ok(JSON.stringify(handoff).includes(started.runId));
+  assert.ok(JSON.stringify(handoff).includes("recentRunNotes"));
+  assert.ok(JSON.stringify(handoff).includes("activeTasks"));
+  const recent = JSON.parse(run(cwd, ["recent", "--days", "7", "--run", started.runId, "--json"]));
+  assert.equal(recent.kind, "recent");
+  assert.equal(recent.runs[0].id, started.runId);
+  assert.equal(recent.run_notes[0].summary, "Investigated handoff context.");
+});
+
+test("handoff json records handoff event without breaking parseable output", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "JSON handoff", "--json"]));
+  run(cwd, ["run", "finish", "--status", "partial", "--summary", "Stopped after JSON handoff prep."]);
+  const handoff = JSON.parse(run(cwd, ["handoff", "--json"]));
+  assert.equal(handoff.kind, "handoff");
+  const list = JSON.parse(run(cwd, ["run", "list", "--json"]));
+  assert.equal(list.runs[0].id, started.runId);
+  assert.equal(list.runs[0].handoffs.length, 1);
+  run(cwd, ["run", "start", "--goal", "No record handoff", "--force"]);
+  run(cwd, ["run", "finish", "--status", "partial", "--summary", "Stopped without recorded handoff."]);
+  JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
+  const after = JSON.parse(run(cwd, ["run", "list", "--json"]));
+  assert.equal(after.runs[0].handoffs.length, 0);
 });
 
 test("resume lens budget json remains parseable with omitted counts", () => {
@@ -562,6 +627,62 @@ test("recent command reports recent nodes and evidence", () => {
   assert.ok(recent.nodes.some((node: { id: string }) => node.id === "n:recent"));
   assert.ok(recent.evidence.length >= 1);
   assert.equal(run(cwd, ["recent", "--days", "7", "--json"]), run(cwd, ["recent", "--days", "7", "--json"]));
+});
+
+test("doctor reports stale active and completed runs without handoff evidence or changes", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  const old = "2026-01-01T00:00:00.000Z";
+  const recent = new Date();
+  const recentStart = recent.toISOString();
+  const recentFinish = new Date(recent.getTime() + 1000).toISOString();
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:old:start", type: "run_started", target: "run:old", by: "agent:codex", at: old, goal: "Old run" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:done:start", type: "run_started", target: "run:done", by: "agent:codex", at: recentStart, goal: "Done run" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:done:finish", type: "run_finished", target: "run:done", run: "run:done", by: "agent:codex", at: recentFinish, status: "completed", summary: "Done." })
+  ].join("\n") + "\n");
+  const result = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  const codes = result.diagnostics.diagnostics.map((diag) => diag.code);
+  assert.ok(codes.includes("stale_active_run"));
+  assert.ok(codes.includes("unfinished_run_without_recent_note"));
+  assert.ok(codes.includes("completed_run_without_evidence_or_changes"));
+  assert.ok(codes.includes("finished_run_without_handoff"));
+});
+
+test("realistic agent loop fixture builds and exposes expected handoff diagnostics and search", () => {
+  const cwd = tmp();
+  cpSync(path.resolve("examples/realistic-agent-loop"), cwd, { recursive: true });
+  run(cwd, ["build"]);
+  const handoff = JSON.parse(run(cwd, ["handoff", "--budget", "1800", "--json"]));
+  const handoffText = JSON.stringify(handoff);
+  assert.ok(handoffText.includes("run:fixture-blocked"));
+  assert.ok(handoffText.includes("activeTasks"));
+  assert.ok(handoffText.includes("openDecisions"));
+  assert.ok(handoffText.includes("blockersAndRisks"));
+  assert.ok(handoffText.includes("recentEvidence"));
+  assert.ok(handoffText.includes("graphHealth"));
+  assert.ok(handoff.sections.some((section: { omitted?: number }) => typeof section.omitted === "number"));
+  const lens = JSON.parse(run(cwd, ["lens", "task", "--goal", "handoff budget guardrails", "--budget", "2600", "--json"]));
+  const lensText = JSON.stringify(lens);
+  assert.ok(lensText.includes("n:active-task"));
+  assert.ok(lensText.includes("n:fixture-goal"));
+  assert.equal(lensText.includes("n:orphan-note"), false);
+  const doctor = JSON.parse(run(cwd, ["doctor", "--json"]));
+  const codes = doctor.diagnostics.map((diag: { code: string }) => diag.code);
+  assert.ok(codes.includes("completed_task_without_evidence"));
+  assert.ok(codes.includes("duplicate_alias"));
+  assert.ok(codes.includes("orphan_node"));
+  assert.ok(codes.includes("decision_implemented_while_proposed"));
+  assert.ok(codes.includes("active_risk_with_completed_mitigation"));
+  assert.ok(codes.includes("active_blocker_linked_to_resolved_work"));
+  const search = JSON.parse(run(cwd, ["search", "handoff budget guardrails", "--json"]));
+  assert.ok(search.results.some((item: { id: string }) => item.id === "n:active-task"));
+  assert.ok(search.results.some((item: { id: string }) => item.id === "n:duplicate-one"));
+  const recent = JSON.parse(run(cwd, ["recent", "--days", "7", "--json"]));
+  assert.ok(Array.isArray(recent.runs));
+  assert.ok(Array.isArray(recent.run_notes));
 });
 
 test("recent command does not call stale historical graph entries recent", () => {
@@ -983,12 +1104,12 @@ test("instructions install refuses edited managed blocks unless forced", () => {
   writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n");
   run(cwd, ["instructions", "install", "codex"]);
   const file = path.join(cwd, "AGENTS.md");
-  writeFileSync(file, readFileSync(file, "utf8").replace("Start by running", "CUSTOM Start by running"));
+  writeFileSync(file, readFileSync(file, "utf8").replace("Start of session", "CUSTOM Start of session"));
   const output = runFail(cwd, ["instructions", "install", "codex"]);
   assert.ok(output.includes("was edited after AWG generated it"));
-  assert.ok(readFileSync(file, "utf8").includes("CUSTOM Start by running"));
+  assert.ok(readFileSync(file, "utf8").includes("CUSTOM Start of session"));
   run(cwd, ["instructions", "install", "codex", "--force"]);
-  assert.ok(!readFileSync(file, "utf8").includes("CUSTOM Start by running"));
+  assert.ok(!readFileSync(file, "utf8").includes("CUSTOM Start of session"));
 });
 
 test("instructions install refuses hash-only blocks from another instruction pack", () => {

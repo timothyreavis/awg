@@ -13,6 +13,7 @@
         "draft",
         "proposed",
         "active",
+        "accepted",
         "blocked",
         "in_progress",
         "completed",

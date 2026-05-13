@@ -1,0 +1,508 @@
+{
+  "awg": "0.1",
+  "blocks": [
+    {
+      "summary": {
+        "active_run_count": 1,
+        "dangling_edge_count": 0,
+        "edge_count": 8,
+        "fatal_error_count": 0,
+        "node_count": 19,
+        "ok": true,
+        "orphan_node_count": 8,
+        "stale_node_count": 1,
+        "stale_run_count": 0,
+        "unanswered_question_count": 1,
+        "unverified_completion_count": 1,
+        "warning_count": 15
+      },
+      "title": "Graph Health",
+      "type": "summary"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.74,
+          "created_at": "2026-05-13T09:21:00.000Z",
+          "id": "n:active-blocker",
+          "importance": 0.76,
+          "kind": "node",
+          "status": "blocked",
+          "summary": "Blocker remains active even though linked work is resolved.",
+          "title": "Health warning triage blocked",
+          "type": "blocker",
+          "updated_at": "2026-05-13T10:35:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.72,
+          "created_at": "2026-05-13T09:24:00.000Z",
+          "id": "n:stale-review",
+          "importance": 0.62,
+          "kind": "node",
+          "review_after": "2026-01-01",
+          "status": "needs_review",
+          "summary": "A stale reviewAfter node used to exercise doctor warnings.",
+          "title": "Review stale project notes",
+          "type": "task",
+          "updated_at": "2026-05-13T09:24:00.000Z"
+        }
+      ],
+      "title": "Attention Required",
+      "type": "attention-required"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.9,
+          "created_at": "2026-05-13T09:15:00.000Z",
+          "id": "n:decision-accepted",
+          "importance": 0.85,
+          "kind": "node",
+          "status": "accepted",
+          "summary": "Represent agent runs with AWG events instead of a new storage backend.",
+          "title": "Use append-only run events",
+          "type": "decision",
+          "updated_at": "2026-05-13T09:15:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:16:00.000Z",
+          "id": "n:decision-proposed",
+          "importance": 0.7,
+          "kind": "node",
+          "status": "proposed",
+          "summary": "A proposed decision that already has implementation work linked.",
+          "title": "Expose run history in viewer",
+          "type": "decision",
+          "updated_at": "2026-05-13T10:00:00.000Z"
+        }
+      ],
+      "title": "Open Decisions",
+      "type": "decision-review"
+    },
+    {
+      "items": [
+        {
+          "anchors": [
+            {
+              "kind": "file",
+              "label": "Handoff builder",
+              "path": "src/core/retrieval.ts"
+            }
+          ],
+          "awg": "0.1",
+          "confidence": 0.85,
+          "created_at": "2026-05-13T09:05:00.000Z",
+          "id": "n:active-task",
+          "importance": 0.9,
+          "kind": "node",
+          "status": "in_progress",
+          "summary": "Keep handoff output compact while preserving omitted counts.",
+          "tags": [
+            "handoff"
+          ],
+          "title": "Implement handoff budget guardrails",
+          "type": "task",
+          "updated_at": "2026-05-13T09:40:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.72,
+          "created_at": "2026-05-13T09:24:00.000Z",
+          "id": "n:stale-review",
+          "importance": 0.62,
+          "kind": "node",
+          "review_after": "2026-01-01",
+          "status": "needs_review",
+          "summary": "A stale reviewAfter node used to exercise doctor warnings.",
+          "title": "Review stale project notes",
+          "type": "task",
+          "updated_at": "2026-05-13T09:24:00.000Z"
+        }
+      ],
+      "title": "Active Tasks",
+      "type": "task-review"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.78,
+          "created_at": "2026-05-13T09:18:00.000Z",
+          "id": "n:active-risk",
+          "importance": 0.8,
+          "kind": "node",
+          "status": "active",
+          "summary": "Fresh agents may create duplicate durable context when they skip search.",
+          "title": "Agents may over-create context",
+          "type": "risk",
+          "updated_at": "2026-05-13T09:18:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.75,
+          "created_at": "2026-05-13T09:19:00.000Z",
+          "id": "n:risk-with-mitigation",
+          "importance": 0.78,
+          "kind": "node",
+          "status": "active",
+          "summary": "Risk remains active even though mitigation work is complete.",
+          "title": "Handoff can go stale",
+          "type": "risk",
+          "updated_at": "2026-05-13T10:30:00.000Z"
+        }
+      ],
+      "title": "Active Risks",
+      "type": "risk-review"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:23:00.000Z",
+          "id": "n:open-question",
+          "importance": 0.65,
+          "kind": "node",
+          "status": "active",
+          "summary": "Unanswered product question about whether handoff should append an event by default.",
+          "title": "Should handoff record by default?",
+          "type": "question",
+          "updated_at": "2026-05-13T09:23:00.000Z"
+        }
+      ],
+      "title": "Open Questions",
+      "type": "question-review"
+    },
+    {
+      "items": [
+        {
+          "awg": "0.1",
+          "confidence": 0.74,
+          "created_at": "2026-05-13T09:21:00.000Z",
+          "id": "n:active-blocker",
+          "importance": 0.76,
+          "kind": "node",
+          "status": "blocked",
+          "summary": "Blocker remains active even though linked work is resolved.",
+          "title": "Health warning triage blocked",
+          "type": "blocker",
+          "updated_at": "2026-05-13T10:35:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.78,
+          "created_at": "2026-05-13T09:18:00.000Z",
+          "id": "n:active-risk",
+          "importance": 0.8,
+          "kind": "node",
+          "status": "active",
+          "summary": "Fresh agents may create duplicate durable context when they skip search.",
+          "title": "Agents may over-create context",
+          "type": "risk",
+          "updated_at": "2026-05-13T09:18:00.000Z"
+        },
+        {
+          "anchors": [
+            {
+              "kind": "file",
+              "label": "Handoff builder",
+              "path": "src/core/retrieval.ts"
+            }
+          ],
+          "awg": "0.1",
+          "confidence": 0.85,
+          "created_at": "2026-05-13T09:05:00.000Z",
+          "id": "n:active-task",
+          "importance": 0.9,
+          "kind": "node",
+          "status": "in_progress",
+          "summary": "Keep handoff output compact while preserving omitted counts.",
+          "tags": [
+            "handoff"
+          ],
+          "title": "Implement handoff budget guardrails",
+          "type": "task",
+          "updated_at": "2026-05-13T09:40:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.78,
+          "created_at": "2026-05-13T09:22:00.000Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T10:35:00.000Z",
+              "id": "n:evidence-doctor-smoke",
+              "source": "terminal",
+              "status": "passed",
+              "summary": "doctor --json parsed successfully."
+            }
+          ],
+          "id": "n:blocker-work-completed",
+          "importance": 0.68,
+          "kind": "node",
+          "status": "completed",
+          "summary": "Work linked from an active blocker is already complete.",
+          "title": "Resolve doctor warning parser",
+          "type": "task",
+          "updated_at": "2026-05-13T10:35:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:12:00.000Z",
+          "id": "n:completed-missing-evidence",
+          "importance": 0.6,
+          "kind": "node",
+          "status": "completed",
+          "summary": "A completed fixture task intentionally missing evidence.",
+          "title": "Mark duplicate review complete",
+          "type": "task",
+          "updated_at": "2026-05-13T10:25:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.86,
+          "created_at": "2026-05-13T09:10:00.000Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T10:20:00.000Z",
+              "id": "n:evidence-tests-pass",
+              "source": "terminal",
+              "status": "passed",
+              "summary": "npm test passed for task lens ranking."
+            }
+          ],
+          "id": "n:completed-with-evidence",
+          "importance": 0.82,
+          "kind": "node",
+          "status": "completed",
+          "summary": "Rank task lens matches by local deterministic graph signals.",
+          "title": "Add task lens ranking",
+          "type": "task",
+          "updated_at": "2026-05-13T10:20:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.9,
+          "created_at": "2026-05-13T09:15:00.000Z",
+          "id": "n:decision-accepted",
+          "importance": 0.85,
+          "kind": "node",
+          "status": "accepted",
+          "summary": "Represent agent runs with AWG events instead of a new storage backend.",
+          "title": "Use append-only run events",
+          "type": "decision",
+          "updated_at": "2026-05-13T09:15:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:16:00.000Z",
+          "id": "n:decision-proposed",
+          "importance": 0.7,
+          "kind": "node",
+          "status": "proposed",
+          "summary": "A proposed decision that already has implementation work linked.",
+          "title": "Expose run history in viewer",
+          "type": "decision",
+          "updated_at": "2026-05-13T10:00:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:25:00.000Z",
+          "id": "n:duplicate-one",
+          "importance": 0.45,
+          "kind": "node",
+          "status": "active",
+          "summary": "First duplicate-looking note.",
+          "title": "Handoff budget guardrails",
+          "type": "note",
+          "updated_at": "2026-05-13T09:25:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:26:00.000Z",
+          "id": "n:duplicate-two",
+          "importance": 0.45,
+          "kind": "node",
+          "status": "active",
+          "summary": "Second duplicate-looking note.",
+          "title": "Handoff budget guardrails",
+          "type": "note",
+          "updated_at": "2026-05-13T09:26:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "command": "awg doctor --json",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T10:35:00.000Z",
+          "evidence_status": "passed",
+          "id": "n:evidence-doctor-smoke",
+          "importance": 0.5,
+          "kind": "node",
+          "source": "terminal",
+          "status": "active",
+          "summary": "awg doctor --json parsed successfully.",
+          "title": "Doctor smoke passed",
+          "type": "evidence",
+          "updated_at": "2026-05-13T10:35:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "command": "awg handoff --json",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T10:30:00.000Z",
+          "evidence_status": "passed",
+          "id": "n:evidence-handoff-smoke",
+          "importance": 0.5,
+          "kind": "node",
+          "source": "terminal",
+          "status": "active",
+          "summary": "awg handoff --json parsed successfully.",
+          "title": "Handoff smoke passed",
+          "type": "evidence",
+          "updated_at": "2026-05-13T10:30:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "command": "npm test",
+          "confidence": 0.85,
+          "created_at": "2026-05-13T10:20:00.000Z",
+          "evidence_status": "passed",
+          "id": "n:evidence-tests-pass",
+          "importance": 0.5,
+          "kind": "node",
+          "source": "terminal",
+          "status": "active",
+          "summary": "npm test passed for task lens ranking.",
+          "title": "npm test passed",
+          "type": "evidence",
+          "updated_at": "2026-05-13T10:20:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.9,
+          "created_at": "2026-05-13T09:00:00.000Z",
+          "id": "n:fixture-goal",
+          "importance": 0.95,
+          "kind": "node",
+          "status": "active",
+          "summary": "Make the project easier for fresh agents to enter, update, verify, and hand off.",
+          "tags": [
+            "fixture",
+            "agent-loop"
+          ],
+          "title": "Agent loop hardening",
+          "type": "concept",
+          "updated_at": "2026-05-13T09:00:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.75,
+          "created_at": "2026-05-13T09:20:00.000Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T10:30:00.000Z",
+              "id": "n:evidence-handoff-smoke",
+              "source": "terminal",
+              "status": "passed",
+              "summary": "Handoff smoke command passed."
+            }
+          ],
+          "id": "n:mitigation-completed",
+          "importance": 0.7,
+          "kind": "node",
+          "status": "completed",
+          "summary": "Completed mitigation for stale handoff risk.",
+          "title": "Add handoff freshness warning",
+          "type": "task",
+          "updated_at": "2026-05-13T10:30:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.7,
+          "created_at": "2026-05-13T09:23:00.000Z",
+          "id": "n:open-question",
+          "importance": 0.65,
+          "kind": "node",
+          "status": "active",
+          "summary": "Unanswered product question about whether handoff should append an event by default.",
+          "title": "Should handoff record by default?",
+          "type": "question",
+          "updated_at": "2026-05-13T09:23:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.65,
+          "created_at": "2026-05-13T09:27:00.000Z",
+          "id": "n:orphan-note",
+          "importance": 0.35,
+          "kind": "node",
+          "status": "active",
+          "summary": "An intentionally unlinked node for orphan diagnostics.",
+          "title": "Orphan run observation",
+          "type": "note",
+          "updated_at": "2026-05-13T09:27:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.75,
+          "created_at": "2026-05-13T09:19:00.000Z",
+          "id": "n:risk-with-mitigation",
+          "importance": 0.78,
+          "kind": "node",
+          "status": "active",
+          "summary": "Risk remains active even though mitigation work is complete.",
+          "title": "Handoff can go stale",
+          "type": "risk",
+          "updated_at": "2026-05-13T10:30:00.000Z"
+        },
+        {
+          "awg": "0.1",
+          "confidence": 0.72,
+          "created_at": "2026-05-13T09:24:00.000Z",
+          "id": "n:stale-review",
+          "importance": 0.62,
+          "kind": "node",
+          "review_after": "2026-01-01",
+          "status": "needs_review",
+          "summary": "A stale reviewAfter node used to exercise doctor warnings.",
+          "title": "Review stale project notes",
+          "type": "task",
+          "updated_at": "2026-05-13T09:24:00.000Z"
+        }
+      ],
+      "title": "Node Browser",
+      "type": "node-list"
+    },
+    {
+      "summary": {
+        "active_run_count": 1,
+        "dangling_edge_count": 0,
+        "edge_count": 8,
+        "fatal_error_count": 0,
+        "node_count": 19,
+        "ok": true,
+        "orphan_node_count": 8,
+        "stale_node_count": 1,
+        "stale_run_count": 0,
+        "unanswered_question_count": 1,
+        "unverified_completion_count": 1,
+        "warning_count": 15
+      },
+      "title": "Diagnostics",
+      "type": "diagnostics"
+    }
+  ],
+  "generated_at": "2026-05-13T11:20:00.000Z",
+  "id": "v:current",
+  "kind": "view-output",
+  "title": "Current Review"
+}

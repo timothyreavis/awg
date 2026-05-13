@@ -1,0 +1,74 @@
+[
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T09:41:00.000Z",
+    "from": "n:active-task",
+    "id": "e:active-task-goal",
+    "kind": "edge",
+    "rel": "applies_to",
+    "to": "n:fixture-goal"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:35:00.000Z",
+    "from": "n:active-blocker",
+    "id": "e:blocker-completed-work",
+    "kind": "edge",
+    "rel": "blocks",
+    "to": "n:blocker-work-completed"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:01:00.000Z",
+    "from": "n:active-task",
+    "id": "e:decision-impl",
+    "kind": "edge",
+    "rel": "implements",
+    "to": "n:decision-proposed"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:35:00.000Z",
+    "from": "n:evidence-doctor-smoke",
+    "id": "e:evidence-doctor",
+    "kind": "edge",
+    "rel": "supports",
+    "to": "n:blocker-work-completed"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:30:00.000Z",
+    "from": "n:evidence-handoff-smoke",
+    "id": "e:evidence-handoff",
+    "kind": "edge",
+    "rel": "supports",
+    "to": "n:mitigation-completed"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:20:00.000Z",
+    "from": "n:evidence-tests-pass",
+    "id": "e:evidence-ranking",
+    "kind": "edge",
+    "rel": "supports",
+    "to": "n:completed-with-evidence"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:30:00.000Z",
+    "from": "n:mitigation-completed",
+    "id": "e:mitigation-risk",
+    "kind": "edge",
+    "rel": "implements",
+    "to": "n:risk-with-mitigation"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T10:21:00.000Z",
+    "from": "n:completed-with-evidence",
+    "id": "e:ranking-goal",
+    "kind": "edge",
+    "rel": "applies_to",
+    "to": "n:fixture-goal"
+  }
+]

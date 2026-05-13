@@ -1,6 +1,7 @@
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
 import { AWG_VERSION, CORE_EDGE_RELS, CORE_STATUSES } from "../../core/constants.js";
 import { buildAwg } from "../../core/compiler.js";
+import { activeRun, buildRuns } from "../../core/runs.js";
 import { edgeId, nodeId, responseId } from "../../core/ids.js";
 import type { AwgEdge, AwgEvent, AwgNode, AwgResponse } from "../../core/types.js";
 import { nowIso } from "../../util/time.js";
@@ -99,6 +100,7 @@ async function addEvidence(parsed: ParsedArgs): Promise<void> {
   const target = required(parsed, "target");
   const storage = new FileAwgStorage();
   const { graph } = await buildAwg(storage, { write: false });
+  const run = activeRun(buildRuns(graph));
   const targetNode = graph.nodes.find((node) => node.id === target);
   if (!targetNode) throw new Error(`Target node not found: ${target}`);
   const at = nowIso();
@@ -133,6 +135,7 @@ async function addEvidence(parsed: ParsedArgs): Promise<void> {
   const updatedTarget: AwgNode = { ...targetNode, evidence: [...targetEvidence, { id: evidenceNode.id, summary, source: evidenceNode.source, status: evidenceNode.evidence_status, at }], updated_at: at };
   const eventId = `ev:${target.replace(/^n:/, "")}:evidence:${at.replace(/[^0-9]/g, "")}`;
   const event: AwgEvent = { awg: AWG_VERSION, kind: "event", id: eventId, type: "evidence_added", target, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at, evidence: evidenceNode.id };
+  if (run) event.run = run.id;
   await storage.appendLogEntry(evidenceNode);
   await storage.appendLogEntry(edge);
   await storage.appendLogEntry(updatedTarget);

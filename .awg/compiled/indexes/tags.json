@@ -1,4 +1,7 @@
 {
+  "agent-loop": [
+    "n:awg-v15-agent-run-loop"
+  ],
   "agents": [
     "n:instruction-install-behavior"
   ],
@@ -103,6 +106,9 @@
   ],
   "v1.4": [
     "n:awg-v14-agent-retrieval-maintenance"
+  ],
+  "v1.5": [
+    "n:awg-v15-agent-run-loop"
   ],
   "validation": [
     "n:diagnostic-model",

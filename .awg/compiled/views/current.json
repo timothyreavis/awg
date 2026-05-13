@@ -3,13 +3,15 @@
   "blocks": [
     {
       "summary": {
+        "active_run_count": 0,
         "dangling_edge_count": 0,
-        "edge_count": 30,
+        "edge_count": 32,
         "fatal_error_count": 0,
-        "node_count": 31,
+        "node_count": 33,
         "ok": true,
         "orphan_node_count": 0,
         "stale_node_count": 1,
+        "stale_run_count": 0,
         "unanswered_question_count": 2,
         "unverified_completion_count": 0,
         "warning_count": 4
@@ -502,6 +504,38 @@
         },
         {
           "awg": "0.1",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T05:18:54.900Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T05:18:55.050Z",
+              "id": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+              "source": "terminal",
+              "status": "passed",
+              "summary": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dry run passed."
+            }
+          ],
+          "id": "n:awg-v15-agent-run-loop",
+          "importance": 0.9,
+          "kind": "node",
+          "provenance": {
+            "created_by": "agent:codex",
+            "human_approved": false,
+            "source": "agent_generated",
+            "updated_by": "agent:codex"
+          },
+          "status": "completed",
+          "summary": "Implemented event-backed agent runs, run-aware handoff/recent, agent-loop diagnostics, instruction updates, realistic fixture, tests, and docs.",
+          "tags": [
+            "v1.5",
+            "agent-loop"
+          ],
+          "title": "AWG V1.5 agent run loop hardening",
+          "type": "task",
+          "updated_at": "2026-05-13T05:18:55.050Z"
+        },
+        {
+          "awg": "0.1",
           "body": "src/cli/index.ts dispatches commands. add supports node/edge/response. build/validate/doctor/lens/view wrap compiler outputs. open prints or launches static viewer files and supports --global/--no-launch. setup/register/vault manage the global registry. instructions installs managed agent snippets. upgrade updates project vault scaffolding and instruction blocks.",
           "confidence": 0.95,
           "created_at": "2026-05-12T18:42:28.389Z",
@@ -757,6 +791,22 @@
           "title": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with",
           "type": "evidence",
           "updated_at": "2026-05-13T00:10:20.233Z"
+        },
+        {
+          "awg": "0.1",
+          "command": "npm run typecheck && npm test; npm pack --dry-run --json",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T05:18:55.050Z",
+          "evidence_status": "passed",
+          "id": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+          "importance": 0.5,
+          "kind": "node",
+          "source": "terminal",
+          "status": "active",
+          "summary": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dry run passed.",
+          "title": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dr",
+          "type": "evidence",
+          "updated_at": "2026-05-13T05:18:55.050Z"
         },
         {
           "awg": "0.1",
@@ -1175,13 +1225,15 @@
     },
     {
       "summary": {
+        "active_run_count": 0,
         "dangling_edge_count": 0,
-        "edge_count": 30,
+        "edge_count": 32,
         "fatal_error_count": 0,
-        "node_count": 31,
+        "node_count": 33,
         "ok": true,
         "orphan_node_count": 0,
         "stale_node_count": 1,
+        "stale_run_count": 0,
         "unanswered_question_count": 2,
         "unverified_completion_count": 0,
         "warning_count": 4
@@ -1190,7 +1242,7 @@
       "type": "diagnostics"
     }
   ],
-  "generated_at": "2026-05-13T03:41:10.521Z",
+  "generated_at": "2026-05-13T05:19:03.557Z",
   "id": "v:current",
   "kind": "view-output",
   "title": "Current Review"

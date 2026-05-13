@@ -11,6 +11,7 @@ import { openCommand } from "./commands/open.js";
 import { recentCommand } from "./commands/recent.js";
 import { registerCommand, unregisterCommand } from "./commands/register.js";
 import { searchCommand } from "./commands/search.js";
+import { runCommand } from "./commands/run.js";
 import { setupCommand } from "./commands/setup.js";
 import { updateCommand } from "./commands/update.js";
 import { upgradeCommand } from "./commands/upgrade.js";
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
   if (command === "add") return addCommand(parsed);
   if (command === "update") return updateCommand(parsed);
   if (command === "search") return searchCommand(parsed);
+  if (command === "run") return runCommand(parsed);
   if (command === "build") return buildCommand(parsed);
   if (command === "validate") return validateCommand(parsed);
   if (command === "doctor") return doctorCommand(parsed);
@@ -63,6 +65,11 @@ Commands:
   add evidence --target <id> --summary <summary>
   update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
+  run start --goal <goal> [--agent <name>] [--force] [--json]
+  run note <note> [--run <run-id>] [--json]
+  run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--json]
+  run status [--json]
+  run list [--json]
   build [--json] [--strict]
   validate [--json] [--strict]
   doctor [--json]

@@ -1,0 +1,110 @@
+{
+  "awg": "0.1",
+  "diagnostics": [
+    {
+      "code": "orphan_node",
+      "id": "n:active-risk",
+      "message": "Node has no graph edges: n:active-risk",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:completed-missing-evidence",
+      "message": "Node has no graph edges: n:completed-missing-evidence",
+      "severity": "warning"
+    },
+    {
+      "code": "completed_task_without_evidence",
+      "id": "n:completed-missing-evidence",
+      "message": "Completed task has no evidence: n:completed-missing-evidence",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:decision-accepted",
+      "message": "Node has no graph edges: n:decision-accepted",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:duplicate-one",
+      "message": "Node has no graph edges: n:duplicate-one",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:duplicate-two",
+      "message": "Node has no graph edges: n:duplicate-two",
+      "severity": "warning"
+    },
+    {
+      "code": "duplicate_alias",
+      "id": "n:duplicate-two",
+      "message": "Duplicate-looking title/alias \"Handoff budget guardrails\" also used by n:duplicate-one",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:open-question",
+      "message": "Node has no graph edges: n:open-question",
+      "severity": "warning"
+    },
+    {
+      "code": "unanswered_question",
+      "id": "n:open-question",
+      "message": "Question is still open: n:open-question",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:orphan-note",
+      "message": "Node has no graph edges: n:orphan-note",
+      "severity": "warning"
+    },
+    {
+      "code": "orphan_node",
+      "id": "n:stale-review",
+      "message": "Node has no graph edges: n:stale-review",
+      "severity": "warning"
+    },
+    {
+      "code": "stale_node",
+      "id": "n:stale-review",
+      "message": "Node review_after is past: n:stale-review",
+      "severity": "warning"
+    },
+    {
+      "code": "active_blocker_linked_to_resolved_work",
+      "id": "n:active-blocker",
+      "message": "Active blocker references completed/resolved work: n:active-blocker",
+      "severity": "warning"
+    },
+    {
+      "code": "decision_implemented_while_proposed",
+      "id": "n:decision-proposed",
+      "message": "Decision is implemented but still proposed: n:decision-proposed",
+      "severity": "warning"
+    },
+    {
+      "code": "active_risk_with_completed_mitigation",
+      "id": "n:risk-with-mitigation",
+      "message": "Risk has completed mitigation work but is still active: n:risk-with-mitigation",
+      "severity": "warning"
+    }
+  ],
+  "generated_at": "2026-05-13T11:20:00.000Z",
+  "summary": {
+    "active_run_count": 1,
+    "dangling_edge_count": 0,
+    "edge_count": 8,
+    "fatal_error_count": 0,
+    "node_count": 19,
+    "ok": true,
+    "orphan_node_count": 8,
+    "stale_node_count": 1,
+    "stale_run_count": 0,
+    "unanswered_question_count": 1,
+    "unverified_completion_count": 1,
+    "warning_count": 15
+  }
+}

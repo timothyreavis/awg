@@ -1,6 +1,7 @@
 import { AWG_VERSION } from "./constants.js";
 import { budgetSections, type BudgetedSection } from "./budget.js";
-import { searchGraph, type SearchResult } from "./search.js";
+import { searchGraph } from "./search.js";
+import { activeRun, buildRuns, recentRuns, type AgentRun } from "./runs.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export interface TaskLensOutput {
@@ -26,6 +27,9 @@ export interface RecentOutput {
   kind: "recent";
   generated_at: string;
   days: number;
+  run?: string;
+  runs: AgentRun[];
+  run_notes: Array<{ run: string; at: string; by: string; summary: string }>;
   nodes: AwgNode[];
   evidence: AwgNode[];
   responses: AwgResponse[];
@@ -63,6 +67,9 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
 }
 
 export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutput {
+  const runs = buildRuns(graph);
+  const current = activeRun(runs) ?? recentRuns(runs, 1)[0];
+  const runNotes = current ? current.notes.slice(-8).reverse().map((note) => ({ run: current.id, ...note })) : [];
   const activeTasks = graph.nodes.filter((n) => n.type === "task" && actionable.has(n.status)).sort(byPriority).slice(0, 20);
   const openDecisions = graph.nodes.filter((n) => n.type === "decision" && ["draft", "proposed", "active", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 20);
   const blockers = graph.nodes.filter((n) => ["risk", "blocker"].includes(n.type) && actionable.has(n.status)).sort(byPriority).slice(0, 20);
@@ -71,6 +78,8 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const stale = graph.nodes.filter((n) => ["stale", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 12);
   const recommendations = recommendedNextActions(graph.diagnostics.summary);
   const sections = budgetSections<unknown>([
+    { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
+    { section: "recentRunNotes", items: runNotes },
     { section: "graphHealth", items: [graph.diagnostics.summary] },
     { section: "recommendedNextActions", items: recommendations },
     { section: "currentFocus", items: activeTasks.slice(0, 3) },
@@ -85,14 +94,19 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   return { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections };
 }
 
-export function buildRecent(graph: CompiledGraph, days: number, asOf = Date.now()): RecentOutput {
+export function buildRecent(graph: CompiledGraph, days: number, asOf = Date.now(), runId?: string): RecentOutput {
   const cutoff = asOf - Math.max(1, days) * 86_400_000;
   const recentNode = (node: AwgNode) => Date.parse(node.updated_at) >= cutoff || Date.parse(node.created_at) >= cutoff;
+  const allRuns = buildRuns(graph);
+  const runs = allRuns.filter((run) => (!runId || run.id === runId) && (Date.parse(run.updated_at) >= cutoff || Date.parse(run.started_at) >= cutoff));
   return {
     awg: AWG_VERSION,
     kind: "recent",
     generated_at: graph.generated_at,
     days,
+    run: runId,
+    runs,
+    run_notes: runs.flatMap((run) => run.notes.filter((note) => Date.parse(note.at) >= cutoff).map((note) => ({ run: run.id, at: note.at, by: note.by, summary: note.summary }))),
     nodes: graph.nodes.filter(recentNode).sort(byUpdatedDesc),
     evidence: graph.nodes.filter((node) => node.type === "evidence" && recentNode(node)).sort(byUpdatedDesc),
     responses: graph.responses.filter((response) => Date.parse(response.at) >= cutoff).slice().reverse(),

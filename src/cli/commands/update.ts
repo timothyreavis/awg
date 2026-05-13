@@ -1,5 +1,6 @@
 import { AWG_VERSION, CORE_STATUSES } from "../../core/constants.js";
 import { buildAwg } from "../../core/compiler.js";
+import { activeRun, buildRuns } from "../../core/runs.js";
 import type { AwgEvent, AwgNode } from "../../core/types.js";
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
 import { nowIso } from "../../util/time.js";
@@ -11,6 +12,7 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   if (sub !== "node" || !nodeId) throw new Error("Usage: awg update node <node-id> [--title ...] [--summary ...] [--status ...] [--json]");
   const storage = new FileAwgStorage();
   const { graph } = await buildAwg(storage, { write: false });
+  const run = activeRun(buildRuns(graph));
   const prior = graph.nodes.find((node) => node.id === nodeId);
   if (!prior) throw new Error(`Node not found: ${nodeId}`);
   const at = nowIso();
@@ -22,6 +24,7 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   await storage.appendLogEntry(next);
   const eventId = `ev:${nodeId.replace(/^n:/, "")}:update:${at.replace(/[^0-9]/g, "")}`;
   const event: AwgEvent = { awg: AWG_VERSION, kind: "event", id: eventId, type: "node_updated", target: nodeId, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at, fields: Object.keys(patch).sort() };
+  if (run) event.run = run.id;
   await storage.appendLogEntry(event);
   const output = { ok: true, nodeId, eventId, updated: patch, warnings: [] as string[] };
   if (parsed.flags.json) return printJson(output);

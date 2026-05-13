@@ -1,0 +1,37 @@
+{
+  "blocker": [
+    "n:active-blocker"
+  ],
+  "concept": [
+    "n:fixture-goal"
+  ],
+  "decision": [
+    "n:decision-accepted",
+    "n:decision-proposed"
+  ],
+  "evidence": [
+    "n:evidence-doctor-smoke",
+    "n:evidence-handoff-smoke",
+    "n:evidence-tests-pass"
+  ],
+  "note": [
+    "n:duplicate-one",
+    "n:duplicate-two",
+    "n:orphan-note"
+  ],
+  "question": [
+    "n:open-question"
+  ],
+  "risk": [
+    "n:active-risk",
+    "n:risk-with-mitigation"
+  ],
+  "task": [
+    "n:active-task",
+    "n:blocker-work-completed",
+    "n:completed-missing-evidence",
+    "n:completed-with-evidence",
+    "n:mitigation-completed",
+    "n:stale-review"
+  ]
+}

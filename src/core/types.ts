@@ -49,6 +49,7 @@ export interface AwgEdge extends AwgBase {
 
 export interface AwgEvent extends AwgBase {
   kind: "event";
+  id?: string;
   type: string;
   target: string;
   by: string;
@@ -119,6 +120,8 @@ export interface DiagnosticsSummary {
   unverified_completion_count: number;
   dangling_edge_count: number;
   unanswered_question_count: number;
+  active_run_count?: number;
+  stale_run_count?: number;
 }
 
 export interface DiagnosticsReport {

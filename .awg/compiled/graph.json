@@ -28,15 +28,17 @@
         "severity": "warning"
       }
     ],
-    "generated_at": "2026-05-13T03:41:10.521Z",
+    "generated_at": "2026-05-13T05:19:03.557Z",
     "summary": {
+      "active_run_count": 0,
       "dangling_edge_count": 0,
-      "edge_count": 30,
+      "edge_count": 32,
       "fatal_error_count": 0,
-      "node_count": 31,
+      "node_count": 33,
       "ok": true,
       "orphan_node_count": 0,
       "stale_node_count": 1,
+      "stale_run_count": 0,
       "unanswered_question_count": 2,
       "unverified_completion_count": 0,
       "warning_count": 4
@@ -195,6 +197,15 @@
     },
     {
       "awg": "0.1",
+      "created_at": "2026-05-13T05:19:03.028Z",
+      "from": "n:awg-v15-agent-run-loop",
+      "id": "e:82ffe44b1326a418",
+      "kind": "edge",
+      "rel": "applies_to",
+      "to": "n:awg-project-purpose"
+    },
+    {
+      "awg": "0.1",
       "created_at": "2026-05-12T22:47:28.211Z",
       "from": "n:overview-ui-demo-question-agent-recipes",
       "id": "e:842c0cefb13e40f6",
@@ -212,6 +223,16 @@
       "reason": "Global registry and switcher writes must remain inside ~/.awg.",
       "rel": "applies_to",
       "to": "n:setup-register-open-behavior"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-13T05:18:55.050Z",
+      "from": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+      "id": "e:904d9f39759683c4",
+      "kind": "edge",
+      "reason": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dry run passed.",
+      "rel": "supports",
+      "to": "n:awg-v15-agent-run-loop"
     },
     {
       "awg": "0.1",
@@ -450,9 +471,87 @@
       "kind": "event",
       "target": "n:instruction-install-behavior",
       "type": "evidence_added"
+    },
+    {
+      "agent": "codex",
+      "at": "2026-05-13T05:04:46.794Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "goal": "Implement AWG V1.5 agent run loop hardening",
+      "id": "ev:a59f0edf-b8c:start:20260513050446794",
+      "kind": "event",
+      "target": "run:a59f0edf-b8c",
+      "type": "run_started"
+    },
+    {
+      "at": "2026-05-13T05:04:50.768Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "ev:a59f0edf-b8c:note:20260513050450768",
+      "kind": "event",
+      "run": "run:a59f0edf-b8c",
+      "summary": "Implemented event-backed run model and initial run CLI; typecheck passes.",
+      "target": "run:a59f0edf-b8c",
+      "type": "run_note"
+    },
+    {
+      "at": "2026-05-13T05:08:07.056Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "ev:a59f0edf-b8c:note:20260513050807056",
+      "kind": "event",
+      "run": "run:a59f0edf-b8c",
+      "summary": "Addressed peer review findings: run association for update/evidence events, text handoff formatting, and optional run summary counts.",
+      "target": "run:a59f0edf-b8c",
+      "type": "run_note"
+    },
+    {
+      "at": "2026-05-13T05:18:55.050Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "evidence": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+      "id": "ev:awg-v15-agent-run-loop:evidence:20260513051855050",
+      "kind": "event",
+      "run": "run:a59f0edf-b8c",
+      "target": "n:awg-v15-agent-run-loop",
+      "type": "evidence_added"
+    },
+    {
+      "at": "2026-05-13T05:18:55.213Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "ev:a59f0edf-b8c:note:20260513051855213",
+      "kind": "event",
+      "run": "run:a59f0edf-b8c",
+      "summary": "Completed implementation, docs, fixture, full tests, smoke test, npm pack dry run, and final no-blocker peer review.",
+      "target": "run:a59f0edf-b8c",
+      "type": "run_note"
+    },
+    {
+      "at": "2026-05-13T05:19:03.436Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "ev:a59f0edf-b8c:finish:20260513051903436",
+      "kind": "event",
+      "run": "run:a59f0edf-b8c",
+      "status": "completed",
+      "summary": "Implemented AWG V1.5 agent run loop hardening with run commands, run-aware handoff/recent, agent-loop diagnostics, generated instructions, realistic fixture, docs, tests, smoke verification, package dry run, and peer re-review.",
+      "target": "run:a59f0edf-b8c",
+      "type": "run_finished"
+    },
+    {
+      "at": "2026-05-13T05:19:03.557Z",
+      "awg": "0.1",
+      "budget": 1800,
+      "by": "agent:codex",
+      "id": "ev:a59f0edf-b8c:handoff:20260513051903557",
+      "kind": "event",
+      "run": "run:a59f0edf-b8c",
+      "target": "run:a59f0edf-b8c",
+      "type": "handoff_generated"
     }
   ],
-  "generated_at": "2026-05-13T03:41:10.521Z",
+  "generated_at": "2026-05-13T05:19:03.557Z",
   "lenses": [],
   "nodes": [
     {
@@ -541,6 +640,38 @@
       "title": "AWG V1.4 agent retrieval and maintenance ergonomics",
       "type": "task",
       "updated_at": "2026-05-13T00:52:23.427Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.8,
+      "created_at": "2026-05-13T05:18:54.900Z",
+      "evidence": [
+        {
+          "at": "2026-05-13T05:18:55.050Z",
+          "id": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+          "source": "terminal",
+          "status": "passed",
+          "summary": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dry run passed."
+        }
+      ],
+      "id": "n:awg-v15-agent-run-loop",
+      "importance": 0.9,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "completed",
+      "summary": "Implemented event-backed agent runs, run-aware handoff/recent, agent-loop diagnostics, instruction updates, realistic fixture, tests, and docs.",
+      "tags": [
+        "v1.5",
+        "agent-loop"
+      ],
+      "title": "AWG V1.5 agent run loop hardening",
+      "type": "task",
+      "updated_at": "2026-05-13T05:18:55.050Z"
     },
     {
       "awg": "0.1",
@@ -799,6 +930,22 @@
       "title": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with",
       "type": "evidence",
       "updated_at": "2026-05-13T00:10:20.233Z"
+    },
+    {
+      "awg": "0.1",
+      "command": "npm run typecheck && npm test; npm pack --dry-run --json",
+      "confidence": 0.8,
+      "created_at": "2026-05-13T05:18:55.050Z",
+      "evidence_status": "passed",
+      "id": "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+      "importance": 0.5,
+      "kind": "node",
+      "source": "terminal",
+      "status": "active",
+      "summary": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dry run passed.",
+      "title": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dr",
+      "type": "evidence",
+      "updated_at": "2026-05-13T05:18:55.050Z"
     },
     {
       "awg": "0.1",
@@ -1506,15 +1653,15 @@
     }
   ],
   "source": {
-    "entry_count": 107,
+    "entry_count": 119,
     "log_files": [
       ".awg/log/2026/05/2026-05-12.awg.jsonl"
     ]
   },
   "stats": {
-    "edges": 30,
-    "events": 10,
-    "nodes": 31,
+    "edges": 32,
+    "events": 17,
+    "nodes": 33,
     "responses": 29
   },
   "views": []

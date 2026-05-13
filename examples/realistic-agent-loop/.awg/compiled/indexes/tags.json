@@ -1,0 +1,11 @@
+{
+  "agent-loop": [
+    "n:fixture-goal"
+  ],
+  "fixture": [
+    "n:fixture-goal"
+  ],
+  "handoff": [
+    "n:active-task"
+  ]
+}

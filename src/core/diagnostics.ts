@@ -1,12 +1,15 @@
 import { isPastDate } from "../util/time.js";
-import type { AwgEdge, AwgNode, AwgResponse, Diagnostic, DiagnosticsSummary } from "./types.js";
+import { buildRuns } from "./runs.js";
+import type { AwgEdge, AwgEvent, AwgNode, AwgResponse, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export function buildDiagnostics(
   nodes: AwgNode[],
   edges: AwgEdge[],
   responses: AwgResponse[],
+  events: AwgEvent[],
   existing: Diagnostic[],
-  strict: boolean
+  strict: boolean,
+  config?: Record<string, unknown> | null
 ): { diagnostics: Diagnostic[]; summary: DiagnosticsSummary; recommended: string[] } {
   const diagnostics = [...existing];
   const severity = (code: string): "fatal" | "warning" => strict ? "fatal" : "warning";
@@ -29,6 +32,30 @@ export function buildDiagnostics(
     const prior = edgeKeys.get(key);
     if (prior && prior !== edge.id) diagnostics.push({ severity: severity("duplicate_edge"), code: "duplicate_edge", message: `Duplicate edge relation ${edge.from} ${edge.rel} ${edge.to}`, id: edge.id });
     edgeKeys.set(key, edge.id);
+  }
+
+  const runConfig = ((config?.doctor && typeof config.doctor === "object" ? config.doctor : {}) as Record<string, unknown>);
+  const activeRunStaleHours = numberConfig(runConfig.activeRunStaleHours, 24);
+  const runNoteStaleHours = numberConfig(runConfig.runNoteStaleHours, 4);
+  const recentRunWindowDays = numberConfig(runConfig.recentRunWindowDays, 7);
+  const now = Date.now();
+  const recentCutoff = now - recentRunWindowDays * 86_400_000;
+  const runs = buildRuns({ events });
+  for (const run of runs) {
+    if (run.status === "in_progress") {
+      if (now - Date.parse(run.started_at) > activeRunStaleHours * 3_600_000) {
+        diagnostics.push({ severity: "warning", code: "stale_active_run", message: `Active run is older than ${activeRunStaleHours} hours: ${run.id}`, id: run.id });
+      }
+      if (now - Date.parse(run.updated_at) > runNoteStaleHours * 3_600_000) {
+        diagnostics.push({ severity: "warning", code: "unfinished_run_without_recent_note", message: `Active run has no recent note/update: ${run.id}`, id: run.id });
+      }
+    }
+    if (run.status === "completed" && Date.parse(run.updated_at) >= recentCutoff && run.evidence.length === 0 && run.changed_nodes.length === 0) {
+      diagnostics.push({ severity: "warning", code: "completed_run_without_evidence_or_changes", message: `Completed run has no linked evidence or changed nodes: ${run.id}`, id: run.id });
+    }
+    if (run.status !== "in_progress" && Date.parse(run.updated_at) >= recentCutoff && run.handoffs.length === 0) {
+      diagnostics.push({ severity: "warning", code: "finished_run_without_handoff", message: `Finished run has no recorded handoff: ${run.id}`, id: run.id });
+    }
   }
 
   const aliases = new Map<string, string>();
@@ -59,6 +86,12 @@ export function buildDiagnostics(
     if (edge.rel === "blocks" && from?.type === "task" && from.status === "blocked" && to && ["completed", "resolved"].includes(to.status)) {
       diagnostics.push({ severity: severity("blocked_by_resolved"), code: "blocked_by_resolved", message: `Blocked task references completed/resolved blocker: ${from.id}`, id: from.id });
     }
+    if (edge.rel === "blocks" && from?.type === "blocker" && actionableStatus(from.status) && to && ["completed", "resolved"].includes(to.status)) {
+      diagnostics.push({ severity: severity("active_blocker_linked_to_resolved_work"), code: "active_blocker_linked_to_resolved_work", message: `Active blocker references completed/resolved work: ${from.id}`, id: from.id });
+    }
+    if (edge.rel === "implements" && from?.type === "task" && ["completed", "resolved"].includes(from.status) && to?.type === "risk" && actionableStatus(to.status)) {
+      diagnostics.push({ severity: severity("active_risk_with_completed_mitigation"), code: "active_risk_with_completed_mitigation", message: `Risk has completed mitigation work but is still active: ${to.id}`, id: to.id });
+    }
     if (edge.rel === "implements" && to?.type === "decision" && to.status === "proposed") {
       diagnostics.push({ severity: severity("decision_implemented_while_proposed"), code: "decision_implemented_while_proposed", message: `Decision is implemented but still proposed: ${to.id}`, id: to.id });
     }
@@ -78,6 +111,10 @@ export function buildDiagnostics(
     dangling_edge_count: diagnostics.filter((d) => d.code === "dangling_edge").length,
     unanswered_question_count: diagnostics.filter((d) => d.code === "unanswered_question").length
   };
+  if (runs.length) {
+    summary.active_run_count = runs.filter((run) => run.status === "in_progress").length;
+    summary.stale_run_count = diagnostics.filter((d) => d.code === "stale_active_run" || d.code === "unfinished_run_without_recent_note").length;
+  }
 
   const recommended: string[] = [];
   if (summary.fatal_error_count) recommended.push("Fix fatal validation errors, then run awg build again.");
@@ -85,6 +122,15 @@ export function buildDiagnostics(
   if (summary.stale_node_count) recommended.push("Review stale nodes and update freshness metadata.");
   if (summary.unverified_completion_count) recommended.push("Add evidence to completed task nodes.");
   if (responses.length === 0 && nodes.length > 0) recommended.push("Capture important human feedback as AWG responses when decisions change.");
+  if (summary.active_run_count) recommended.push("Finish active runs with a summary and generate a handoff before stopping.");
 
   return { diagnostics, summary, recommended };
+}
+
+function numberConfig(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function actionableStatus(status: string): boolean {
+  return ["active", "blocked", "in_progress", "needs_review", "proposed", "stale"].includes(status);
 }

@@ -1,0 +1,35 @@
+{
+  "accepted": [
+    "n:decision-accepted"
+  ],
+  "active": [
+    "n:active-risk",
+    "n:duplicate-one",
+    "n:duplicate-two",
+    "n:evidence-doctor-smoke",
+    "n:evidence-handoff-smoke",
+    "n:evidence-tests-pass",
+    "n:fixture-goal",
+    "n:open-question",
+    "n:orphan-note",
+    "n:risk-with-mitigation"
+  ],
+  "blocked": [
+    "n:active-blocker"
+  ],
+  "completed": [
+    "n:blocker-work-completed",
+    "n:completed-missing-evidence",
+    "n:completed-with-evidence",
+    "n:mitigation-completed"
+  ],
+  "in_progress": [
+    "n:active-task"
+  ],
+  "needs_review": [
+    "n:stale-review"
+  ],
+  "proposed": [
+    "n:decision-proposed"
+  ]
+}

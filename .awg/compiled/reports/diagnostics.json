@@ -26,15 +26,17 @@
       "severity": "warning"
     }
   ],
-  "generated_at": "2026-05-13T03:41:10.521Z",
+  "generated_at": "2026-05-13T05:19:03.557Z",
   "summary": {
+    "active_run_count": 0,
     "dangling_edge_count": 0,
-    "edge_count": 30,
+    "edge_count": 32,
     "fatal_error_count": 0,
-    "node_count": 31,
+    "node_count": 33,
     "ok": true,
     "orphan_node_count": 0,
     "stale_node_count": 1,
+    "stale_run_count": 0,
     "unanswered_question_count": 2,
     "unverified_completion_count": 0,
     "warning_count": 4

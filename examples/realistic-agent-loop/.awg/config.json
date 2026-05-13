@@ -1,0 +1,19 @@
+{
+  "awg": "0.1",
+  "doctor": {
+    "activeRunStaleHours": 24,
+    "recentRunWindowDays": 365,
+    "runNoteStaleHours": 4
+  },
+  "project": {
+    "title": "realistic-agent-loop"
+  },
+  "storage": {
+    "adapter": "file",
+    "canonical": ".awg/log/**/*.awg.jsonl"
+  },
+  "validation": {
+    "allow_unknown_node_types": true,
+    "strict_links": false
+  }
+}

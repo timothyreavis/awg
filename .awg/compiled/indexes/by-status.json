@@ -12,6 +12,7 @@
     "n:instruction-install-behavior",
     "n:local-first-boundary",
     "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+    "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
     "n:overview-ui-demo-question-agent-recipes",
     "n:overview-ui-demo-risk-scale",
     "n:path-boundary-safety",
@@ -29,7 +30,8 @@
     "n:overview-ui-demo-risk-duplicates"
   ],
   "completed": [
-    "n:awg-v14-agent-retrieval-maintenance"
+    "n:awg-v14-agent-retrieval-maintenance",
+    "n:awg-v15-agent-run-loop"
   ],
   "needs_review": [
     "n:overview-ui-demo-decision-actions",

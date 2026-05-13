@@ -75,7 +75,7 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   const sortedNodes = [...nodes.values()].sort(byId);
   const sortedEdges = [...edges.values()].sort(byId);
   const sortedResponses = [...responses.values()].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
-  const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, diagnostics, strict);
+  const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, events as never, diagnostics, strict, config);
   const diagnosticsReport = { awg: AWG_VERSION, generated_at: generatedAt, summary: diag.summary, diagnostics: diag.diagnostics };
   const graph: CompiledGraph = {
     awg: AWG_VERSION,
