@@ -22,7 +22,9 @@
   ],
   "evidence": [
     "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
-    "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d"
+    "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+    "n:safe-instruction-update-verification-e18d10d5",
+    "n:upgrade-preflight-regression-verification-5ef5e322"
   ],
   "process": [
     "n:instruction-install-behavior",

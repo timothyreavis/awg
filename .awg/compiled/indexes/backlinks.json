@@ -151,6 +151,16 @@
       "reason": "Instruction patching must not write through symlinks or outside the project.",
       "rel": "applies_to",
       "to": "n:instruction-install-behavior"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-13T03:41:10.521Z",
+      "from": "n:safe-instruction-update-verification-e18d10d5",
+      "id": "e:dbc9d55048906782",
+      "kind": "edge",
+      "reason": "npm run typecheck, npm test, git diff --check, and two subagent re-review passes completed after fixing malformed-marker, hash-owner, and upgrade-preflight findings.",
+      "rel": "supports",
+      "to": "n:instruction-install-behavior"
     }
   ],
   "n:local-first-boundary": [
@@ -296,6 +306,16 @@
       "kind": "edge",
       "reason": "Upgrade writes project scaffolding and must enforce path boundaries.",
       "rel": "applies_to",
+      "to": "n:upgrade-behavior"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-13T03:41:10.521Z",
+      "from": "n:upgrade-preflight-regression-verification-5ef5e322",
+      "id": "e:ca7661252c5ba2ff",
+      "kind": "edge",
+      "reason": "Regression tests cover upgrade preflighting instruction conflicts before config changes, plus malformed marker and hash-only owner handling; full npm test passed with 101 tests.",
+      "rel": "supports",
       "to": "n:upgrade-behavior"
     }
   ],

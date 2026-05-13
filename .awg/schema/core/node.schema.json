@@ -7,6 +7,40 @@
       },
       "type": "array"
     },
+    "anchors": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "kind": {
+            "enum": [
+              "file",
+              "symbol",
+              "url",
+              "command",
+              "doc",
+              "external"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "awg": {
       "const": "0.1"
     },

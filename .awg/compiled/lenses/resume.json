@@ -163,9 +163,9 @@
   "awg": "0.1",
   "diagnostics_summary": {
     "dangling_edge_count": 0,
-    "edge_count": 28,
+    "edge_count": 30,
     "fatal_error_count": 0,
-    "node_count": 29,
+    "node_count": 31,
     "ok": true,
     "orphan_node_count": 0,
     "stale_node_count": 1,
@@ -173,7 +173,7 @@
     "unverified_completion_count": 0,
     "warning_count": 4
   },
-  "generated_at": "2026-05-13T00:52:23.427Z",
+  "generated_at": "2026-05-13T03:41:10.521Z",
   "id": "lens:resume",
   "important": [
     {
@@ -436,6 +436,15 @@
       "body": "Codex patches an existing AGENTS.md/agents.md or creates AGENTS.md. Claude Code patches existing CLAUDE.md/claude.md or writes .awg/instructions/claude-code.md. Antigravity writes .awg/instructions/antigravity.md. Dry-run reports intended files. Installs are idempotent and preserve unrelated content.",
       "confidence": 0.95,
       "created_at": "2026-05-12T18:42:28.601Z",
+      "evidence": [
+        {
+          "at": "2026-05-13T03:41:10.521Z",
+          "id": "n:safe-instruction-update-verification-e18d10d5",
+          "source": "terminal",
+          "status": "passed",
+          "summary": "npm run typecheck, npm test, git diff --check, and two subagent re-review passes completed after fixing malformed-marker, hash-owner, and upgrade-preflight findings."
+        }
+      ],
       "id": "n:instruction-install-behavior",
       "importance": 0.9,
       "kind": "node",
@@ -446,14 +455,15 @@
         "updated_by": "agent:codex"
       },
       "status": "active",
-      "summary": "Instruction installs patch clearly marked AWG-managed blocks without overwriting user-authored content.",
+      "summary": "Instruction installs and upgrades patch only AWG-owned managed blocks in AGENTS.md/agents.md and CLAUDE.md/claude.md. Managed blocks carry pack ownership plus a body hash, edited or malformed blocks fail closed, --force replaces only a valid managed block, and upgrade preflights instruction conflicts before vault writes.",
       "tags": [
+        "agents",
         "instructions",
-        "agents"
+        "safe-instruction-updates"
       ],
       "title": "Instruction installation behavior",
       "type": "process",
-      "updated_at": "2026-05-12T18:42:28.601Z"
+      "updated_at": "2026-05-13T03:41:10.521Z"
     },
     {
       "awg": "0.1",
@@ -818,7 +828,7 @@
   "recommended_maintenance": [
     "Review stale nodes and update freshness metadata."
   ],
-  "summary": "29 nodes, 28 edges, 4 warnings, 0 fatal errors.",
+  "summary": "31 nodes, 30 edges, 4 warnings, 0 fatal errors.",
   "unanswered_questions": [
     {
       "awg": "0.1",

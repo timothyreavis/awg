@@ -972,9 +972,68 @@ test("instructions install codex creates and patches AGENTS.md without clobberin
   const first = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
   assert.ok(first.includes("Keep this."));
   assert.ok(first.includes("BEGIN AWG MANAGED INSTRUCTIONS"));
+  assert.ok(first.includes("id=codex hash=sha256:"));
   run(cwd, ["instructions", "install", "codex"]);
   const second = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
   assert.equal((second.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
+});
+
+test("instructions install refuses edited managed blocks unless forced", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n");
+  run(cwd, ["instructions", "install", "codex"]);
+  const file = path.join(cwd, "AGENTS.md");
+  writeFileSync(file, readFileSync(file, "utf8").replace("Start by running", "CUSTOM Start by running"));
+  const output = runFail(cwd, ["instructions", "install", "codex"]);
+  assert.ok(output.includes("was edited after AWG generated it"));
+  assert.ok(readFileSync(file, "utf8").includes("CUSTOM Start by running"));
+  run(cwd, ["instructions", "install", "codex", "--force"]);
+  assert.ok(!readFileSync(file, "utf8").includes("CUSTOM Start by running"));
+});
+
+test("instructions install refuses hash-only blocks from another instruction pack", () => {
+  const cwd = tmp();
+  writeFileSync(path.join(cwd, "CLAUDE.md"), "# Claude\n\nKeep this.\n");
+  run(cwd, ["instructions", "install", "claude-code"]);
+  const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+  const claudeBlock = claude
+    .slice(claude.indexOf("<!-- BEGIN AWG MANAGED INSTRUCTIONS"))
+    .replace("BEGIN AWG MANAGED INSTRUCTIONS id=claude-code hash=", "BEGIN AWG MANAGED INSTRUCTIONS hash=");
+  const agentsFile = path.join(cwd, "AGENTS.md");
+  writeFileSync(agentsFile, `# Existing\n\nKeep this.\n\n${claudeBlock}`);
+  const output = runFail(cwd, ["instructions", "install", "codex"]);
+  assert.ok(output.includes("has no pack owner"));
+  assert.ok(readFileSync(agentsFile, "utf8").includes("# AWG Claude Code Snippet"));
+});
+
+test("instructions install refuses incomplete managed marker text without appending", () => {
+  const cwd = tmp();
+  const file = path.join(cwd, "AGENTS.md");
+  const prior = "# Existing\n\nKeep this.\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:abc\nold\n";
+  writeFileSync(file, prior);
+  const output = runFail(cwd, ["instructions", "install", "codex"]);
+  assert.ok(output.includes("Found malformed AWG managed marker text"));
+  assert.equal(readFileSync(file, "utf8"), prior);
+});
+
+test("instructions install refuses malformed managed markers without modifying user text", () => {
+  const cwd = tmp();
+  const file = path.join(cwd, "AGENTS.md");
+  const prior = "# Existing\n\nKeep this.\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n";
+  writeFileSync(file, prior);
+  const output = runFail(cwd, ["instructions", "install", "codex"]);
+  assert.ok(output.includes("Expected exactly one AWG managed block"));
+  assert.equal(readFileSync(file, "utf8"), prior);
+});
+
+test("instructions install preserves crlf user content outside managed block", () => {
+  const cwd = tmp();
+  const file = path.join(cwd, "AGENTS.md");
+  writeFileSync(file, "# Existing\r\n\r\nKeep this.\r\n");
+  run(cwd, ["instructions", "install", "codex"]);
+  const text = readFileSync(file, "utf8");
+  assert.ok(text.startsWith("# Existing\r\n\r\nKeep this.\r\n"));
+  assert.ok(text.includes("\r\n<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:"));
 });
 
 test("instructions install patches existing lowercase instruction files", () => {
@@ -1007,11 +1066,14 @@ test("upgrade refreshes lowercase managed instruction files by default", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
   rmSync(path.join(cwd, "AGENTS.md"));
-  writeFileSync(path.join(cwd, "agents.md"), "# Existing\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
+  writeFileSync(path.join(cwd, "agents.md"), "# Existing\n\nKeep this.\n");
+  run(cwd, ["instructions", "install", "codex"]);
+  const agentsFile = path.join(cwd, "agents.md");
+  writeFileSync(agentsFile, readFileSync(agentsFile, "utf8").replace(/<!-- BEGIN AWG MANAGED INSTRUCTIONS[^\r\n]* -->/, "<!-- BEGIN AWG MANAGED INSTRUCTIONS -->"));
   run(cwd, ["upgrade"]);
   const agents = readFileSync(path.join(cwd, "agents.md"), "utf8");
   assert.ok(agents.includes("# AWG Agent Loop"));
-  assert.ok(!agents.includes("\nold\n"));
+  assert.ok(agents.includes("id=codex hash=sha256:"));
   assert.ok(!readdirSync(cwd).includes("AGENTS.md"));
 });
 
@@ -1184,25 +1246,40 @@ test("upgrade instructions preserves user-authored markdown", () => {
   assert.equal((claude.match(/BEGIN AWG MANAGED INSTRUCTIONS/g) ?? []).length, 1);
 });
 
-test("upgrade refreshes existing managed markdown blocks by default", () => {
+test("upgrade refuses ambiguous legacy managed markdown blocks by default", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
   writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
-  run(cwd, ["upgrade"]);
+  const output = runFail(cwd, ["upgrade"]);
+  assert.ok(output.includes("has no ownership hash"));
   const agents = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
   assert.ok(agents.includes("Keep this."));
-  assert.ok(agents.includes("# AWG Agent Loop"));
-  assert.ok(!agents.includes("\nold\n"));
-  assert.ok(run(cwd, ["upgrade"]).includes("UNCHANGED"));
+  assert.ok(agents.includes("\nold\n"));
+  run(cwd, ["upgrade", "--force"]);
+  const forced = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  assert.ok(forced.includes("# AWG Agent Loop"));
+  assert.ok(!forced.includes("\nold\n"));
 });
 
-test("upgrade refreshes exact managed Claude snippet without patching unrelated CLAUDE.md", () => {
+test("upgrade preflights instruction conflicts before modifying vault files", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const configFile = path.join(cwd, ".awg/config.json");
+  const oldConfig = JSON.stringify({ awg: "0.0", project: { title: "Old" }, "x-user": true }, null, 2);
+  writeFileSync(configFile, oldConfig);
+  writeFileSync(path.join(cwd, "AGENTS.md"), "# Existing\n\nKeep this.\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
+  const output = runFail(cwd, ["upgrade"]);
+  assert.ok(output.includes("has no ownership hash"));
+  assert.equal(readFileSync(configFile, "utf8"), oldConfig);
+});
+
+test("upgrade force refreshes edited managed Claude snippet without patching unrelated CLAUDE.md", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
   mkdirSync(path.join(cwd, ".awg/instructions"), { recursive: true });
   writeFileSync(path.join(cwd, ".awg/instructions/claude-code.md"), "# Snippet\n\n<!-- BEGIN AWG MANAGED INSTRUCTIONS -->\nold\n<!-- END AWG MANAGED INSTRUCTIONS -->\n");
   writeFileSync(path.join(cwd, "CLAUDE.md"), "# User Claude\n\nNo managed block here.\n");
-  run(cwd, ["upgrade"]);
+  run(cwd, ["upgrade", "--force"]);
   const snippet = readFileSync(path.join(cwd, ".awg/instructions/claude-code.md"), "utf8");
   const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
   assert.ok(snippet.includes("# AWG Claude Code Snippet"));

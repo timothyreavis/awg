@@ -16,9 +16,11 @@
     "n:overview-ui-demo-risk-scale",
     "n:path-boundary-safety",
     "n:project-vault-model",
+    "n:safe-instruction-update-verification-e18d10d5",
     "n:schema-management",
     "n:setup-register-open-behavior",
     "n:upgrade-behavior",
+    "n:upgrade-preflight-regression-verification-5ef5e322",
     "n:verification-workflow",
     "n:viewer-section-formatting-demo"
   ],

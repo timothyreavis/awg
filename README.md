@@ -111,9 +111,12 @@ awg instructions install claude-code
 awg instructions install antigravity
 awg instructions install all
 awg instructions install codex --dry-run
+awg instructions install codex --force
 ```
 
 Codex instructions are patched into an existing root `AGENTS.md`/`agents.md` inside a clearly marked AWG-managed block, or into a new `AGENTS.md` when no variant exists. Existing user-authored content is preserved. Claude Code patches an existing root `CLAUDE.md`/`claude.md` when present; otherwise it writes a conservative snippet under `.awg/instructions/`. Antigravity writes a conservative snippet under `.awg/instructions/` unless a deeper native integration is added later.
+
+AWG only updates its own managed instruction block. The begin marker records the instruction pack and a hash of the AWG-generated body, for example `<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:... -->`. On the next install or upgrade, AWG verifies that hash before replacing the block. If the block was edited, belongs to a different pack, has ambiguous legacy content, has duplicate markers, or has malformed markers, AWG fails closed and leaves the file unchanged. `--force` replaces only a valid managed block with changed or legacy-unrecognized content; it does not repair malformed marker pairs and it never rewrites content outside the managed block.
 
 `awg open` opens the current project viewer when run inside a project. Outside a project, or with `awg open --global`, it generates and opens a static global project switcher from `~/.awg/registry.json`. Projects without compiled viewers are shown with a prompt to run `awg build` in that project. Use `awg open --no-launch` or `AWG_NO_OPEN=1 awg open` when automation should print the generated path without opening a browser.
 
@@ -125,6 +128,7 @@ awg upgrade --dry-run
 awg upgrade --all --dry-run
 awg upgrade --all
 awg upgrade --all --instructions all
+awg upgrade --force
 ```
 
 `awg upgrade` updates the current project vault. `awg upgrade --all` reads `~/.awg/registry.json` and upgrades registered project vaults one at a time. It does not merge graph knowledge or inject cross-project context. It updates config defaults, creates missing packaged core schemas, preserves customized project schemas for manual review, creates missing vault instruction files, and optionally updates instruction packs. User-authored Markdown is preserved; instruction updates only touch AWG-managed blocks.
@@ -133,7 +137,7 @@ awg upgrade --all --instructions all
 
 ```sh
 awg setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
-awg upgrade [--all] [--dry-run] [--instructions <packs|all>] [--json]
+awg upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
 awg init [--empty] [--force] [--register] [--no-register]
 awg register [--name <name>] [--scope project|org|user]
 awg unregister [--path <path>]
@@ -141,7 +145,7 @@ awg vault list [--missing] [--json]
 awg vault info [--json]
 awg vault prune [--dry-run] [--yes] [--json]
 awg instructions list
-awg instructions install <codex|claude-code|antigravity|all> [--dry-run]
+awg instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
 awg search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
 awg add node --type <type> --title <title> --summary <summary> [--json]
 awg add edge --from <node-id> --rel <relation> --to <node-id>
@@ -167,7 +171,7 @@ awg open [--global] [--no-launch]
 
 `--budget <n>` uses an approximate deterministic character budget. Section structure is preserved, high-priority items are emitted first, and omitted counts are included when lower-priority items are truncated. JSON mode always remains valid JSON.
 
-Agent-facing commands support stable `--json` output for parsing: `add node`, `add edge`, `add response`, `add evidence`, `update node`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `doctor`, `build`, and `validate`.
+Agent-facing commands support stable `--json` output for parsing: `add node`, `add edge`, `add response`, `add evidence`, `update node`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
 
 Use `awg update node <node-id>` to keep durable state current. It appends a new node snapshot and a node update event; it does not mutate compiled artifacts and it does not create missing nodes by default.
 

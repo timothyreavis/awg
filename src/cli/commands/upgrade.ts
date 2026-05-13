@@ -9,7 +9,7 @@ import { installInstructionsAt, patchManagedInstructionFile, type InstructionPat
 import type { ParsedArgs } from "../args.js";
 
 const instructionPacks = ["codex", "claude-code", "antigravity"];
-const managedBegin = "<!-- BEGIN AWG MANAGED INSTRUCTIONS -->";
+const managedBegin = "<!-- BEGIN AWG MANAGED INSTRUCTIONS";
 const schemaManifestFile = ".awg/schema/core/.awg-managed.json";
 
 interface UpgradeResult {
@@ -20,12 +20,15 @@ interface UpgradeResult {
   error?: string;
 }
 
+type UpgradeInstructionTarget = { pack: string; file?: string };
+
 export async function upgradeCommand(parsed: ParsedArgs): Promise<void> {
   const dryRun = Boolean(parsed.flags["dry-run"]);
+  const force = Boolean(parsed.flags.force);
   const packs = parsePacks(parsed.flags.instructions);
   const vaults = parsed.flags.all ? await registeredVaults() : [await currentVault()];
   const results: UpgradeResult[] = [];
-  for (const vault of vaults) results.push(await upgradeVault(vault, { dryRun, packs }));
+  for (const vault of vaults) results.push(await upgradeVault(vault, { dryRun, packs, force }));
   if (parsed.flags.json) console.log(JSON.stringify({ dryRun, results }, null, 2));
   else printResults(results, dryRun);
   if (results.some((result) => result.status === "failed")) process.exitCode = 1;
@@ -53,27 +56,36 @@ async function registeredVaults(): Promise<Array<{ name: string; path: string }>
   return registry.vaults.map((vault) => ({ name: vault.name, path: vault.path }));
 }
 
-async function upgradeVault(vault: { name: string; path: string }, options: { dryRun: boolean; packs: string[] }): Promise<UpgradeResult> {
+async function upgradeVault(vault: { name: string; path: string }, options: { dryRun: boolean; packs: string[]; force: boolean }): Promise<UpgradeResult> {
   const actions: string[] = [];
   let changed = false;
   try {
     if (!(await isUpgradeableAwgDir(vault.path))) return { name: vault.name, path: vault.path, status: "skipped", actions, error: "Vault missing or not initialized." };
     const root = path.dirname(vault.path);
+    const instructionTargets = await upgradeInstructionTargets(root, options.packs);
+    if (!options.dryRun) {
+      for (const target of instructionTargets) await patchUpgradeInstruction(root, target, { ...options, dryRun: true });
+    }
     changed = await ensureProjectDirs(root, options, actions) || changed;
     changed = await updateConfig(root, options, actions) || changed;
     changed = await updateSchemas(root, options, actions) || changed;
     changed = await ensureVaultAgents(root, options, actions) || changed;
-    if (options.packs.length > 0) {
-      for (const pack of options.packs) changed = recordInstructionResult(await installInstructionsAt(root, pack, { dryRun: options.dryRun, quiet: true }), pack, root, actions) || changed;
-    } else {
-      for (const target of await managedInstructionFiles(root)) {
-        changed = recordInstructionResult(await patchManagedInstructionFile(target.file, target.pack, { dryRun: options.dryRun, quiet: true, root }), target.pack, root, actions) || changed;
-      }
-    }
+    for (const target of instructionTargets) changed = recordInstructionResult(await patchUpgradeInstruction(root, target, options), target.pack, root, actions) || changed;
     return { name: vault.name, path: vault.path, status: changed ? "changed" : "unchanged", actions };
   } catch (error) {
     return { name: vault.name, path: vault.path, status: "failed", actions, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+async function upgradeInstructionTargets(root: string, packs: string[]): Promise<UpgradeInstructionTarget[]> {
+  if (packs.length > 0) return packs.map((pack) => ({ pack }));
+  return managedInstructionFiles(root);
+}
+
+async function patchUpgradeInstruction(root: string, target: UpgradeInstructionTarget, options: { dryRun: boolean; force: boolean }): Promise<InstructionPatchResult> {
+  const patchOptions = { dryRun: options.dryRun, quiet: true, force: options.force };
+  if (target.file) return patchManagedInstructionFile(target.file, target.pack, { ...patchOptions, root });
+  return installInstructionsAt(root, target.pack, patchOptions);
 }
 
 async function managedInstructionFiles(root: string): Promise<Array<{ pack: string; file: string }>> {

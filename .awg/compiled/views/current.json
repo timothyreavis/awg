@@ -4,9 +4,9 @@
     {
       "summary": {
         "dangling_edge_count": 0,
-        "edge_count": 28,
+        "edge_count": 30,
         "fatal_error_count": 0,
-        "node_count": 29,
+        "node_count": 31,
         "ok": true,
         "orphan_node_count": 0,
         "stale_node_count": 1,
@@ -689,6 +689,15 @@
           "body": "Codex patches an existing AGENTS.md/agents.md or creates AGENTS.md. Claude Code patches existing CLAUDE.md/claude.md or writes .awg/instructions/claude-code.md. Antigravity writes .awg/instructions/antigravity.md. Dry-run reports intended files. Installs are idempotent and preserve unrelated content.",
           "confidence": 0.95,
           "created_at": "2026-05-12T18:42:28.601Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T03:41:10.521Z",
+              "id": "n:safe-instruction-update-verification-e18d10d5",
+              "source": "terminal",
+              "status": "passed",
+              "summary": "npm run typecheck, npm test, git diff --check, and two subagent re-review passes completed after fixing malformed-marker, hash-owner, and upgrade-preflight findings."
+            }
+          ],
           "id": "n:instruction-install-behavior",
           "importance": 0.9,
           "kind": "node",
@@ -699,14 +708,15 @@
             "updated_by": "agent:codex"
           },
           "status": "active",
-          "summary": "Instruction installs patch clearly marked AWG-managed blocks without overwriting user-authored content.",
+          "summary": "Instruction installs and upgrades patch only AWG-owned managed blocks in AGENTS.md/agents.md and CLAUDE.md/claude.md. Managed blocks carry pack ownership plus a body hash, edited or malformed blocks fail closed, --force replaces only a valid managed block, and upgrade preflights instruction conflicts before vault writes.",
           "tags": [
+            "agents",
             "instructions",
-            "agents"
+            "safe-instruction-updates"
           ],
           "title": "Instruction installation behavior",
           "type": "process",
-          "updated_at": "2026-05-12T18:42:28.601Z"
+          "updated_at": "2026-05-13T03:41:10.521Z"
         },
         {
           "awg": "0.1",
@@ -982,6 +992,22 @@
         },
         {
           "awg": "0.1",
+          "command": "npm run typecheck && npm test && git diff --check; subagent re-review found no remaining issues",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T03:41:10.521Z",
+          "evidence_status": "passed",
+          "id": "n:safe-instruction-update-verification-e18d10d5",
+          "importance": 0.5,
+          "kind": "node",
+          "source": "terminal",
+          "status": "active",
+          "summary": "npm run typecheck, npm test, git diff --check, and two subagent re-review passes completed after fixing malformed-marker, hash-owner, and upgrade-preflight findings.",
+          "title": "Safe instruction update verification",
+          "type": "evidence",
+          "updated_at": "2026-05-13T03:41:10.521Z"
+        },
+        {
+          "awg": "0.1",
           "body": "schemaForFile/schemaBodyForFile produce default core schemas. .awg/schema/core/.awg-managed.json stores AWG-managed schema hashes. Upgrade uses manifest hashes plus known V1 schema hashes to update stale AWG-managed schemas, while preserving differing custom schemas for manual review. Runtime validation reads project schema overrides.",
           "confidence": 0.95,
           "created_at": "2026-05-12T18:42:28.915Z",
@@ -1033,6 +1059,15 @@
           "body": "Upgrade updates config defaults, creates missing packaged schemas, preserves customized project schemas, creates missing .awg/AGENTS.md, and optionally updates instruction packs. It uses schema manifest/hash logic to update AWG-managed stale schemas while preserving user-customized schema files. --json output must remain pure JSON even when instructions are involved.",
           "confidence": 0.95,
           "created_at": "2026-05-12T18:42:28.705Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T03:41:10.521Z",
+              "id": "n:upgrade-preflight-regression-verification-5ef5e322",
+              "source": "test",
+              "status": "passed",
+              "summary": "Regression tests cover upgrade preflighting instruction conflicts before config changes, plus malformed marker and hash-only owner handling; full npm test passed with 101 tests."
+            }
+          ],
           "id": "n:upgrade-behavior",
           "importance": 0.95,
           "kind": "node",
@@ -1043,14 +1078,31 @@
             "updated_by": "agent:codex"
           },
           "status": "active",
-          "summary": "awg upgrade updates the current vault; awg upgrade --all updates registered vaults without merging project knowledge.",
+          "summary": "awg upgrade updates the current vault; awg upgrade --all updates registered vaults without merging project knowledge. Instruction managed-block conflicts are preflighted before config/schema/vault writes so failures do not leave partial upgrade mutations.",
           "tags": [
-            "upgrade",
-            "compatibility"
+            "compatibility",
+            "safe-instruction-updates",
+            "upgrade"
           ],
           "title": "Upgrade behavior",
           "type": "process",
-          "updated_at": "2026-05-12T18:42:28.705Z"
+          "updated_at": "2026-05-13T03:41:10.521Z"
+        },
+        {
+          "awg": "0.1",
+          "command": "npm test",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T03:41:10.521Z",
+          "evidence_status": "passed",
+          "id": "n:upgrade-preflight-regression-verification-5ef5e322",
+          "importance": 0.5,
+          "kind": "node",
+          "source": "test",
+          "status": "active",
+          "summary": "Regression tests cover upgrade preflighting instruction conflicts before config changes, plus malformed marker and hash-only owner handling; full npm test passed with 101 tests.",
+          "title": "Upgrade preflight regression verification",
+          "type": "evidence",
+          "updated_at": "2026-05-13T03:41:10.521Z"
         },
         {
           "awg": "0.1",
@@ -1124,9 +1176,9 @@
     {
       "summary": {
         "dangling_edge_count": 0,
-        "edge_count": 28,
+        "edge_count": 30,
         "fatal_error_count": 0,
-        "node_count": 29,
+        "node_count": 31,
         "ok": true,
         "orphan_node_count": 0,
         "stale_node_count": 1,
@@ -1138,7 +1190,7 @@
       "type": "diagnostics"
     }
   ],
-  "generated_at": "2026-05-13T00:52:23.427Z",
+  "generated_at": "2026-05-13T03:41:10.521Z",
   "id": "v:current",
   "kind": "view-output",
   "title": "Current Review"

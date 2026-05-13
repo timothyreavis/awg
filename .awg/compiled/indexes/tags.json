@@ -74,6 +74,10 @@
   "retrieval": [
     "n:awg-v14-agent-retrieval-maintenance"
   ],
+  "safe-instruction-updates": [
+    "n:instruction-install-behavior",
+    "n:upgrade-behavior"
+  ],
   "schema": [
     "n:schema-management"
   ],

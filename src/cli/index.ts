@@ -48,7 +48,7 @@ function help(): void {
 
 Commands:
   setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
-  upgrade [--all] [--dry-run] [--instructions <packs|all>] [--json]
+  upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
   init [--empty] [--force] [--register] [--no-register]
   register [--name <name>] [--scope project|org|user]
   unregister [--path <path>]
@@ -56,7 +56,7 @@ Commands:
   vault info [--json]
   vault prune [--dry-run] [--yes] [--json]
   instructions list
-  instructions install <codex|claude-code|antigravity|all> [--dry-run]
+  instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
   add node --type <type> --title <title> --summary <summary>
   add edge --from <id> --rel <rel> --to <id>
   add response --type <type> --target <id> --summary <summary>
