@@ -321,15 +321,16 @@ During work:
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
 - Update task, risk, blocker, and decision statuses.
 - Add evidence for completed work.
 - Run \`awg build\`.
-- Run \`awg doctor\`.
+- Run \`awg doctor --fix-suggestions --json\`.
 - Fix fatal validation errors and review warnings.
-- Run \`awg run finish --status completed|partial|blocked|failed --summary "..."\`.
-- Run \`awg handoff\`.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+- If forced, document why in the run summary or a run note.
 
 Anti-patterns:
 - Do not create duplicate nodes without searching.

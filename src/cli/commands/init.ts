@@ -132,15 +132,16 @@ During work:
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
 - Update task, risk, blocker, and decision statuses.
 - Add evidence for completed work.
 - Run \`awg build\`.
-- Run \`awg doctor\`.
+- Run \`awg doctor --fix-suggestions --json\`.
 - Fix fatal validation errors and review warnings.
-- Run \`awg run finish --status completed|partial|blocked|failed --summary "..."\`.
-- Run \`awg handoff\`.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+- If forced, document why in the run summary or a run note.
 
 Anti-patterns:
 - Do not create duplicate nodes without searching.
@@ -178,14 +179,15 @@ During work:
 - Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
 - Link knowledge by AWG node ID, not by file path.
 - Do not edit \`.awg/compiled/*\`.
+- Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before stopping:
 - Run \`awg build\`.
-- Run \`awg doctor\`.
+- Run \`awg doctor --fix-suggestions --json\`.
 - Fix fatal validation errors.
 - Add evidence for completed work.
-- Run \`awg run finish --status completed|partial|blocked|failed --summary "..."\`.
-- Run \`awg handoff\`.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+- If forced, document why in the run summary or a run note.
 - Ensure \`awg lens resume\` reflects the current project state.
 `;
 }
@@ -225,7 +227,7 @@ This project uses AWG as its durable project memory. Before starting work, run \
 
 Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Do not edit \`.awg/compiled/*\`.
 
-Before stopping, update relevant statuses, add evidence for completed work, run \`awg build\` and \`awg doctor\`, fix fatal validation errors, finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..."\`, and run \`awg handoff\`.
+Before stopping, update relevant statuses, add evidence for completed work, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, fix fatal validation errors, record AWG friction as durable knowledge when found, and finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }
 

@@ -9,7 +9,7 @@ import { printJson } from "../format.js";
 
 export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   const [, sub, nodeId] = parsed.positionals;
-  if (sub !== "node" || !nodeId) throw new Error("Usage: awg update node <node-id> [--title ...] [--summary ...] [--status ...] [--json]");
+  if (sub !== "node" || !nodeId) throw new Error("Usage: awg update node <node-id> [--title ...] [--summary ...] [--status ...] [--type ...] [--json]");
   const storage = new FileAwgStorage();
   const { graph } = await buildAwg(storage, { write: false });
   const runId = resolveWriteRunId(graph, parsed.flags);
@@ -32,11 +32,12 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
 
 function nodePatch(parsed: ParsedArgs): Partial<AwgNode> {
   const patch: Partial<AwgNode> = {};
-  for (const key of ["title", "summary", "status", "review-after"] as const) {
+  for (const key of ["title", "summary", "status", "type", "review-after"] as const) {
     const value = str(parsed.flags, key);
     if (value !== undefined) (patch as Record<string, unknown>)[key.replace(/-/g, "_")] = value;
   }
   if (patch.status && !CORE_STATUSES.includes(patch.status as never)) throw new Error(`--status must be one of: ${CORE_STATUSES.join(", ")}`);
+  if (patch.type !== undefined && !String(patch.type).trim()) throw new Error("--type must not be empty");
   for (const key of ["importance", "confidence"] as const) {
     const value = str(parsed.flags, key);
     if (value !== undefined) {

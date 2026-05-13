@@ -63,7 +63,7 @@ Commands:
   add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
   add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
   add evidence --target <id> --summary <summary> [--run <run-id>|--no-run]
-  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--run <run-id>|--no-run] [--json]
+  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--run <run-id>|--no-run] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
   run start --goal <goal> [--agent <name>] [--force] [--json]
   run note <note> [--run <run-id>] [--json]

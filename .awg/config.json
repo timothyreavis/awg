@@ -1,5 +1,10 @@
 {
   "awg": "0.1",
+  "doctor": {
+    "activeRunStaleHours": 24,
+    "recentRunWindowDays": 7,
+    "runNoteStaleHours": 4
+  },
   "project": {
     "title": "awg"
   },

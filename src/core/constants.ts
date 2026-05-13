@@ -15,6 +15,7 @@ export const CORE_NODE_TYPES = [
   "risk",
   "blocker",
   "artifact",
+  "policy",
   "standard",
   "process",
   "requirement",

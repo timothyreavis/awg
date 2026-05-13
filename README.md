@@ -152,7 +152,7 @@ awg add node --type <type> --title <title> --summary <summary> [--run <run-id>|-
 awg add edge --from <node-id> --rel <relation> --to <node-id> [--run <run-id>|--no-run]
 awg add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
 awg add evidence --target <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--run <run-id>|--no-run] [--json]
-awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
 awg run start --goal <goal> [--agent <name>] [--force] [--json]
 awg run note <note> [--run <run-id>] [--json]
 awg run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--auto-handoff] [--force] [--json]

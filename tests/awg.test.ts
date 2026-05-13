@@ -85,10 +85,19 @@ function node(overrides: Partial<AwgNode> & Pick<AwgNode, "id" | "type" | "title
 test("init creates expected files", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
-  assert.ok(readFileSync(path.join(cwd, "AGENTS.md"), "utf8").includes("durable project memory"));
-  assert.ok(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8").includes("Follow the project instructions in `AGENTS.md`"));
+  const agents = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+  const vaultAgents = readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8");
+  assert.ok(agents.includes("durable project memory"));
+  assert.ok(agents.includes("awg doctor --fix-suggestions --json"));
+  assert.ok(agents.includes("--auto-handoff"));
+  assert.ok(claude.includes("Follow the project instructions in `AGENTS.md`"));
+  assert.ok(claude.includes("awg doctor --fix-suggestions --json"));
+  assert.ok(claude.includes("--auto-handoff"));
   assert.ok(readFileSync(path.join(cwd, ".awg/config.json"), "utf8").includes('"awg"'));
-  assert.ok(readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8").includes("awg run start"));
+  assert.ok(vaultAgents.includes("awg run start"));
+  assert.ok(vaultAgents.includes("awg doctor --fix-suggestions --json"));
+  assert.ok(vaultAgents.includes("--auto-handoff"));
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
   assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
 });
@@ -457,7 +466,7 @@ test("update node appends an upsert and event without touching compiled source",
   run(cwd, ["add", "node", "--id", "n:update", "--type", "task", "--title", "Update", "--summary", "Old.", "--tag", "old"]);
   run(cwd, ["build"]);
   const compiledBefore = readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8");
-  const output = JSON.parse(run(cwd, ["update", "node", "n:update", "--summary", "New.", "--status", "completed", "--tag", "new", "--anchor", "url:https://example.com/a:b", "--json"]));
+  const output = JSON.parse(run(cwd, ["update", "node", "n:update", "--summary", "New.", "--status", "completed", "--type", "client-record", "--tag", "new", "--anchor", "url:https://example.com/a:b", "--json"]));
   assert.equal(output.ok, true);
   assert.equal(output.nodeId, "n:update");
   assert.ok(output.eventId);
@@ -467,10 +476,12 @@ test("update node appends an upsert and event without touching compiled source",
   const node = graph.nodes.find((item: { id: string }) => item.id === "n:update");
   assert.equal(node.summary, "New.");
   assert.equal(node.status, "completed");
+  assert.equal(node.type, "client-record");
   assert.deepEqual(node.tags, ["new", "old"]);
   assert.deepEqual(node.anchors, [{ kind: "url", url: "https://example.com/a:b" }]);
   assert.ok(graph.events.some((event: { type: string; target: string }) => event.type === "node_updated" && event.target === "n:update"));
   assert.ok(!graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "duplicate_id_upsert" && diag.id === "n:update"));
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string; severity: string }) => diag.code === "unknown_node_type" && diag.id === "n:update" && diag.severity === "warning"));
   assert.ok((await new FileAwgStorage(cwd).readLogEntries()).length >= 3);
   assert.ok(runFail(cwd, ["update", "node", "n:update", "--status", "not-real"]).includes("--status must be one of"));
   assert.ok(runFail(cwd, ["update", "node", "n:missing", "--status", "active"]).includes("Node not found"));
@@ -1343,12 +1354,16 @@ test("upgrade creates missing schemas and preserves config fields", () => {
   config.validation.strict_links = true;
   writeFileSync(configFile, JSON.stringify(config, null, 2));
   rmSync(path.join(cwd, ".awg/schema/core/node.schema.json"));
+  rmSync(path.join(cwd, ".awg/AGENTS.md"));
   run(cwd, ["upgrade"]);
   const nextConfig = JSON.parse(readFileSync(configFile, "utf8"));
   const nodeSchema = JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8"));
+  const vaultAgents = readFileSync(path.join(cwd, ".awg/AGENTS.md"), "utf8");
   assert.deepEqual(nextConfig["x-user"], { kept: true });
   assert.equal(nextConfig.validation.strict_links, true);
   assert.deepEqual(nodeSchema, schemaForFile("node"));
+  assert.ok(vaultAgents.includes("awg doctor --fix-suggestions --json"));
+  assert.ok(vaultAgents.includes("--auto-handoff"));
 });
 
 test("upgrade preserves customized project schemas", () => {
