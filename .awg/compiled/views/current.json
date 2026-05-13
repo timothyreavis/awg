@@ -5,9 +5,9 @@
       "summary": {
         "active_run_count": 0,
         "dangling_edge_count": 0,
-        "edge_count": 32,
+        "edge_count": 34,
         "fatal_error_count": 0,
-        "node_count": 33,
+        "node_count": 35,
         "ok": true,
         "orphan_node_count": 0,
         "stale_node_count": 1,
@@ -536,6 +536,40 @@
         },
         {
           "awg": "0.1",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T15:02:31.592Z",
+          "evidence": [
+            {
+              "at": "2026-05-13T15:02:31.852Z",
+              "id": "n:npm-run-typecheck-npm-test-fresh-vault-cli-smoke-980e2518",
+              "source": "terminal",
+              "status": "passed",
+              "summary": "npm run typecheck, npm test, fresh-vault CLI smoke, git diff --check, and npm pack --dry-run --json passed."
+            }
+          ],
+          "id": "n:awg-v16-run-attribution-preflight",
+          "importance": 0.5,
+          "kind": "node",
+          "provenance": {
+            "created_by": "agent:codex",
+            "human_approved": false,
+            "source": "agent_generated",
+            "updated_by": "agent:codex"
+          },
+          "run": "run:d786bfb7-115",
+          "runId": "run:d786bfb7-115",
+          "status": "completed",
+          "summary": "Implemented run-scoped write attribution, compiler-derived run summaries, finish preflight, auto-handoff, deterministic handoff quality, run-aware handoff/task lens, doctor fix suggestions, and a minimal Runs viewer route.",
+          "tags": [
+            "run-attribution",
+            "preflight"
+          ],
+          "title": "AWG V1.6 run attribution and finish preflight",
+          "type": "task",
+          "updated_at": "2026-05-13T15:02:31.852Z"
+        },
+        {
+          "awg": "0.1",
           "body": "src/cli/index.ts dispatches commands. add supports node/edge/response. build/validate/doctor/lens/view wrap compiler outputs. open prints or launches static viewer files and supports --global/--no-launch. setup/register/vault manage the global registry. instructions installs managed agent snippets. upgrade updates project vault scaffolding and instruction blocks.",
           "confidence": 0.95,
           "created_at": "2026-05-12T18:42:28.389Z",
@@ -807,6 +841,24 @@
           "title": "npm run typecheck and npm test passed with 106 tests; smoke flow and npm pack dr",
           "type": "evidence",
           "updated_at": "2026-05-13T05:18:55.050Z"
+        },
+        {
+          "awg": "0.1",
+          "command": "npm run typecheck && npm test; npm pack --dry-run --json",
+          "confidence": 0.8,
+          "created_at": "2026-05-13T15:02:31.852Z",
+          "evidence_status": "passed",
+          "id": "n:npm-run-typecheck-npm-test-fresh-vault-cli-smoke-980e2518",
+          "importance": 0.5,
+          "kind": "node",
+          "run": "run:d786bfb7-115",
+          "runId": "run:d786bfb7-115",
+          "source": "terminal",
+          "status": "active",
+          "summary": "npm run typecheck, npm test, fresh-vault CLI smoke, git diff --check, and npm pack --dry-run --json passed.",
+          "title": "npm run typecheck, npm test, fresh-vault CLI smoke, git diff --check, and npm pa",
+          "type": "evidence",
+          "updated_at": "2026-05-13T15:02:31.852Z"
         },
         {
           "awg": "0.1",
@@ -1227,9 +1279,9 @@
       "summary": {
         "active_run_count": 0,
         "dangling_edge_count": 0,
-        "edge_count": 32,
+        "edge_count": 34,
         "fatal_error_count": 0,
-        "node_count": 33,
+        "node_count": 35,
         "ok": true,
         "orphan_node_count": 0,
         "stale_node_count": 1,
@@ -1242,7 +1294,7 @@
       "type": "diagnostics"
     }
   ],
-  "generated_at": "2026-05-13T05:19:03.557Z",
+  "generated_at": "2026-05-13T15:02:32.230Z",
   "id": "v:current",
   "kind": "view-output",
   "title": "Current Review"

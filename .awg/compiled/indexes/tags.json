@@ -68,6 +68,9 @@
     "n:overview-ui-demo-risk-duplicates",
     "n:overview-ui-demo-risk-scale"
   ],
+  "preflight": [
+    "n:awg-v16-run-attribution-preflight"
+  ],
   "purpose": [
     "n:awg-project-purpose"
   ],
@@ -76,6 +79,9 @@
   ],
   "retrieval": [
     "n:awg-v14-agent-retrieval-maintenance"
+  ],
+  "run-attribution": [
+    "n:awg-v16-run-attribution-preflight"
   ],
   "safe-instruction-updates": [
     "n:instruction-install-behavior",

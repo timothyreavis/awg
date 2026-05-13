@@ -561,7 +561,7 @@ test("run commands track start note finish status and list with json", () => {
   assert.equal(status.activeRun.notes[0].summary, "Created a useful note.");
   assert.equal(status.activeRun.changed_nodes[0], "n:run-task");
   assert.equal(status.activeRun.evidence.length, 1);
-  const finished = JSON.parse(run(cwd, ["run", "finish", "--status", "completed", "--summary", "Finished cleanly.", "--json"]));
+  const finished = JSON.parse(run(cwd, ["run", "finish", "--status", "completed", "--summary", "Finished cleanly.", "--auto-handoff", "--json"]));
   assert.equal(finished.runId, started.runId);
   assert.equal(finished.status, "completed");
   const after = JSON.parse(run(cwd, ["run", "status", "--json"]));
@@ -571,6 +571,63 @@ test("run commands track start note finish status and list with json", () => {
   assert.equal(listed.runs[0].summary, "Finished cleanly.");
   assert.ok(runFail(cwd, ["run", "note", "No active"]).includes("No active run"));
   assert.ok(runFail(cwd, ["run", "finish", "--run", "run:missing", "--status", "completed"]).includes("Run not found"));
+});
+
+test("write commands attribute durable writes to active explicit and suppressed runs", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Attribution", "--json"]));
+  run(cwd, ["add", "node", "--id", "n:attr-task", "--type", "task", "--title", "Attr task", "--summary", "Attributed.", "--status", "in_progress"]);
+  run(cwd, ["add", "edge", "--from", "n:attr-task", "--rel", "relates_to", "--to", "n:attr-task"]);
+  run(cwd, ["add", "response", "--type", "note", "--target", "n:attr-task", "--summary", "Attributed response."]);
+  run(cwd, ["update", "node", "n:attr-task", "--status", "completed"]);
+  run(cwd, ["add", "evidence", "--target", "n:attr-task", "--summary", "Attributed evidence.", "--status", "passed"]);
+  run(cwd, ["add", "node", "--id", "n:no-run", "--type", "task", "--title", "No run", "--summary", "Suppressed.", "--no-run"]);
+  run(cwd, ["run", "start", "--goal", "Second active run", "--force"]);
+  run(cwd, ["add", "node", "--id", "n:explicit-run", "--type", "task", "--title", "Explicit run", "--summary", "Explicit.", "--run", started.runId]);
+  assert.ok(runFail(cwd, ["add", "node", "--id", "n:bad-run", "--type", "task", "--title", "Bad run", "--summary", "Bad.", "--run", "run:missing"]).includes("Run not found"));
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:attr-task").run, started.runId);
+  assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:no-run").run, undefined);
+  assert.equal(graph.nodes.find((node: { id: string }) => node.id === "n:explicit-run").run, started.runId);
+  const summary = graph.run_summaries.find((item: { runId: string }) => item.runId === started.runId);
+  assert.ok(summary.createdNodeIds.includes("n:attr-task"));
+  assert.ok(summary.updatedNodeIds.includes("n:attr-task"));
+  assert.ok(summary.touchedNodeIds.includes("n:attr-task"));
+  assert.ok(summary.responseIds.length >= 1);
+  assert.ok(summary.evidenceTargetIds.includes("n:attr-task"));
+  assert.ok(summary.completedNodeIds.includes("n:attr-task"));
+});
+
+test("run finish preflight requires force for dirty completed runs and auto-handoff records quality", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Dirty finish", "--json"]));
+  run(cwd, ["add", "node", "--id", "n:dirty-task", "--type", "task", "--title", "Dirty task", "--summary", "No evidence.", "--status", "completed"]);
+  const blocked = JSON.parse(runFail(cwd, ["run", "finish", "--status", "completed", "--summary", "Dirty.", "--json"]));
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.forceRequired, true);
+  assert.ok(blocked.preflight.warnings.some((warning: { code: string }) => warning.code === "AWG_RUN_COMPLETED_TASK_WITHOUT_EVIDENCE"));
+  const forced = JSON.parse(run(cwd, ["run", "finish", "--status", "completed", "--summary", "Dirty forced.", "--auto-handoff", "--force", "--json"]));
+  assert.equal(forced.ok, true);
+  assert.equal(forced.runId, started.runId);
+  assert.ok(forced.handoff.quality.score < 100);
+  assert.equal(forced.handoff.quality.checks.find((check: { id: string }) => check.id === "doctor_clean_for_touched_nodes").ok, false);
+  assert.ok(forced.handoff.sections.some((section: { section: string }) => section.section === "preflightWarnings"));
+  const listed = JSON.parse(run(cwd, ["run", "list", "--json"]));
+  assert.ok(listed.runs[0].handoffs.length >= 1);
+});
+
+test("doctor fix suggestions are structured conservative and non-mutating", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:needs-evidence", "--type", "task", "--title", "Needs evidence", "--summary", "Done.", "--status", "completed"]);
+  const before = await new FileAwgStorage(cwd).readLogEntries();
+  const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+  assert.ok(doctor.fixSuggestions.some((suggestion: { code: string; suggestedCommands: string[] }) => suggestion.code === "AWG_HEALTH_COMPLETED_WITHOUT_EVIDENCE" && suggestion.suggestedCommands[0].includes("awg add evidence")));
+  const after = await new FileAwgStorage(cwd).readLogEntries();
+  assert.equal(after.length, before.length);
 });
 
 test("handoff and recent include run context", () => {
@@ -812,10 +869,12 @@ test("viewer generation includes route shell and theme assets", async () => {
   const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
   const css = readFileSync(path.join(cwd, ".awg/compiled/site/style.css"), "utf8");
   assert.ok(html.includes("AWG Surface"));
-  for (const route of ["overview", "graph", "kanban", "nodes", "health", "views", "settings"]) assert.ok(js.includes(`"${route}"`));
+  for (const route of ["overview", "graph", "kanban", "nodes", "runs", "health", "views", "settings"]) assert.ok(js.includes(`"${route}"`));
   assert.ok(js.includes('"attention-required"'));
   assert.ok(js.includes("query.tags"));
   assert.ok(js.includes("graph-type"));
+  assert.ok(js.includes("renderRunsRoute"));
+  assert.ok(js.includes("graph.run_summaries"));
   assert.ok(js.includes("Object.prototype.hasOwnProperty.call"));
   assert.ok(js.includes('<article class="node-card">'));
   assert.ok(js.includes("metric-state"));
@@ -918,6 +977,7 @@ test("viewer generated node detail handles missing nodes and health diagnostics 
   const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
   assert.ok(js.includes("Missing node"));
   assert.ok(js.includes("diagnosticTarget"));
+  assert.ok(js.includes("Run attribution"));
   assert.ok(js.includes("#/node/"));
 });
 

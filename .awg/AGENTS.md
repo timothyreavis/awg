@@ -1,18 +1,23 @@
 # AWG Agent Instructions
 
 - Before starting work, run `awg handoff`, `awg lens resume`, or read `.awg/compiled/lenses/resume.json`.
+- Start a focused run with `awg run start --goal "<goal>"`.
 - If the lens is missing or stale, run `awg build`.
 - Store durable knowledge as AWG nodes/edges/responses/events.
 - Use `awg search <query>` before creating duplicate nodes.
 - Use `awg lens task --goal "..."` for scoped work context.
 - Prefer `awg add`, `awg update node`, and `awg add evidence` commands over manually editing JSONL.
+- Durable writes automatically attach to the active run; use `--run <run-id>` for an explicit active run or `--no-run` to suppress attribution.
 - Do not edit `.awg/compiled/*` manually.
 - Do not link by file path when linking knowledge. Link by AWG node ID.
 - Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
 - When making a durable decision, create or update a decision node.
 - When identifying a risk/blocker, create a risk/task node with review metadata if possible.
 - When completing work, update/add task status and add evidence.
+- Add run notes for meaningful progress, blockers, and force-finish rationale.
 - After writing AWG data, run `awg build`.
 - Fix fatal validation errors before stopping.
-- Review `awg doctor` warnings and resolve obvious stale items.
-- End by running `awg handoff` and ensuring `.awg/compiled/lenses/resume.json` reflects the current state.
+- Review `awg doctor --fix-suggestions --json` warnings and resolve obvious stale items.
+- End with `awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff`.
+- If forced, document why in the run summary or a run note.
+- Ensure `.awg/compiled/lenses/resume.json` reflects the current state.

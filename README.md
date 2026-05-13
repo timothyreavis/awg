@@ -43,9 +43,8 @@ awg run start --goal "Use example knowledge" --agent codex
 awg search "example"
 awg lens task --goal "use example knowledge"
 awg build
-awg doctor
-awg run finish --status completed --summary "Created and verified example knowledge."
-awg handoff
+awg doctor --fix-suggestions --json
+awg run finish --status completed --summary "Created and verified example knowledge." --auto-handoff
 awg open
 ```
 
@@ -149,19 +148,19 @@ awg vault prune [--dry-run] [--yes] [--json]
 awg instructions list
 awg instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
 awg search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
-awg add node --type <type> --title <title> --summary <summary> [--json]
-awg add edge --from <node-id> --rel <relation> --to <node-id>
-awg add response --type <type> --target <id> --summary <summary>
-awg add evidence --target <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--json]
-awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--anchor <kind:value>] [--json]
+awg add node --type <type> --title <title> --summary <summary> [--run <run-id>|--no-run] [--json]
+awg add edge --from <node-id> --rel <relation> --to <node-id> [--run <run-id>|--no-run]
+awg add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
+awg add evidence --target <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--run <run-id>|--no-run] [--json]
+awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
 awg run start --goal <goal> [--agent <name>] [--force] [--json]
 awg run note <note> [--run <run-id>] [--json]
-awg run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--json]
+awg run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--auto-handoff] [--force] [--json]
 awg run status [--json]
 awg run list [--json]
 awg build [--json] [--strict]
 awg validate [--json] [--strict]
-awg doctor [--json]
+awg doctor [--fix-suggestions] [--json]
 awg lens resume [--budget <n>] [--json]
 awg lens task --goal <goal> [--budget <n>] [--json]
 awg handoff [--budget <n>] [--json]
@@ -174,7 +173,9 @@ awg open [--global] [--no-launch]
 
 `awg search <query>` performs deterministic local search over node id, slug, title, summary, type, status, tags, and optional anchors. It ranks exact id/slug matches first, then title and summary matches, with small boosts for importance, recency relative to the compiled graph timestamp, and actionable statuses. It never uses embeddings, AI, remote APIs, vector databases, or repository file crawling.
 
-An agent run is one focused work session. `awg run start --goal "<goal>"` appends a run-start event, `awg run note "..."` records meaningful progress or blockers, and `awg run finish --status completed|partial|blocked|failed --summary "..."` records the final outcome. `awg run status` reports the active run and `awg run list` shows recent runs. Run history is canonical AWG event data, not hidden mutable state.
+An agent run is one focused work session. `awg run start --goal "<goal>"` appends a run-start event, `awg run note "..."` records meaningful progress or blockers, and `awg run finish --status completed|partial|blocked|failed --summary "..."` records the final outcome. Durable write commands attach to the active run by default; use `--run <run-id>` for an explicit active run and `--no-run` to suppress attribution. The compiler derives created, updated, touched, evidenced, completed, unresolved, diagnostic, and handoff state for each run from canonical log metadata. `awg run status` reports the active run and `awg run list --json` includes derived attribution summaries. Run history is canonical AWG event data, not hidden mutable state.
+
+`awg run finish --status completed` runs a deterministic preflight. It warns about completed tasks without evidence, evidence-required nodes without evidence, active risks/blockers, proposed decisions, orphan or duplicate-ish nodes created in the run, missing notes, missing changes, missing handoff, stale touched nodes, and doctor warnings affecting touched nodes. Completed runs with substantive unresolved preflight warnings require `--force`; partial, blocked, failed, and abandoned runs remain usable and report warnings. `--auto-handoff` records and prints a compact handoff after finishing, and JSON output includes finish, preflight, and handoff data. If `--force` is used, document why in the summary or a run note.
 
 Recommended loop:
 
@@ -187,12 +188,13 @@ awg lens task --goal "Implement task-scoped lens ranking" --budget 2000
 awg update node n:task-lens --status completed
 awg add evidence --target n:task-lens --summary "npm test passed" --source terminal --command "npm test"
 awg build
-awg doctor
-awg run finish --status completed --summary "Implemented task lens ranking and tests."
-awg handoff
+awg doctor --fix-suggestions --json
+awg run finish --status completed --summary "Implemented task lens ranking and tests." --auto-handoff
 ```
 
-`awg lens task --goal "<goal>"` returns compact task-scoped context: matched nodes, nearby related nodes, related decisions, active tasks, risks/blockers, open questions, diagnostics, and recent evidence. `awg handoff` is a next-agent briefing with the active or most recent run, run notes/summary, active tasks, open decisions, blockers, risks, recent completions, evidence, responses, graph health, stale items, and recommended next actions. Plain `awg handoff` records a lightweight handoff event; use `--no-record` to skip that. JSON handoff output remains parseable and does not add extra console noise. `awg recent --days 7` lists recent runs, run notes, nodes, evidence, responses, status changes, and diagnostics relative to the current wall-clock time.
+`awg lens task --goal "<goal>"` returns compact task-scoped context: matched nodes, nearby related nodes, related decisions, active tasks, risks/blockers, open questions, active/current run context, related prior runs, related run notes, diagnostics, and recent evidence. `awg handoff` is a next-agent briefing with the active or most recent run, run attribution, preflight warnings, deterministic handoff quality score/checklist, run notes/summary, active tasks, open decisions, blockers, risks, recent completions, evidence, responses, graph health, stale items, and recommended next actions. Plain `awg handoff` records a lightweight handoff event; use `--no-record` to skip that. JSON handoff output remains parseable and does not add extra console noise. `awg recent --days 7` lists recent runs, run notes, nodes, evidence, responses, status changes, and diagnostics relative to the current wall-clock time.
+
+Handoff quality scoring is deterministic and explainable. Checks have fixed weights for finished run state, summary presence, notes or changes, evidence coverage, evidence-required coverage, new orphan count, touched risk/blocker review, proposed decisions, touched-node doctor errors, recorded handoff, and stale touched nodes. The score is the rounded percentage of passing weight.
 
 `--budget <n>` uses an approximate deterministic character budget. Section structure is preserved, high-priority items are emitted first, and omitted counts are included when lower-priority items are truncated. JSON mode always remains valid JSON.
 
@@ -202,7 +204,7 @@ Use `awg update node <node-id>` to keep durable state current. It appends a new 
 
 Use `awg add evidence --target <node-id> --summary "..."` when claiming work is complete or verified. It validates the target, creates a generic `evidence` node, links it to the target with a supporting edge, and records inline evidence on the target so current diagnostics can recognize completed task evidence.
 
-`awg doctor` includes agent-loop warnings for stale active runs, active runs without recent notes, completed runs without evidence or changed nodes, finished runs without handoff records, completed tasks without evidence, orphan nodes, duplicate-looking titles/aliases, active blockers linked to completed work, and active risks with completed mitigation that still need review. These are warnings unless the underlying graph state is malformed.
+`awg doctor` includes agent-loop warnings for stale active runs, active runs without recent notes, completed runs without evidence or changed nodes, finished runs without handoff records, completed tasks without evidence, orphan nodes, duplicate-looking titles/aliases, active blockers linked to completed work, and active risks with completed mitigation that still need review. These are warnings unless the underlying graph state is malformed. `awg doctor --fix-suggestions --json` adds conservative structured suggestions with command-like repairs; it does not mutate canonical logs.
 
 The `examples/realistic-agent-loop` fixture is a compact dogfood project with active and completed work, evidence, duplicate-ish nodes, orphans, stale review state, risks, blockers, decisions, questions, responses, and multiple runs. It is intended for tests, docs, demos, and manual viewer inspection.
 

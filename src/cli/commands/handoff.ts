@@ -18,7 +18,7 @@ export async function handoffCommand(parsed: ParsedArgs): Promise<void> {
     const run = activeRun(runs) ?? recentRuns(runs, 1)[0];
     const at = nowIso();
     const target = run?.id ?? "project";
-    const event: AwgEvent = { awg: AWG_VERSION, kind: "event", id: runEventId(target, "handoff", at), type: "handoff_generated", target, run: run?.id, by: "agent:codex", at, budget: output.budget };
+    const event: AwgEvent = { awg: AWG_VERSION, kind: "event", id: runEventId(target, "handoff", at), type: "handoff_generated", target, run: run?.id, runId: run?.id, by: "agent:codex", at, budget: output.budget, quality: output.quality };
     await storage.appendLogEntry(event);
   }
   if (parsed.flags.json) return printJson(output);

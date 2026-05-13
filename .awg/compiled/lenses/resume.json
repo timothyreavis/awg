@@ -164,9 +164,9 @@
   "diagnostics_summary": {
     "active_run_count": 0,
     "dangling_edge_count": 0,
-    "edge_count": 32,
+    "edge_count": 34,
     "fatal_error_count": 0,
-    "node_count": 33,
+    "node_count": 35,
     "ok": true,
     "orphan_node_count": 0,
     "stale_node_count": 1,
@@ -175,7 +175,7 @@
     "unverified_completion_count": 0,
     "warning_count": 4
   },
-  "generated_at": "2026-05-13T05:19:03.557Z",
+  "generated_at": "2026-05-13T15:02:32.230Z",
   "id": "lens:resume",
   "important": [
     {
@@ -736,6 +736,16 @@
   ],
   "recent_responses": [
     {
+      "at": "2026-05-13T14:46:18.966Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "id": "r:7efc085c-43f",
+      "kind": "response",
+      "summary": "Removed temporary visual-fixture graph entries from the project vault and regenerated compiled artifacts. The viewer now reflects only durable project knowledge.",
+      "target": "n:awg-v13-human-surface-framework",
+      "type": "maintenance-note"
+    },
+    {
       "at": "2026-05-12T23:52:20.223Z",
       "awg": "0.1",
       "by": "agent:codex",
@@ -824,22 +834,12 @@
       "summary": "Added overview UI demo nodes for Attention Required, Open Decisions, Active Risks, and Open Questions, with representative statuses and relationships so the generated current view renders populated review sections.",
       "target": "n:awg-v13-human-surface-framework",
       "type": "implementation-note"
-    },
-    {
-      "at": "2026-05-12T22:44:08.197Z",
-      "awg": "0.1",
-      "by": "agent:codex",
-      "id": "r:a335b53c-5d0",
-      "kind": "response",
-      "summary": "Made the graph canvas fill the graph card body by removing the inner canvas padding, border, and radius while keeping toolbar and footer attached to the same surface.",
-      "target": "n:awg-v13-human-surface-framework",
-      "type": "implementation-note"
     }
   ],
   "recommended_maintenance": [
     "Review stale nodes and update freshness metadata."
   ],
-  "summary": "33 nodes, 32 edges, 4 warnings, 0 fatal errors.",
+  "summary": "35 nodes, 34 edges, 4 warnings, 0 fatal errors.",
   "unanswered_questions": [
     {
       "awg": "0.1",

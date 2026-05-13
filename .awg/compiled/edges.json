@@ -141,6 +141,18 @@
   },
   {
     "awg": "0.1",
+    "created_at": "2026-05-13T15:02:31.732Z",
+    "from": "n:awg-v16-run-attribution-preflight",
+    "id": "e:606de3d8ed0c3c43",
+    "kind": "edge",
+    "reason": "V1.6 extends the V1.5 run loop into accountable attribution and finish quality.",
+    "rel": "relates_to",
+    "run": "run:d786bfb7-115",
+    "runId": "run:d786bfb7-115",
+    "to": "n:awg-v15-agent-run-loop"
+  },
+  {
+    "awg": "0.1",
     "created_at": "2026-05-12T18:43:02.727Z",
     "from": "n:cli-command-surface",
     "id": "e:6fcfa21064955700",
@@ -207,6 +219,18 @@
     "reason": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors.",
     "rel": "supports",
     "to": "n:awg-v14-agent-retrieval-maintenance"
+  },
+  {
+    "awg": "0.1",
+    "created_at": "2026-05-13T15:02:31.852Z",
+    "from": "n:npm-run-typecheck-npm-test-fresh-vault-cli-smoke-980e2518",
+    "id": "e:adbe5396bb44a1f9",
+    "kind": "edge",
+    "reason": "npm run typecheck, npm test, fresh-vault CLI smoke, git diff --check, and npm pack --dry-run --json passed.",
+    "rel": "supports",
+    "run": "run:d786bfb7-115",
+    "runId": "run:d786bfb7-115",
+    "to": "n:awg-v16-run-attribution-preflight"
   },
   {
     "awg": "0.1",

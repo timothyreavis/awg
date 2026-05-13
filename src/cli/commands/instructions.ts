@@ -282,16 +282,18 @@ Start of session:
 During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
+- Durable writes automatically attach to the active run. Use \`--run <run-id>\` for an explicit active run or \`--no-run\` to suppress attribution.
 - Link related nodes by AWG node ID.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
 
 Before finishing:
 - Update task, risk, blocker, and decision statuses.
-- Run \`awg build\` and \`awg doctor\`.
-- Fix fatal validation errors and review warnings.
-- Run \`awg run finish --status completed|partial|blocked|failed --summary "..."\`.
-- Run \`awg handoff\`.
+- Run \`awg build\`.
+- Run \`awg doctor --fix-suggestions --json\`.
+- Fix fatal validation errors and relevant warnings.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+- If finishing with \`--force\`, document why in the summary or a run note.
 
 Anti-patterns:
 - Do not create duplicate nodes without searching.
@@ -305,13 +307,13 @@ Anti-patterns:
 function claudeCodeTemplate(): string {
   return `# AWG Claude Code Snippet
 
-This project uses AWG as local durable project memory. Start with \`awg handoff\`, then \`awg run start --goal "<goal>"\`. Use \`awg search\` and \`awg lens task --goal "<goal>"\` before adding context. Record updates, run notes, and evidence with AWG commands. Before finishing, update stale statuses, run \`awg build\` and \`awg doctor\`, finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..."\`, and run \`awg handoff\`.
+This project uses AWG as local durable project memory. Start with \`awg handoff\`, then \`awg run start --goal "<goal>"\`. Use \`awg search\` and \`awg lens task --goal "<goal>"\` before adding context. Durable writes automatically attach to the active run; add run notes and evidence for completed work. Before finishing, update stale statuses, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, then finish with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }
 
 function antigravityTemplate(): string {
   return `# AWG Antigravity Snippet
 
-Use the project-local .awg vault only. Start with \`awg handoff\`, then \`awg run start --goal "<goal>"\`. Use \`awg search\` before creating nodes and scope work with \`awg lens task --goal "<goal>"\`. Update existing nodes, add run notes, attach evidence for completed work, then run \`awg build\`, \`awg doctor\`, \`awg run finish --status completed|partial|blocked|failed --summary "..."\`, and \`awg handoff\`.
+Use the project-local .awg vault only. Start with \`awg handoff\`, then \`awg run start --goal "<goal>"\`. Use \`awg search\` before creating nodes and scope work with \`awg lens task --goal "<goal>"\`. Update existing nodes, add run notes, attach evidence for completed work, then run \`awg build\`, \`awg doctor --fix-suggestions --json\`, and \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }

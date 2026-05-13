@@ -107,6 +107,7 @@ export interface Diagnostic {
   file?: string;
   line?: number;
   id?: string;
+  fixSuggestion?: unknown;
 }
 
 export interface DiagnosticsSummary {
@@ -151,6 +152,7 @@ export interface CompiledGraph {
   responses: AwgResponse[];
   policies: AwgPolicy[];
   diagnostics: DiagnosticsReport;
+  run_summaries?: unknown[];
 }
 
 export interface ResumeLensOutput {

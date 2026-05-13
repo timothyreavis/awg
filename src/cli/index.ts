@@ -59,20 +59,20 @@ Commands:
   vault prune [--dry-run] [--yes] [--json]
   instructions list
   instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
-  add node --type <type> --title <title> --summary <summary>
-  add edge --from <id> --rel <rel> --to <id>
-  add response --type <type> --target <id> --summary <summary>
-  add evidence --target <id> --summary <summary>
-  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--json]
+  add node --type <type> --title <title> --summary <summary> [--run <run-id>|--no-run]
+  add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
+  add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
+  add evidence --target <id> --summary <summary> [--run <run-id>|--no-run]
+  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--run <run-id>|--no-run] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
   run start --goal <goal> [--agent <name>] [--force] [--json]
   run note <note> [--run <run-id>] [--json]
-  run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--json]
+  run finish --status <completed|partial|blocked|failed|abandoned> [--run <run-id>] [--summary <summary>] [--auto-handoff] [--force] [--json]
   run status [--json]
   run list [--json]
   build [--json] [--strict]
   validate [--json] [--strict]
-  doctor [--json]
+  doctor [--fix-suggestions] [--json]
   lens resume [--budget <n>] [--json]
   lens task --goal <goal> [--budget <n>] [--json]
   handoff [--budget <n>] [--json]

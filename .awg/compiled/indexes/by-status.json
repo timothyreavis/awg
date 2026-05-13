@@ -13,6 +13,7 @@
     "n:local-first-boundary",
     "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
     "n:npm-run-typecheck-and-npm-test-passed-with-106-t-541c9aba",
+    "n:npm-run-typecheck-npm-test-fresh-vault-cli-smoke-980e2518",
     "n:overview-ui-demo-question-agent-recipes",
     "n:overview-ui-demo-risk-scale",
     "n:path-boundary-safety",
@@ -31,7 +32,8 @@
   ],
   "completed": [
     "n:awg-v14-agent-retrieval-maintenance",
-    "n:awg-v15-agent-run-loop"
+    "n:awg-v15-agent-run-loop",
+    "n:awg-v16-run-attribution-preflight"
   ],
   "needs_review": [
     "n:overview-ui-demo-decision-actions",

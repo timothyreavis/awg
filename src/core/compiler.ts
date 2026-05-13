@@ -2,6 +2,7 @@ import { AWG_VERSION } from "./constants.js";
 import { buildDiagnostics } from "./diagnostics.js";
 import { edgeId } from "./ids.js";
 import { buildResumeLens } from "./lenses.js";
+import { buildRunSummaries } from "./runs.js";
 import { parseAndValidate } from "./validation.js";
 import { renderStaticSite } from "./renderStaticSite.js";
 import { buildCurrentView } from "./views.js";
@@ -91,6 +92,7 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     policies: [...policies.values()].sort(byId),
     diagnostics: diagnosticsReport
   };
+  graph.run_summaries = buildRunSummaries(graph);
   const resumeLens = buildResumeLens(sortedNodes, sortedResponses, diag.summary, diag.recommended, generatedAt);
   const currentView = buildCurrentView(sortedNodes, diag.summary, generatedAt);
 

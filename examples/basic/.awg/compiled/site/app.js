@@ -11,6 +11,7 @@ const routes = [
   ["graph", "Graph"],
   ["kanban", "Kanban"],
   ["nodes", "Nodes"],
+  ["runs", "Runs"],
   ["health", "Health"],
   ["views", "Views"],
   ["settings", "Settings"]
@@ -66,6 +67,7 @@ function renderRoute() {
   else if (parsed.route === "graph") root.innerHTML = renderGraphRoute(parsed.params);
   else if (parsed.route === "kanban") root.innerHTML = renderKanbanRoute(parsed.params);
   else if (parsed.route === "nodes") root.innerHTML = renderNodesRoute(parsed.params);
+  else if (parsed.route === "runs") root.innerHTML = renderRunsRoute();
   else if (parsed.route === "health") root.innerHTML = renderHealthRoute(parsed.params);
   else if (parsed.route === "views") root.innerHTML = renderViewsRoute(parsed.params);
   else if (parsed.route === "node") root.innerHTML = renderNodeDetail(safeDecodeURIComponent(parsed.parts[1] || ""));
@@ -197,6 +199,45 @@ function renderHealthRoute(params) {
   return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body">' + renderDiagnostics(items) + '</div></section>';
 }
 
+function renderRunsRoute() {
+  const runs = deriveRuns();
+  const summaries = new Map((graph.run_summaries || []).map((summary) => [summary.runId, summary]));
+  if (!runs.length) return '<section class="panel"><h2>Runs</h2><p class="muted">No runs recorded.</p></section>';
+  return '<div class="surface-grid">' + runs.map((run) => {
+    const summary = summaries.get(run.id) || {};
+    const notes = (run.notes || []).slice(-3).reverse();
+    const warningCount = (summary.diagnostics || []).filter((diag) => diag.severity === "warning" || diag.severity === "fatal").length;
+    return '<section class="panel"><div class="chip-row">' + badge(run.status || "unknown", "status") + '<code>' + esc(run.id) + '</code></div><h2>' + esc(run.goal || "Untitled run") + '</h2>' + (run.summary ? '<p>' + esc(run.summary) + '</p>' : "") + '<div class="metric-row">' + metric("Created", (summary.createdNodeIds || []).length, "#/nodes") + metric("Touched", (summary.touchedNodeIds || []).length, "#/nodes") + metric("Evidence", (summary.evidenceNodeIds || []).length, "#/nodes?type=evidence") + metric("Warnings", warningCount, "#/health") + '</div>' + renderRunNodeLinks("Created nodes", summary.createdNodeIds || []) + renderRunNodeLinks("Touched nodes", summary.touchedNodeIds || []) + renderRunNodeLinks("Evidence targets", summary.evidenceTargetIds || []) + (notes.length ? '<h3>Notes</h3><div class="activity-table">' + notes.map((note) => '<article class="activity-row"><time title="' + esc(humanDate(note.at)) + '">' + esc(relativeTime(note.at)) + '</time><strong>note</strong><span>' + esc(note.summary || "") + '</span><em>' + esc(note.by || "") + '</em></article>').join("") + '</div>' : "") + '</section>';
+  }).join("") + '</div>';
+}
+
+function renderRunNodeLinks(title, ids) {
+  const kept = ids.slice(0, 8);
+  if (!kept.length) return "";
+  return '<h3>' + esc(title) + '</h3><div class="chip-row">' + kept.map((id) => byId.has(id) ? '<a class="badge type" href="#/node/' + encodeURIComponent(id) + '">' + esc(id) + '</a>' : '<code>' + esc(id) + '</code>').join("") + (ids.length > kept.length ? '<span class="muted">+' + (ids.length - kept.length) + ' more</span>' : "") + '</div>';
+}
+
+function deriveRuns() {
+  const runs = new Map();
+  for (const event of graph.events || []) {
+    if (event.type === "run_started") runs.set(event.target, { id: event.target, goal: event.goal || "", agent: event.agent, status: "in_progress", started_at: event.at, updated_at: event.at, notes: [], handoffs: [] });
+  }
+  for (const event of graph.events || []) {
+    const runId = event.run || event.runId || (String(event.target || "").startsWith("run:") ? event.target : "");
+    const run = runs.get(runId);
+    if (!run) continue;
+    if (event.at && (!run.updated_at || event.at > run.updated_at)) run.updated_at = event.at;
+    if (event.type === "run_note") run.notes.push({ at: event.at, by: event.by, summary: event.summary });
+    if (event.type === "run_finished") {
+      run.status = event.status || "partial";
+      run.finished_at = event.at;
+      run.summary = event.summary;
+    }
+    if (event.type === "handoff_generated") run.handoffs.push(event.id || event.at);
+  }
+  return [...runs.values()].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")) || String(a.id).localeCompare(String(b.id)));
+}
+
 function renderViewsRoute() {
   const generated = [
     { id: "v:current", title: "Current View", blocks: view.blocks || [] },
@@ -223,9 +264,16 @@ function renderNodeDetail(id) {
     evidenceCount ? nodeSection("Evidence", renderEvidence(node.evidence)) : "",
     nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
     nodeEvents.length ? nodeSection("Activity", renderEventsForNode(node.id, nodeEvents)) : "",
+    nodeSection("Run attribution", renderNodeRuns(node.id)),
     nodeSection("Use this node", '<div class="action-bar"><button class="button" data-copy="' + esc(node.title + "\n" + node.summary) + '">Copy prompt snippet</button><a class="button" href="#/nodes?type=' + encodeURIComponent(node.type) + '">Same type</a><a class="button" href="#/nodes?status=' + encodeURIComponent(node.status) + '">Same status</a><a class="button" href="#/health?id=' + encodeURIComponent(node.id) + '">Related health</a></div>')
   ].join("");
   return '<article class="node-detail surface"><header class="node-hero"><div><div class="chip-row">' + badge(node.type, "type") + badge(node.status, "status") + '</div><h2>' + esc(node.title) + '</h2><p class="node-id">' + esc(node.id) + '</p>' + renderNodeMeta(node) + '</div><div class="node-hero-actions"><a class="button" href="#/graph?focus=' + encodeURIComponent(node.id) + '">Open graph</a><button class="button" data-copy="' + esc(node.id) + '">Copy reference</button></div></header><p class="node-summary">' + esc(node.summary) + '</p><div class="node-kpis">' + nodeKpi("Importance", pct(node.importance), "#/nodes?sortBy=importance") + nodeKpi("Confidence", pct(node.confidence), "#/nodes?sortBy=confidence") + nodeKpi("Diagnostics", nodeDiagnostics.length, "#/health?id=" + encodeURIComponent(node.id)) + nodeKpi("Evidence", evidenceCount, "#/node/" + encodeURIComponent(node.id)) + '</div><div class="node-sections">' + sections + '</div><details class="raw-panel"><summary>Raw JSON</summary><pre>' + esc(JSON.stringify(node, null, 2)) + '</pre></details></article>';
+}
+
+function renderNodeRuns(id) {
+  const summaries = (graph.run_summaries || []).filter((summary) => (summary.touchedNodeIds || []).includes(id) || (summary.createdNodeIds || []).includes(id));
+  if (!summaries.length) return '<p class="muted">No run attribution recorded.</p>';
+  return '<div class="chip-row">' + summaries.slice(0, 8).map((summary) => '<a class="badge type" href="#/runs">' + esc(summary.runId) + '</a>').join("") + '</div>';
 }
 
 function renderBlock(block) {

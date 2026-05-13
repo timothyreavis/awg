@@ -2,6 +2,7 @@ import { AWG_VERSION } from "./constants.js";
 import { budgetSections, type BudgetedSection } from "./budget.js";
 import { searchGraph } from "./search.js";
 import { activeRun, buildRuns, recentRuns, type AgentRun } from "./runs.js";
+import { preflightRun, qualityForRun, runSummaryFor, type HandoffQuality, type RunPreflightResult } from "./runPreflight.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export interface TaskLensOutput {
@@ -12,6 +13,7 @@ export interface TaskLensOutput {
   goal: string;
   budget?: number;
   sections: Array<BudgetedSection<unknown>>;
+  runContext?: unknown;
 }
 
 export interface HandoffOutput {
@@ -20,6 +22,9 @@ export interface HandoffOutput {
   generated_at: string;
   budget?: number;
   sections: Array<BudgetedSection<unknown>>;
+  run?: AgentRun;
+  preflight?: RunPreflightResult;
+  quality?: HandoffQuality;
 }
 
 export interface RecentOutput {
@@ -49,6 +54,9 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const relevantNodes = [...relevantIds].map(node).filter(Boolean) as AwgNode[];
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && relevantIds.has(diag.id)).sort(bySeverity);
   const evidence = graph.nodes.filter((item) => item.type === "evidence" && graph.edges.some((edge) => edge.from === item.id && relevantIds.has(edge.to))).sort(byUpdatedDesc).slice(0, 10);
+  const runs = buildRuns(graph);
+  const current = activeRun(runs);
+  const relatedRuns = runs.filter((run) => runMatchesGoal(run, goal) || runSummaryFor(graph, run.id)?.touchedNodeIds.some((id) => relevantIds.has(id))).slice(0, 5);
   const decisions = relevantNodes.filter((item) => item.type === "decision").sort(byPriority);
   const risks = relevantNodes.filter((item) => item.type === "risk" || item.type === "blocker").sort(byPriority);
   const tasks = relevantNodes.filter((item) => item.type === "task" && actionable.has(item.status)).sort(byPriority);
@@ -60,15 +68,21 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "activeTasks", items: tasks },
     { section: "risksAndBlockers", items: risks },
     { section: "openQuestions", items: questions },
+    { section: "activeRun", items: current ? [runWithSummary(graph, current)] : [] },
+    { section: "relatedRuns", items: relatedRuns.map((run) => runWithSummary(graph, run)) },
+    { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
     { section: "diagnostics", items: diagnostics },
     { section: "recentEvidence", items: evidence }
   ], budget, renderItem);
-  return { awg: AWG_VERSION, kind: "lens-output", id: "lens:task", generated_at: graph.generated_at, goal, budget, sections };
+  return { awg: AWG_VERSION, kind: "lens-output", id: "lens:task", generated_at: graph.generated_at, goal, budget, sections, runContext: { activeRunId: current?.id, relatedRunIds: relatedRuns.map((run) => run.id) } };
 }
 
 export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutput {
   const runs = buildRuns(graph);
   const current = activeRun(runs) ?? recentRuns(runs, 1)[0];
+  const runSummary = current ? runSummaryFor(graph, current.id) : undefined;
+  const preflight = current ? preflightRun(graph, current) : undefined;
+  const quality = qualityForRun(graph, current, preflight);
   const runNotes = current ? current.notes.slice(-8).reverse().map((note) => ({ run: current.id, ...note })) : [];
   const activeTasks = graph.nodes.filter((n) => n.type === "task" && actionable.has(n.status)).sort(byPriority).slice(0, 20);
   const openDecisions = graph.nodes.filter((n) => n.type === "decision" && ["draft", "proposed", "active", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 20);
@@ -79,7 +93,10 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const recommendations = recommendedNextActions(graph.diagnostics.summary);
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
+    { section: "runAttribution", items: runSummary ? [runSummary] : [] },
     { section: "recentRunNotes", items: runNotes },
+    { section: "preflightWarnings", items: preflight?.warnings ?? [] },
+    { section: "handoffQuality", items: [quality] },
     { section: "graphHealth", items: [graph.diagnostics.summary] },
     { section: "recommendedNextActions", items: recommendations },
     { section: "currentFocus", items: activeTasks.slice(0, 3) },
@@ -91,7 +108,13 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "recentResponses", items: graph.responses.slice(-8).reverse() },
     { section: "staleOrNeedsReview", items: stale }
   ], budget, renderItem);
-  return { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections };
+  const output: HandoffOutput = { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections };
+  if (!budget) {
+    output.run = current;
+    output.preflight = preflight;
+    output.quality = quality;
+  }
+  return output;
 }
 
 export function buildRecent(graph: CompiledGraph, days: number, asOf = Date.now(), runId?: string): RecentOutput {
@@ -136,6 +159,15 @@ function recommendedNextActions(summary: DiagnosticsSummary): string[] {
   if (summary.unverified_completion_count) out.push("Attach evidence to completed task nodes.");
   if (summary.stale_node_count) out.push("Review stale or needs-review nodes.");
   return out;
+}
+
+function runMatchesGoal(run: AgentRun, goal: string): boolean {
+  const needle = goal.toLowerCase();
+  return run.goal.toLowerCase().includes(needle) || run.notes.some((note) => note.summary.toLowerCase().includes(needle));
+}
+
+function runWithSummary(graph: CompiledGraph, run: AgentRun): unknown {
+  return { ...run, attribution: runSummaryFor(graph, run.id) };
 }
 
 function byPriority(a: AwgNode, b: AwgNode): number {
