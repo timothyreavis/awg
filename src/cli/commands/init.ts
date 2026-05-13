@@ -119,10 +119,12 @@ async function writeStarterLog(root: string): Promise<void> {
 function agentsTemplate(): string {
   return `# AWG Agent Instructions
 
-- Before starting work, run \`awg lens resume\` or read \`.awg/compiled/lenses/resume.json\`.
+- Before starting work, run \`awg handoff\`, \`awg lens resume\`, or read \`.awg/compiled/lenses/resume.json\`.
 - If the lens is missing or stale, run \`awg build\`.
 - Store durable knowledge as AWG nodes/edges/responses/events.
-- Prefer \`awg add\` commands over manually editing JSONL.
+- Use \`awg search <query>\` before creating duplicate nodes.
+- Use \`awg lens task --goal "..."\` for scoped work context.
+- Prefer \`awg add\`, \`awg update node\`, and \`awg add evidence\` commands over manually editing JSONL.
 - Do not edit \`.awg/compiled/*\` manually.
 - Do not link by file path when linking knowledge. Link by AWG node ID.
 - Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
@@ -132,7 +134,7 @@ function agentsTemplate(): string {
 - After writing AWG data, run \`awg build\`.
 - Fix fatal validation errors before stopping.
 - Review \`awg doctor\` warnings and resolve obvious stale items.
-- End by ensuring \`.awg/compiled/lenses/resume.json\` reflects the current state.
+- End by running \`awg handoff\` and ensuring \`.awg/compiled/lenses/resume.json\` reflects the current state.
 `;
 }
 
@@ -149,13 +151,15 @@ function rootAgentsTemplate(): string {
 This project uses AWG as its durable project memory.
 
 Before starting work:
-- Run \`awg lens resume\`.
+- Run \`awg handoff\` or \`awg lens resume\`.
 - If the lens is missing or stale, run \`awg build\`, then rerun \`awg lens resume\`.
 - Read \`.awg/AGENTS.md\`.
 
 During work:
 - Record durable facts, decisions, risks, tasks, questions, constraints, and preferences in AWG.
-- Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits.
+- Use \`awg search <query>\` before creating duplicate nodes.
+- Use \`awg lens task --goal "..."\` for scoped work context.
+- Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
 - Link knowledge by AWG node ID, not by file path.
 - Do not edit \`.awg/compiled/*\`.
 
@@ -163,6 +167,7 @@ Before stopping:
 - Run \`awg build\`.
 - Run \`awg doctor\`.
 - Fix fatal validation errors.
+- Run \`awg handoff\`.
 - Ensure \`awg lens resume\` reflects the current project state.
 `;
 }

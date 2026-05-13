@@ -28,12 +28,12 @@
         "severity": "warning"
       }
     ],
-    "generated_at": "2026-05-12T23:52:20.223Z",
+    "generated_at": "2026-05-13T00:52:23.427Z",
     "summary": {
       "dangling_edge_count": 0,
-      "edge_count": 26,
+      "edge_count": 28,
       "fatal_error_count": 0,
-      "node_count": 26,
+      "node_count": 29,
       "ok": true,
       "orphan_node_count": 0,
       "stale_node_count": 1,
@@ -165,6 +165,16 @@
     },
     {
       "awg": "0.1",
+      "created_at": "2026-05-13T00:10:20.233Z",
+      "from": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+      "id": "e:4c7016c21a21f37f",
+      "kind": "edge",
+      "reason": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON.",
+      "rel": "supports",
+      "to": "n:awg-v14-agent-retrieval-maintenance"
+    },
+    {
+      "awg": "0.1",
       "created_at": "2026-05-12T18:43:03.766Z",
       "from": "n:verification-workflow",
       "id": "e:4f7c05887cdd7893",
@@ -212,6 +222,16 @@
       "reason": "Instruction installation is an explicit CLI workflow.",
       "rel": "part_of",
       "to": "n:cli-command-surface"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-13T00:52:23.427Z",
+      "from": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+      "id": "e:abc8a3f612c35dd7",
+      "kind": "edge",
+      "reason": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors.",
+      "rel": "supports",
+      "to": "n:awg-v14-agent-retrieval-maintenance"
     },
     {
       "awg": "0.1",
@@ -331,9 +351,42 @@
       "summary": "Checked diagnostic display with stale and low-confidence warnings.",
       "target": "n:viewer-section-formatting-demo",
       "type": "health-format-reviewed"
+    },
+    {
+      "at": "2026-05-13T00:10:20.233Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "evidence": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+      "id": "ev:awg-v14-agent-retrieval-maintenance:evidence:20260513001020233",
+      "kind": "event",
+      "target": "n:awg-v14-agent-retrieval-maintenance",
+      "type": "evidence_added"
+    },
+    {
+      "at": "2026-05-13T00:52:23.324Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "fields": [
+        "status",
+        "summary"
+      ],
+      "id": "ev:awg-v14-agent-retrieval-maintenance:update:20260513005223324",
+      "kind": "event",
+      "target": "n:awg-v14-agent-retrieval-maintenance",
+      "type": "node_updated"
+    },
+    {
+      "at": "2026-05-13T00:52:23.427Z",
+      "awg": "0.1",
+      "by": "agent:codex",
+      "evidence": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+      "id": "ev:awg-v14-agent-retrieval-maintenance:evidence:20260513005223427",
+      "kind": "event",
+      "target": "n:awg-v14-agent-retrieval-maintenance",
+      "type": "evidence_added"
     }
   ],
-  "generated_at": "2026-05-12T23:52:20.223Z",
+  "generated_at": "2026-05-13T00:52:23.427Z",
   "lenses": [],
   "nodes": [
     {
@@ -382,6 +435,46 @@
       "title": "AWG V1.3 human surface framework",
       "type": "task",
       "updated_at": "2026-05-12T19:13:21.374Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.8,
+      "created_at": "2026-05-13T00:10:20.111Z",
+      "evidence": [
+        {
+          "at": "2026-05-13T00:10:20.233Z",
+          "id": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+          "source": "terminal",
+          "status": "passed",
+          "summary": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON."
+        },
+        {
+          "at": "2026-05-13T00:52:23.427Z",
+          "id": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+          "source": "terminal",
+          "status": "passed",
+          "summary": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors."
+        }
+      ],
+      "id": "n:awg-v14-agent-retrieval-maintenance",
+      "importance": 0.9,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "completed",
+      "summary": "Completed with adversarial review loops. Fixed anchor parsing, add validation, evidence relation validation, duplicate-upsert diagnostics, wall-clock recent semantics, registry prune invalid-vault skipping, and graph-health-first handoff budgeting.",
+      "tags": [
+        "v1.4",
+        "retrieval",
+        "maintenance"
+      ],
+      "title": "AWG V1.4 agent retrieval and maintenance ergonomics",
+      "type": "task",
+      "updated_at": "2026-05-13T00:52:23.427Z"
     },
     {
       "awg": "0.1",
@@ -505,6 +598,22 @@
     },
     {
       "awg": "0.1",
+      "command": "npm run typecheck && npm test && temp-vault smoke && npm pack --dry-run --json && awg build && awg doctor",
+      "confidence": 0.8,
+      "created_at": "2026-05-13T00:52:23.427Z",
+      "evidence_status": "passed",
+      "id": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+      "importance": 0.5,
+      "kind": "node",
+      "source": "terminal",
+      "status": "active",
+      "summary": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors.",
+      "title": "Final peer review loop cleared: two final reviewers found no blockers; npm run t",
+      "type": "evidence",
+      "updated_at": "2026-05-13T00:52:23.427Z"
+    },
+    {
+      "awg": "0.1",
       "body": "For future agents: avoid broad abstractions unless they remove real complexity; prefer repo patterns; keep dependencies minimal; update docs/tests with every CLI behavior change; run awg build and awg doctor before stopping; record durable architecture decisions, risks, and human feedback as AWG nodes/edges/responses.",
       "confidence": 0.9,
       "created_at": "2026-05-12T18:42:29.372Z",
@@ -598,6 +707,22 @@
       "title": "Local-first scope boundary",
       "type": "constraint",
       "updated_at": "2026-05-12T18:42:27.857Z"
+    },
+    {
+      "awg": "0.1",
+      "command": "npm run typecheck && npm test; fresh temp-vault CLI smoke",
+      "confidence": 0.8,
+      "created_at": "2026-05-13T00:10:20.233Z",
+      "evidence_status": "passed",
+      "id": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+      "importance": 0.5,
+      "kind": "node",
+      "source": "terminal",
+      "status": "active",
+      "summary": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON.",
+      "title": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with",
+      "type": "evidence",
+      "updated_at": "2026-05-13T00:10:20.233Z"
     },
     {
       "awg": "0.1",
@@ -1263,15 +1388,15 @@
     }
   ],
   "source": {
-    "entry_count": 84,
+    "entry_count": 95,
     "log_files": [
       ".awg/log/2026/05/2026-05-12.awg.jsonl"
     ]
   },
   "stats": {
-    "edges": 26,
-    "events": 3,
-    "nodes": 26,
+    "edges": 28,
+    "events": 6,
+    "nodes": 29,
     "responses": 29
   },
   "views": []

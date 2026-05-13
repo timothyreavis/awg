@@ -20,6 +20,10 @@
     "n:overview-ui-demo-decision-actions",
     "n:overview-ui-demo-decision-density"
   ],
+  "evidence": [
+    "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+    "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d"
+  ],
   "process": [
     "n:instruction-install-behavior",
     "n:setup-register-open-behavior",
@@ -36,6 +40,7 @@
   ],
   "task": [
     "n:awg-v13-human-surface-framework",
+    "n:awg-v14-agent-retrieval-maintenance",
     "n:future-maintenance-priorities",
     "n:overview-ui-demo-blocked-release",
     "n:overview-ui-demo-review-copy",

@@ -31,6 +31,7 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   const policies = new Map<string, AwgPolicy>();
   const seenKinds = new Map<string, string>();
   const edgeSignatures = new Map<string, string>();
+  const duplicateUpserts: Array<{ id: string; kind: string; file: string; line: number; at?: string }> = [];
 
   for (const item of parsed) {
     if (!item.object) continue;
@@ -42,7 +43,7 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
         diagnostics.push({ severity: "fatal", code: "duplicate_id_incompatible_kind", message: `ID ${id} was used for both ${prior} and ${object.kind}.`, file: item.raw.file, line: item.raw.line, id });
         continue;
       }
-      if (prior === object.kind && object.kind !== "edge") diagnostics.push({ severity: "warning", code: "duplicate_id_upsert", message: `ID ${id} appeared more than once; last write wins.`, file: item.raw.file, line: item.raw.line, id });
+      if (prior === object.kind && object.kind !== "edge") duplicateUpserts.push({ id, kind: object.kind, file: item.raw.file, line: item.raw.line, at: typeof object.updated_at === "string" ? object.updated_at : undefined });
       seenKinds.set(id, object.kind);
     }
 
@@ -63,6 +64,12 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     if (object.kind === "lens") lenses.set(object.id, object);
     if (object.kind === "response") responses.set(object.id, object);
     if (object.kind === "policy") policies.set(object.id, object);
+  }
+
+  const intentionalNodeUpserts = new Set(events.filter((event) => event.kind === "event" && ["node_updated", "evidence_added"].includes(String(event.type))).map((event) => `${String(event.target)}\0${String(event.at)}`));
+  for (const duplicate of duplicateUpserts) {
+    if (duplicate.kind === "node" && duplicate.at && intentionalNodeUpserts.has(`${duplicate.id}\0${duplicate.at}`)) continue;
+    diagnostics.push({ severity: "warning", code: "duplicate_id_upsert", message: `ID ${duplicate.id} appeared more than once; last write wins. Use awg update node for intentional node updates.`, file: duplicate.file, line: duplicate.line, id: duplicate.id });
   }
 
   const sortedNodes = [...nodes.values()].sort(byId);

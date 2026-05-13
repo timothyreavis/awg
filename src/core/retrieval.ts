@@ -1,0 +1,143 @@
+import { AWG_VERSION } from "./constants.js";
+import { budgetSections, type BudgetedSection } from "./budget.js";
+import { searchGraph, type SearchResult } from "./search.js";
+import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
+
+export interface TaskLensOutput {
+  awg: string;
+  kind: "lens-output";
+  id: "lens:task";
+  generated_at: string;
+  goal: string;
+  budget?: number;
+  sections: Array<BudgetedSection<unknown>>;
+}
+
+export interface HandoffOutput {
+  awg: string;
+  kind: "handoff";
+  generated_at: string;
+  budget?: number;
+  sections: Array<BudgetedSection<unknown>>;
+}
+
+export interface RecentOutput {
+  awg: string;
+  kind: "recent";
+  generated_at: string;
+  days: number;
+  nodes: AwgNode[];
+  evidence: AwgNode[];
+  responses: AwgResponse[];
+  status_changes: Array<{ id: string; status: string; updated_at: string }>;
+  diagnostics: Diagnostic[];
+}
+
+const actionable = new Set(["active", "blocked", "in_progress", "needs_review", "proposed", "stale"]);
+
+export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: number): TaskLensOutput {
+  const matches = searchGraph(graph, goal, { limit: 12 });
+  const matchedIds = new Set(matches.map((match) => match.id));
+  const relatedIds = relatedNodeIds(graph.edges, matchedIds, 2);
+  const relevantIds = new Set([...matchedIds, ...relatedIds]);
+  const node = (id: string) => graph.nodes.find((item) => item.id === id);
+  const related = [...relatedIds].map(node).filter(Boolean) as AwgNode[];
+  const relevantNodes = [...relevantIds].map(node).filter(Boolean) as AwgNode[];
+  const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && relevantIds.has(diag.id)).sort(bySeverity);
+  const evidence = graph.nodes.filter((item) => item.type === "evidence" && graph.edges.some((edge) => edge.from === item.id && relevantIds.has(edge.to))).sort(byUpdatedDesc).slice(0, 10);
+  const decisions = relevantNodes.filter((item) => item.type === "decision").sort(byPriority);
+  const risks = relevantNodes.filter((item) => item.type === "risk" || item.type === "blocker").sort(byPriority);
+  const tasks = relevantNodes.filter((item) => item.type === "task" && actionable.has(item.status)).sort(byPriority);
+  const questions = relevantNodes.filter((item) => item.type === "question" && !["resolved", "completed", "archived"].includes(item.status)).sort(byPriority);
+  const sections = budgetSections<unknown>([
+    { section: "matches", items: matches },
+    { section: "relatedNodes", items: related.sort(byPriority) },
+    { section: "relatedDecisions", items: decisions },
+    { section: "activeTasks", items: tasks },
+    { section: "risksAndBlockers", items: risks },
+    { section: "openQuestions", items: questions },
+    { section: "diagnostics", items: diagnostics },
+    { section: "recentEvidence", items: evidence }
+  ], budget, renderItem);
+  return { awg: AWG_VERSION, kind: "lens-output", id: "lens:task", generated_at: graph.generated_at, goal, budget, sections };
+}
+
+export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutput {
+  const activeTasks = graph.nodes.filter((n) => n.type === "task" && actionable.has(n.status)).sort(byPriority).slice(0, 20);
+  const openDecisions = graph.nodes.filter((n) => n.type === "decision" && ["draft", "proposed", "active", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 20);
+  const blockers = graph.nodes.filter((n) => ["risk", "blocker"].includes(n.type) && actionable.has(n.status)).sort(byPriority).slice(0, 20);
+  const recentCompleted = graph.nodes.filter((n) => ["completed", "resolved"].includes(n.status)).sort(byUpdatedDesc).slice(0, 12);
+  const recentEvidence = graph.nodes.filter((n) => n.type === "evidence").sort(byUpdatedDesc).slice(0, 12);
+  const stale = graph.nodes.filter((n) => ["stale", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 12);
+  const recommendations = recommendedNextActions(graph.diagnostics.summary);
+  const sections = budgetSections<unknown>([
+    { section: "graphHealth", items: [graph.diagnostics.summary] },
+    { section: "recommendedNextActions", items: recommendations },
+    { section: "currentFocus", items: activeTasks.slice(0, 3) },
+    { section: "activeTasks", items: activeTasks },
+    { section: "openDecisions", items: openDecisions },
+    { section: "blockersAndRisks", items: blockers },
+    { section: "recentCompletedWork", items: recentCompleted },
+    { section: "recentEvidence", items: recentEvidence },
+    { section: "recentResponses", items: graph.responses.slice(-8).reverse() },
+    { section: "staleOrNeedsReview", items: stale }
+  ], budget, renderItem);
+  return { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections };
+}
+
+export function buildRecent(graph: CompiledGraph, days: number, asOf = Date.now()): RecentOutput {
+  const cutoff = asOf - Math.max(1, days) * 86_400_000;
+  const recentNode = (node: AwgNode) => Date.parse(node.updated_at) >= cutoff || Date.parse(node.created_at) >= cutoff;
+  return {
+    awg: AWG_VERSION,
+    kind: "recent",
+    generated_at: graph.generated_at,
+    days,
+    nodes: graph.nodes.filter(recentNode).sort(byUpdatedDesc),
+    evidence: graph.nodes.filter((node) => node.type === "evidence" && recentNode(node)).sort(byUpdatedDesc),
+    responses: graph.responses.filter((response) => Date.parse(response.at) >= cutoff).slice().reverse(),
+    status_changes: graph.nodes.filter(recentNode).map((node) => ({ id: node.id, status: node.status, updated_at: node.updated_at })).sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id)),
+    diagnostics: graph.diagnostics.diagnostics.filter((diag) => diag.severity !== "info")
+  };
+}
+
+function relatedNodeIds(edges: AwgEdge[], start: Set<string>, depth: number): Set<string> {
+  const found = new Set<string>();
+  let frontier = new Set(start);
+  for (let level = 0; level < depth; level += 1) {
+    const next = new Set<string>();
+    for (const edge of edges) {
+      if (frontier.has(edge.from) && !start.has(edge.to) && !found.has(edge.to)) next.add(edge.to);
+      if (frontier.has(edge.to) && !start.has(edge.from) && !found.has(edge.from)) next.add(edge.from);
+    }
+    for (const id of next) found.add(id);
+    frontier = next;
+  }
+  return found;
+}
+
+function recommendedNextActions(summary: DiagnosticsSummary): string[] {
+  const out = ["Run awg search before adding duplicate durable context.", "Use awg lens task --goal \"...\" before focused implementation work."];
+  if (summary.fatal_error_count) out.unshift("Fix fatal diagnostics before relying on compiled graph output.");
+  if (summary.unverified_completion_count) out.push("Attach evidence to completed task nodes.");
+  if (summary.stale_node_count) out.push("Review stale or needs-review nodes.");
+  return out;
+}
+
+function byPriority(a: AwgNode, b: AwgNode): number {
+  return Number(actionable.has(b.status)) - Number(actionable.has(a.status)) || b.importance - a.importance || b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id);
+}
+
+function byUpdatedDesc(a: AwgNode, b: AwgNode): number {
+  return b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id);
+}
+
+function bySeverity(a: Diagnostic, b: Diagnostic): number {
+  const weight = { fatal: 3, warning: 2, info: 1 };
+  return weight[b.severity] - weight[a.severity] || (a.id ?? "").localeCompare(b.id ?? "") || a.code.localeCompare(b.code);
+}
+
+function renderItem(item: unknown): string {
+  const record = item as Record<string, unknown>;
+  return [record.id, record.title, record.summary, record.status, record.code, record.message].filter(Boolean).join(" ");
+}

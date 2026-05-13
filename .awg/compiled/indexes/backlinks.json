@@ -43,6 +43,28 @@
       "to": "n:awg-v13-human-surface-framework"
     }
   ],
+  "n:awg-v14-agent-retrieval-maintenance": [
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-13T00:10:20.233Z",
+      "from": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+      "id": "e:4c7016c21a21f37f",
+      "kind": "edge",
+      "reason": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON.",
+      "rel": "supports",
+      "to": "n:awg-v14-agent-retrieval-maintenance"
+    },
+    {
+      "awg": "0.1",
+      "created_at": "2026-05-13T00:52:23.427Z",
+      "from": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+      "id": "e:abc8a3f612c35dd7",
+      "kind": "edge",
+      "reason": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors.",
+      "rel": "supports",
+      "to": "n:awg-v14-agent-retrieval-maintenance"
+    }
+  ],
   "n:cli-command-surface": [
     {
       "awg": "0.1",

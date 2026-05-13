@@ -31,7 +31,22 @@ export const schemas = {
       created_at: { type: "string" },
       updated_at: { type: "string" },
       tags: { type: "array", items: { type: "string" } },
-      aliases: { type: "array", items: { type: "string" } }
+      aliases: { type: "array", items: { type: "string" } },
+      anchors: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            kind: { enum: ["file", "symbol", "url", "command", "doc", "external"] },
+            path: { type: "string" },
+            name: { type: "string" },
+            url: { type: "string" },
+            label: { type: "string" }
+          },
+          required: ["kind"],
+          additionalProperties: true
+        }
+      }
     }
   },
   edge: {

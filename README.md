@@ -39,9 +39,11 @@ awg setup --yes
 awg init
 awg instructions install codex
 awg add node --type concept --title "Example" --summary "Example durable knowledge."
+awg search "example"
+awg lens task --goal "use example knowledge"
 awg build
 awg doctor
-awg lens resume
+awg handoff
 awg open
 ```
 
@@ -93,6 +95,8 @@ Register the current project vault:
 ```sh
 awg register
 awg vault list
+awg vault list --missing
+awg vault prune --dry-run
 awg vault info
 ```
 
@@ -133,20 +137,55 @@ awg upgrade [--all] [--dry-run] [--instructions <packs|all>] [--json]
 awg init [--empty] [--force] [--register] [--no-register]
 awg register [--name <name>] [--scope project|org|user]
 awg unregister [--path <path>]
-awg vault list [--json]
+awg vault list [--missing] [--json]
 awg vault info [--json]
+awg vault prune [--dry-run] [--yes] [--json]
 awg instructions list
 awg instructions install <codex|claude-code|antigravity|all> [--dry-run]
-awg add node --type <type> --title <title> --summary <summary>
+awg search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
+awg add node --type <type> --title <title> --summary <summary> [--json]
 awg add edge --from <node-id> --rel <relation> --to <node-id>
 awg add response --type <type> --target <id> --summary <summary>
+awg add evidence --target <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--json]
+awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--anchor <kind:value>] [--json]
 awg build [--json] [--strict]
 awg validate [--json] [--strict]
 awg doctor [--json]
-awg lens resume [--json]
+awg lens resume [--budget <n>] [--json]
+awg lens task --goal <goal> [--budget <n>] [--json]
+awg handoff [--budget <n>] [--json]
+awg recent [--days <n>] [--json]
 awg view current [--json] [--text]
 awg open [--global] [--no-launch]
 ```
+
+## Agent Retrieval and Maintenance
+
+`awg search <query>` performs deterministic local search over node id, slug, title, summary, type, status, tags, and optional anchors. It ranks exact id/slug matches first, then title and summary matches, with small boosts for importance, recency relative to the compiled graph timestamp, and actionable statuses. It never uses embeddings, AI, remote APIs, vector databases, or repository file crawling.
+
+`awg lens task --goal "<goal>"` returns compact task-scoped context: matched nodes, nearby related nodes, related decisions, active tasks, risks/blockers, open questions, diagnostics, and recent evidence. `awg handoff` is a next-agent briefing with active tasks, open decisions, blockers, recent completions, evidence, responses, graph health, stale items, and recommended next actions. `awg recent --days 7` lists node, evidence, response, status, and diagnostic activity relative to the current wall-clock time.
+
+`--budget <n>` uses an approximate deterministic character budget. Section structure is preserved, high-priority items are emitted first, and omitted counts are included when lower-priority items are truncated. JSON mode always remains valid JSON.
+
+Agent-facing commands support stable `--json` output for parsing: `add node`, `add edge`, `add response`, `add evidence`, `update node`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `doctor`, `build`, and `validate`.
+
+Use `awg update node <node-id>` to keep durable state current. It appends a new node snapshot and a node update event; it does not mutate compiled artifacts and it does not create missing nodes by default.
+
+Use `awg add evidence --target <node-id> --summary "..."` when claiming work is complete or verified. It validates the target, creates a generic `evidence` node, links it to the target with a supporting edge, and records inline evidence on the target so current diagnostics can recognize completed task evidence.
+
+`awg vault list --missing` reports registry entries whose paths are missing or no longer look like current AWG vaults. `awg vault prune --yes` removes only paths that no longer exist; existing but invalid/incompatible vault paths are reported as skipped so registry pointers are not dropped during migrations or repairs.
+
+Nodes may optionally include generic `anchors` for retrieval and handoff context:
+
+```json
+{
+  "kind": "file",
+  "path": "src/example.ts",
+  "label": "Implementation"
+}
+```
+
+Valid anchor kinds are `file`, `symbol`, `url`, `command`, `doc`, and `external`. Anchors are optional and domain-agnostic; AWG does not perform code intelligence.
 
 ## Storage Layout
 

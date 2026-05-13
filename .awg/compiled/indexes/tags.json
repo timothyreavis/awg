@@ -52,6 +52,7 @@
     "n:local-first-boundary"
   ],
   "maintenance": [
+    "n:awg-v14-agent-retrieval-maintenance",
     "n:future-maintenance-priorities"
   ],
   "overview": [
@@ -69,6 +70,9 @@
   ],
   "registry": [
     "n:global-registry-model"
+  ],
+  "retrieval": [
+    "n:awg-v14-agent-retrieval-maintenance"
   ],
   "schema": [
     "n:schema-management"
@@ -92,6 +96,9 @@
   ],
   "v1.3": [
     "n:awg-v13-human-surface-framework"
+  ],
+  "v1.4": [
+    "n:awg-v14-agent-retrieval-maintenance"
   ],
   "validation": [
     "n:diagnostic-model",

@@ -22,8 +22,17 @@ export interface AwgNode extends AwgBase {
   tags?: string[];
   aliases?: string[];
   evidence?: unknown[];
+  anchors?: AwgAnchor[];
   review_after?: string;
   superseded_by?: string;
+}
+
+export interface AwgAnchor {
+  kind: "file" | "symbol" | "url" | "command" | "doc" | "external";
+  path?: string;
+  name?: string;
+  url?: string;
+  label?: string;
 }
 
 export interface AwgEdge extends AwgBase {

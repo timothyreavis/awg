@@ -340,6 +340,32 @@ test("vault list works with registered vaults", () => {
   assert.ok(output.includes(realpathSync(path.join(cwd, ".awg"))));
 });
 
+test("vault list missing and prune are isolated to temp home", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  run(cwd, ["setup", "--yes"], { HOME: home });
+  run(cwd, ["init", "--empty"], { HOME: home });
+  const missing = path.join(tmp(), "gone", ".awg");
+  const invalid = path.join(tmp(), "invalid", ".awg");
+  mkdirSync(invalid, { recursive: true });
+  const registryFile = path.join(home, ".awg/registry.json");
+  const registry = readRegistry(home);
+  registry.vaults.push({ id: "vault:missing", name: "Missing", path: missing, scope: "project", registeredAt: "a", lastSeenAt: "b", tags: [], favorite: false });
+  registry.vaults.push({ id: "vault:invalid", name: "Invalid", path: invalid, scope: "project", registeredAt: "a", lastSeenAt: "b", tags: [], favorite: false });
+  writeFileSync(registryFile, JSON.stringify(registry, null, 2));
+  const listed = JSON.parse(run(cwd, ["vault", "list", "--missing", "--json"], { HOME: home }));
+  assert.deepEqual(listed.vaults.map((vault: { name: string }) => vault.name).sort(), ["Invalid", "Missing"]);
+  run(cwd, ["vault", "prune", "--dry-run"], { HOME: home });
+  assert.equal(readRegistry(home).vaults.length, 3);
+  const dry = JSON.parse(run(cwd, ["vault", "prune", "--dry-run", "--json"], { HOME: home }));
+  assert.equal(dry.pruned.length, 0);
+  assert.equal(dry.skipped.length, 2);
+  const pruned = JSON.parse(run(cwd, ["vault", "prune", "--yes", "--json"], { HOME: home }));
+  assert.equal(pruned.pruned.length, 1);
+  assert.equal(pruned.skipped.length, 1);
+  assert.equal(readRegistry(home).vaults.length, 2);
+});
+
 test("open outside vault handles missing and empty registry", () => {
   const cwd = tmp();
   const home = tempHome();
@@ -393,6 +419,159 @@ test("add node writes valid JSONL", () => {
     assert.equal(node.kind, "node");
     assert.equal(node.type, "concept");
   });
+});
+
+test("add commands emit stable json", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const node = JSON.parse(run(cwd, ["add", "node", "--id", "n:json", "--type", "task", "--title", "JSON task", "--summary", "JSON task.", "--json"]));
+  assert.equal(node.ok, true);
+  assert.equal(node.nodeId, "n:json");
+  const edge = JSON.parse(run(cwd, ["add", "edge", "--from", "n:json", "--rel", "relates_to", "--to", "n:json", "--json"]));
+  assert.ok(edge.edgeId.startsWith("e:"));
+  const response = JSON.parse(run(cwd, ["add", "response", "--type", "note", "--target", "n:json", "--summary", "Human response.", "--json"]));
+  assert.equal(response.ok, true);
+  assert.ok(runFail(cwd, ["add", "node", "--type", "task", "--title", "Bad", "--summary", "Bad.", "--status", "not-real", "--json"]).includes("--status must be one of"));
+  assert.ok(runFail(cwd, ["add", "node", "--id", "bad", "--type", "task", "--title", "Bad", "--summary", "Bad.", "--json"]).includes("--id for node must start with n:"));
+  assert.ok(runFail(cwd, ["add", "edge", "--from", "n:json", "--rel", "not_real", "--to", "n:json", "--json"]).includes("--rel must be one of"));
+  assert.ok(runFail(cwd, ["add", "edge", "--from", "bad", "--rel", "relates_to", "--to", "n:json", "--json"]).includes("--from must be a node id starting with n:"));
+  assert.ok(runFail(cwd, ["add", "edge", "--from", "n:json", "--rel", "relates_to", "--to", "bad", "--json"]).includes("--to must be a node id starting with n:"));
+});
+
+test("search finds id title summary and filters deterministically", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:upgrade-task", "--type", "task", "--title", "Implement upgrade command", "--summary", "Build the CLI upgrade command.", "--status", "in_progress", "--tag", "cli"]);
+  run(cwd, ["add", "node", "--id", "n:registry-decision", "--type", "decision", "--title", "Registry strategy", "--summary", "Upgrade should prune missing vaults.", "--status", "active"]);
+  let parsed = JSON.parse(run(cwd, ["search", "upgrade", "--json"]));
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.results.map((item: { id: string }) => item.id), ["n:upgrade-task", "n:registry-decision"]);
+  parsed = JSON.parse(run(cwd, ["search", "upgrade", "--type", "task", "--status", "in_progress", "--tag", "cli", "--json"]));
+  assert.deepEqual(parsed.results.map((item: { id: string }) => item.id), ["n:upgrade-task"]);
+  assert.ok(run(cwd, ["search", "n:upgrade-task"]).includes("n:upgrade-task"));
+});
+
+test("update node appends an upsert and event without touching compiled source", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:update", "--type", "task", "--title", "Update", "--summary", "Old.", "--tag", "old"]);
+  run(cwd, ["build"]);
+  const compiledBefore = readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8");
+  const output = JSON.parse(run(cwd, ["update", "node", "n:update", "--summary", "New.", "--status", "completed", "--tag", "new", "--anchor", "url:https://example.com/a:b", "--json"]));
+  assert.equal(output.ok, true);
+  assert.equal(output.nodeId, "n:update");
+  assert.ok(output.eventId);
+  assert.equal(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"), compiledBefore);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const node = graph.nodes.find((item: { id: string }) => item.id === "n:update");
+  assert.equal(node.summary, "New.");
+  assert.equal(node.status, "completed");
+  assert.deepEqual(node.tags, ["new", "old"]);
+  assert.deepEqual(node.anchors, [{ kind: "url", url: "https://example.com/a:b" }]);
+  assert.ok(graph.events.some((event: { type: string; target: string }) => event.type === "node_updated" && event.target === "n:update"));
+  assert.ok(!graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "duplicate_id_upsert" && diag.id === "n:update"));
+  assert.ok((await new FileAwgStorage(cwd).readLogEntries()).length >= 3);
+  assert.ok(runFail(cwd, ["update", "node", "n:update", "--status", "not-real"]).includes("--status must be one of"));
+  assert.ok(runFail(cwd, ["update", "node", "n:missing", "--status", "active"]).includes("Node not found"));
+});
+
+test("manual duplicate node upserts still warn unless paired with update event", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:dupe", "--type", "task", "--title", "Duplicate", "--summary", "First."]);
+  run(cwd, ["add", "node", "--id", "n:dupe", "--type", "task", "--title", "Duplicate", "--summary", "Second."]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "duplicate_id_upsert" && diag.id === "n:dupe"));
+});
+
+test("manual duplicate node still warns after a legitimate update event", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:mixed-dupe", "--type", "task", "--title", "Mixed", "--summary", "First."]);
+  run(cwd, ["update", "node", "n:mixed-dupe", "--summary", "Intentional update."]);
+  run(cwd, ["add", "node", "--id", "n:mixed-dupe", "--type", "task", "--title", "Mixed", "--summary", "Manual duplicate."]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "duplicate_id_upsert" && diag.id === "n:mixed-dupe"));
+});
+
+test("add evidence creates evidence node edge and satisfies completed task evidence warning", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:done", "--type", "task", "--title", "Done", "--summary", "Done.", "--status", "completed"]);
+  assert.ok(run(cwd, ["doctor", "--json"]).includes("completed_task_without_evidence"));
+  const added = JSON.parse(run(cwd, ["add", "evidence", "--target", "n:done", "--summary", "npm test passed.", "--source", "terminal", "--command", "npm test", "--status", "passed", "--json"]));
+  assert.equal(added.ok, true);
+  assert.ok(added.evidenceNodeId.startsWith("n:"));
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(graph.nodes.some((node: { id: string; type: string }) => node.id === added.evidenceNodeId && node.type === "evidence"));
+  assert.ok(graph.edges.some((edge: { from: string; to: string; rel: string }) => edge.from === added.evidenceNodeId && edge.to === "n:done" && edge.rel === "supports"));
+  assert.equal(graph.diagnostics.summary.unverified_completion_count, 0);
+  assert.ok(runFail(cwd, ["add", "evidence", "--target", "n:done", "--summary", "Bad rel.", "--rel", "not_real"]).includes("--rel must be one of"));
+  assert.ok(runFail(cwd, ["add", "evidence", "--target", "n:done", "--summary", "Bad source.", "--source", "network"]).includes("--source must be one of"));
+  assert.ok(runFail(cwd, ["add", "evidence", "--target", "n:done", "--summary", "Bad status.", "--status", "maybe"]).includes("--status must be one of"));
+  assert.ok(runFail(cwd, ["add", "evidence", "--target", "n:missing", "--summary", "Nope."]).includes("Target node not found"));
+});
+
+test("task lens and handoff include scoped context and respect budgets", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:task-a", "--type", "task", "--title", "Implement upgrade command", "--summary", "Build upgrade.", "--status", "in_progress", "--importance", "0.9"]);
+  run(cwd, ["add", "node", "--id", "n:risk-a", "--type", "risk", "--title", "Upgrade risk", "--summary", "Schema compatibility risk.", "--status", "active"]);
+  run(cwd, ["add", "node", "--id", "n:unrelated", "--type", "task", "--title", "Unrelated", "--summary", "Other work.", "--status", "active"]);
+  run(cwd, ["add", "edge", "--from", "n:task-a", "--rel", "blocks", "--to", "n:risk-a"]);
+  run(cwd, ["add", "evidence", "--target", "n:task-a", "--summary", "Focused test evidence.", "--status", "passed"]);
+  const lens = JSON.parse(run(cwd, ["lens", "task", "--goal", "upgrade command", "--budget", "900", "--json"]));
+  assert.equal(lens.id, "lens:task");
+  assert.ok(lens.sections.find((section: { section: string }) => section.section === "matches").items.some((item: { id: string }) => item.id === "n:task-a"));
+  assert.ok(JSON.stringify(lens).includes("n:risk-a"));
+  assert.ok(!JSON.stringify(lens).includes("n:unrelated"));
+  assert.ok(lens.sections.some((section: { omitted: number }) => typeof section.omitted === "number"));
+  const handoff = JSON.parse(run(cwd, ["handoff", "--budget", "1000", "--json"]));
+  assert.equal(handoff.kind, "handoff");
+  assert.ok(JSON.stringify(handoff).includes("activeTasks"));
+  assert.ok(JSON.stringify(handoff).includes("recentEvidence"));
+  const tinyHandoff = run(cwd, ["handoff", "--budget", "200", "--json"]);
+  assert.ok(tinyHandoff.length < 1800);
+  const tinyParsed = JSON.parse(tinyHandoff);
+  assert.equal(tinyParsed.sections[0].section, "graphHealth");
+  assert.ok(tinyParsed.sections.some((section: { omitted: number }) => section.omitted > 0));
+  assert.ok(run(cwd, ["handoff", "--budget", "600"]).includes("AWG handoff"));
+});
+
+test("resume lens budget json remains parseable with omitted counts", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  for (let i = 0; i < 8; i += 1) run(cwd, ["add", "node", "--id", `n:item-${i}`, "--type", "task", "--title", `Item ${i}`, "--summary", "Budget item.", "--importance", "0.9"]);
+  run(cwd, ["build"]);
+  const lens = JSON.parse(run(cwd, ["lens", "resume", "--budget", "500", "--json"]));
+  assert.equal(lens.id, "lens:resume");
+  assert.ok(typeof lens.important_omitted === "number");
+});
+
+test("recent command reports recent nodes and evidence", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:recent", "--type", "task", "--title", "Recent", "--summary", "Recent.", "--status", "completed"]);
+  run(cwd, ["add", "evidence", "--target", "n:recent", "--summary", "Recent evidence.", "--status", "passed"]);
+  const recent = JSON.parse(run(cwd, ["recent", "--days", "7", "--json"]));
+  assert.equal(recent.kind, "recent");
+  assert.ok(recent.nodes.some((node: { id: string }) => node.id === "n:recent"));
+  assert.ok(recent.evidence.length >= 1);
+  assert.equal(run(cwd, ["recent", "--days", "7", "--json"]), run(cwd, ["recent", "--days", "7", "--json"]));
+});
+
+test("recent command does not call stale historical graph entries recent", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2020/01/2020-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ awg: "0.1", kind: "node", id: "n:old", type: "task", title: "Old", summary: "Old.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2020-01-01T00:00:00.000Z", updated_at: "2020-01-01T00:00:00.000Z" })}\n`);
+  const recent = JSON.parse(run(cwd, ["recent", "--days", "7", "--json"]));
+  assert.equal(recent.nodes.some((node: { id: string }) => node.id === "n:old"), false);
 });
 
 test("current-vault commands work from a project subdirectory", () => {

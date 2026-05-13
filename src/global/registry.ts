@@ -25,6 +25,13 @@ export interface Registry {
   [key: string]: unknown;
 }
 
+export type VaultRegistryStatus = "ok" | "missing" | "invalid";
+
+export interface VaultRegistryState {
+  status: VaultRegistryStatus;
+  reason: string;
+}
+
 export const GLOBAL_VERSION = "0.1";
 
 export function globalAwgDir(): string {
@@ -153,6 +160,43 @@ export async function vaultHealth(vaultPath: string): Promise<{ exists: boolean;
   }
 }
 
+export async function vaultRegistryState(vaultPath: string): Promise<VaultRegistryState> {
+  if (!(await pathExists(vaultPath))) return { status: "missing", reason: "path does not exist" };
+  if (!(await directoryExists(vaultPath))) return { status: "invalid", reason: "path is not a directory" };
+  if (!(await isPlausibleAwgDir(vaultPath))) return { status: "invalid", reason: "path exists but is not a plausible current AWG vault" };
+  return { status: "ok", reason: "plausible AWG vault" };
+}
+
+export async function missingVaultEntries(): Promise<Array<VaultEntry & { health: Awaited<ReturnType<typeof vaultHealth>>; state: VaultRegistryState }>> {
+  const registry = await readRegistry();
+  const rows = [];
+  for (const vault of registry.vaults) {
+    const health = await vaultHealth(vault.path);
+    const state = await vaultRegistryState(vault.path);
+    if (state.status !== "ok") rows.push({ ...vault, health, state });
+  }
+  return rows;
+}
+
+export async function pruneMissingVaults(options: { dryRun?: boolean; yes?: boolean } = {}): Promise<{ missing: VaultEntry[]; pruned: VaultEntry[]; skipped: Array<VaultEntry & { state: VaultRegistryState }> }> {
+  const registry = await readRegistry();
+  const missing: VaultEntry[] = [];
+  const kept: VaultEntry[] = [];
+  const skipped: Array<VaultEntry & { state: VaultRegistryState }> = [];
+  for (const vault of registry.vaults) {
+    const state = await vaultRegistryState(vault.path);
+    if (state.status === "ok") kept.push(vault);
+    else if (state.status === "missing") missing.push(vault);
+    else {
+      kept.push(vault);
+      skipped.push({ ...vault, state });
+    }
+  }
+  if (options.dryRun || !options.yes) return { missing, pruned: [], skipped: [...missing.map((vault) => ({ ...vault, state: { status: "missing" as const, reason: "path does not exist" } })), ...skipped] };
+  await writeRegistry({ ...registry, vaults: kept });
+  return { missing, pruned: missing, skipped };
+}
+
 export async function isPlausibleAwgDir(vaultPath: string): Promise<boolean> {
   if (await samePath(vaultPath, globalAwgDir())) return false;
   if (!(await fileExists(path.join(vaultPath, "config.json"))) || !(await directoryExists(path.join(vaultPath, "log")))) return false;
@@ -252,6 +296,10 @@ async function directoryExists(file: string): Promise<boolean> {
 }
 
 async function exists(file: string): Promise<boolean> {
+  return pathExists(file);
+}
+
+async function pathExists(file: string): Promise<boolean> {
   try {
     await fs.access(file);
     return true;

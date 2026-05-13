@@ -48,6 +48,46 @@
   },
   {
     "awg": "0.1",
+    "confidence": 0.8,
+    "created_at": "2026-05-13T00:10:20.111Z",
+    "evidence": [
+      {
+        "at": "2026-05-13T00:10:20.233Z",
+        "id": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+        "source": "terminal",
+        "status": "passed",
+        "summary": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON."
+      },
+      {
+        "at": "2026-05-13T00:52:23.427Z",
+        "id": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+        "source": "terminal",
+        "status": "passed",
+        "summary": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors."
+      }
+    ],
+    "id": "n:awg-v14-agent-retrieval-maintenance",
+    "importance": 0.9,
+    "kind": "node",
+    "provenance": {
+      "created_by": "agent:codex",
+      "human_approved": false,
+      "source": "agent_generated",
+      "updated_by": "agent:codex"
+    },
+    "status": "completed",
+    "summary": "Completed with adversarial review loops. Fixed anchor parsing, add validation, evidence relation validation, duplicate-upsert diagnostics, wall-clock recent semantics, registry prune invalid-vault skipping, and graph-health-first handoff budgeting.",
+    "tags": [
+      "v1.4",
+      "retrieval",
+      "maintenance"
+    ],
+    "title": "AWG V1.4 agent retrieval and maintenance ergonomics",
+    "type": "task",
+    "updated_at": "2026-05-13T00:52:23.427Z"
+  },
+  {
+    "awg": "0.1",
     "body": "src/cli/index.ts dispatches commands. add supports node/edge/response. build/validate/doctor/lens/view wrap compiler outputs. open prints or launches static viewer files and supports --global/--no-launch. setup/register/vault manage the global registry. instructions installs managed agent snippets. upgrade updates project vault scaffolding and instruction blocks.",
     "confidence": 0.95,
     "created_at": "2026-05-12T18:42:28.389Z",
@@ -168,6 +208,22 @@
   },
   {
     "awg": "0.1",
+    "command": "npm run typecheck && npm test && temp-vault smoke && npm pack --dry-run --json && awg build && awg doctor",
+    "confidence": 0.8,
+    "created_at": "2026-05-13T00:52:23.427Z",
+    "evidence_status": "passed",
+    "id": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+    "importance": 0.5,
+    "kind": "node",
+    "source": "terminal",
+    "status": "active",
+    "summary": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors.",
+    "title": "Final peer review loop cleared: two final reviewers found no blockers; npm run t",
+    "type": "evidence",
+    "updated_at": "2026-05-13T00:52:23.427Z"
+  },
+  {
+    "awg": "0.1",
     "body": "For future agents: avoid broad abstractions unless they remove real complexity; prefer repo patterns; keep dependencies minimal; update docs/tests with every CLI behavior change; run awg build and awg doctor before stopping; record durable architecture decisions, risks, and human feedback as AWG nodes/edges/responses.",
     "confidence": 0.9,
     "created_at": "2026-05-12T18:42:29.372Z",
@@ -261,6 +317,22 @@
     "title": "Local-first scope boundary",
     "type": "constraint",
     "updated_at": "2026-05-12T18:42:27.857Z"
+  },
+  {
+    "awg": "0.1",
+    "command": "npm run typecheck && npm test; fresh temp-vault CLI smoke",
+    "confidence": 0.8,
+    "created_at": "2026-05-13T00:10:20.233Z",
+    "evidence_status": "passed",
+    "id": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+    "importance": 0.5,
+    "kind": "node",
+    "source": "terminal",
+    "status": "active",
+    "summary": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON.",
+    "title": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with",
+    "type": "evidence",
+    "updated_at": "2026-05-13T00:10:20.233Z"
   },
   {
     "awg": "0.1",

@@ -163,9 +163,9 @@
   "awg": "0.1",
   "diagnostics_summary": {
     "dangling_edge_count": 0,
-    "edge_count": 26,
+    "edge_count": 28,
     "fatal_error_count": 0,
-    "node_count": 26,
+    "node_count": 29,
     "ok": true,
     "orphan_node_count": 0,
     "stale_node_count": 1,
@@ -173,7 +173,7 @@
     "unverified_completion_count": 0,
     "warning_count": 4
   },
-  "generated_at": "2026-05-12T23:52:20.223Z",
+  "generated_at": "2026-05-13T00:52:23.427Z",
   "id": "lens:resume",
   "important": [
     {
@@ -222,6 +222,46 @@
       "title": "AWG V1.3 human surface framework",
       "type": "task",
       "updated_at": "2026-05-12T19:13:21.374Z"
+    },
+    {
+      "awg": "0.1",
+      "confidence": 0.8,
+      "created_at": "2026-05-13T00:10:20.111Z",
+      "evidence": [
+        {
+          "at": "2026-05-13T00:10:20.233Z",
+          "id": "n:npm-run-typecheck-and-npm-test-passed-fresh-temp-d3025d6d",
+          "source": "terminal",
+          "status": "passed",
+          "summary": "npm run typecheck and npm test passed; fresh temp-vault CLI smoke completed with parseable search and handoff JSON."
+        },
+        {
+          "at": "2026-05-13T00:52:23.427Z",
+          "id": "n:final-peer-review-loop-cleared-two-final-reviewe-1d003d6a",
+          "source": "terminal",
+          "status": "passed",
+          "summary": "Final peer review loop cleared: two final reviewers found no blockers; npm run typecheck, npm test 95/95, temp-vault smoke, npm pack dry run, awg build, and awg doctor passed with 0 fatal errors."
+        }
+      ],
+      "id": "n:awg-v14-agent-retrieval-maintenance",
+      "importance": 0.9,
+      "kind": "node",
+      "provenance": {
+        "created_by": "agent:codex",
+        "human_approved": false,
+        "source": "agent_generated",
+        "updated_by": "agent:codex"
+      },
+      "status": "completed",
+      "summary": "Completed with adversarial review loops. Fixed anchor parsing, add validation, evidence relation validation, duplicate-upsert diagnostics, wall-clock recent semantics, registry prune invalid-vault skipping, and graph-health-first handoff budgeting.",
+      "tags": [
+        "v1.4",
+        "retrieval",
+        "maintenance"
+      ],
+      "title": "AWG V1.4 agent retrieval and maintenance ergonomics",
+      "type": "task",
+      "updated_at": "2026-05-13T00:52:23.427Z"
     },
     {
       "awg": "0.1",
@@ -622,30 +662,6 @@
       "title": "Demo: overview sections may overfill",
       "type": "risk",
       "updated_at": "2026-05-12T22:46:17.118Z"
-    },
-    {
-      "awg": "0.1",
-      "body": "Recent hardening added component-wise lstat checks for init, upgrade, instruction installation, global registry writes, and global switcher writes. Tests cover symlinked root instruction files, schema files, managed parent directories, global registry files, and global compiled directories. Preserve this boundary when adding new write paths.",
-      "confidence": 0.95,
-      "created_at": "2026-05-12T18:42:28.810Z",
-      "id": "n:path-boundary-safety",
-      "importance": 1,
-      "kind": "node",
-      "provenance": {
-        "created_by": "agent:codex",
-        "human_approved": false,
-        "source": "agent_generated",
-        "updated_by": "agent:codex"
-      },
-      "status": "active",
-      "summary": "Managed writes must stay inside intended project/.awg or ~/.awg control-plane paths and must not follow symlinked write targets or parent directories.",
-      "tags": [
-        "security",
-        "filesystem"
-      ],
-      "title": "Path-boundary and symlink safety",
-      "type": "constraint",
-      "updated_at": "2026-05-12T18:42:28.810Z"
     }
   ],
   "kind": "lens-output",
@@ -802,7 +818,7 @@
   "recommended_maintenance": [
     "Review stale nodes and update freshness metadata."
   ],
-  "summary": "26 nodes, 26 edges, 4 warnings, 0 fatal errors.",
+  "summary": "29 nodes, 28 edges, 4 warnings, 0 fatal errors.",
   "unanswered_questions": [
     {
       "awg": "0.1",

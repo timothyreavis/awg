@@ -140,27 +140,29 @@ function parsePack(value: string): Pack {
 function codexTemplate(): string {
   return `# AWG Agent Loop
 
-- Start by running \`awg lens resume\`.
+- Start by running \`awg handoff\` or \`awg lens resume\`.
 - If the lens is missing or stale, run \`awg build\`, then rerun \`awg lens resume\`.
+- Use \`awg search <query>\` before creating duplicate nodes.
+- Use \`awg lens task --goal "..."\` for scoped work context.
 - Add durable knowledge as AWG nodes, edges, responses, or events.
-- Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits.
+- Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
 - Keep stale blockers, risks, decisions, partial work, and evidence current.
 - Before finishing, run \`awg build\` and \`awg doctor\`.
 - Fix validation errors before stopping.
-- Ensure \`awg lens resume\` reflects the current project state.`;
+- End with \`awg handoff\` so the next agent has a compact briefing.`;
 }
 
 function claudeCodeTemplate(): string {
   return `# AWG Claude Code Snippet
 
-This project uses AWG as local durable project memory. Start with \`awg lens resume\`, record durable facts/decisions/risks/tasks with AWG commands, then run \`awg build\` and \`awg doctor\` before finishing.
+This project uses AWG as local durable project memory. Start with \`awg handoff\` or \`awg lens resume\`, use \`awg search\` and \`awg lens task --goal "..."\` before adding context, record updates with AWG commands, then run \`awg build\`, \`awg doctor\`, and \`awg handoff\` before finishing.
 `;
 }
 
 function antigravityTemplate(): string {
   return `# AWG Antigravity Snippet
 
-Use the project-local .awg vault only. Start with \`awg lens resume\`, add durable knowledge through AWG commands, run \`awg build\` and \`awg doctor\`, and fix validation errors before finishing.
+Use the project-local .awg vault only. Start with \`awg handoff\` or \`awg lens resume\`, use \`awg search\` before creating nodes, scope work with \`awg lens task --goal "..." \`, update/evidence through AWG commands, then run \`awg build\`, \`awg doctor\`, and \`awg handoff\`.
 `;
 }
 
