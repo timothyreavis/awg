@@ -116,5 +116,14 @@
     "nodes": 2,
     "responses": 0
   },
+  "topology": {
+    "crossVaultRefs": [],
+    "currentVault": null,
+    "diagnostics": [],
+    "directNeighbors": [],
+    "generatedAt": "2026-05-11T00:00:00.000Z",
+    "relationships": [],
+    "schemaVersion": 1
+  },
   "views": []
 }

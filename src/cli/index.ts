@@ -62,6 +62,9 @@ Commands:
   vault list [--missing] [--json]
   vault info [--json]
   vault prune [--dry-run] [--yes] [--json]
+  vault link --to <vault> --rel <rel> [--from <vault|current>] [--summary <text>] [--confidence <0..1>] [--visibility summary|private|full] [--json]
+  vault unlink --relationship <relationship-id> [--json]
+  vault topology [--depth <n>] [--json]
   instructions list
   instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
   add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--evidence-required] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]

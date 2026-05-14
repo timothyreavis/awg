@@ -311,6 +311,7 @@ function vaultAgentsTemplate(): string {
 
 Start of session:
 - Run \`awg handoff\`.
+- Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
@@ -320,6 +321,7 @@ Start of session:
 During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
+- Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.

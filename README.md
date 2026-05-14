@@ -99,6 +99,8 @@ awg vault list
 awg vault list --missing
 awg vault prune --dry-run
 awg vault info
+awg vault link --to <vault> --rel depends_on --summary "Why this project matters"
+awg vault topology --json
 ```
 
 `awg init` registers the new project by default when `~/.awg` already exists. Use `awg init --no-register` to opt out. If `~/.awg` does not exist, `awg init` still creates the project `.awg` vault and prints normal output.
@@ -223,7 +225,7 @@ Use `awg add evidence --target <node-id> --summary "..."` when claiming work is 
 
 The `examples/realistic-agent-loop` fixture is a compact dogfood project with active and completed work, evidence, duplicate-ish nodes, orphans, stale review state, risks, blockers, decisions, questions, responses, and multiple runs. It is intended for tests, docs, demos, and manual viewer inspection.
 
-`awg vault list --missing` reports registry entries whose paths are missing or no longer look like current AWG vaults. `awg vault prune --yes` removes only paths that no longer exist; existing but invalid/incompatible vault paths are reported as skipped so registry pointers are not dropped during migrations or repairs.
+`awg vault list --missing` reports registry entries whose paths are missing or no longer look like current AWG vaults. `awg vault prune --yes` removes only paths that no longer exist; existing but invalid/incompatible vault paths are reported as skipped so registry pointers are not dropped during migrations or repairs. V1.8 adds explicit cross-project topology in `~/.awg/registry.json` through `relationships[]`: use `awg vault link`, `awg vault unlink --relationship <id>`, and `awg vault topology --json` to manage/read direct vault relationships. AWG surfaces compact related-vault context from already-built neighbor summaries, but graph writes remain scoped to the current project vault. To update another vault, switch into that project and run AWG there, or leave a local cross-vault handoff task.
 
 Nodes may optionally include generic `anchors` for retrieval and handoff context:
 

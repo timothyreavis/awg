@@ -1,6 +1,7 @@
 import type { AgentRun, RunSummary } from "./runs.js";
 import { isBlockDiagnosticCode } from "./blocks.js";
 import { hasEvidenceReference } from "./evidence.js";
+import { runIdFromObject } from "./runAttribution.js";
 import type { CompiledGraph } from "./types.js";
 
 export interface RunPreflightWarning {
@@ -49,12 +50,33 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   addNodeWarning("AWG_RUN_INVALID_BLOCK_TOUCHED", "Touched node has invalid or unsupported presentation blocks.", idsForDiagnostics(summary, isBlockDiagnosticCode), "Replace node blocks with supported V1.7 data primitives.");
   addNodeWarning("AWG_RUN_TEMPLATE_FIELD_MISSING", "Touched node is missing a field required by the active operating template.", idsForDiagnostics(summary, "missing_required_field"), "Update the node with the required structured field.");
   addNodeWarning("AWG_RUN_SENSITIVE_VALUE_TOUCHED", "Touched node appears to contain a secret-like value.", idsForDiagnostics(summary, "sensitive_value_detected"), "Redact the value and keep only a safe reference.");
+  const unresolvedCrossVault = touched.filter((id) => hasUnhandledCrossVaultImpact(nodes.get(id), run.id, graph.nodes));
+  addNodeWarning("AWG_RUN_CROSS_VAULT_IMPACT_UNHANDLED", "Touched node has open cross-vault impact with no same-run handoff task.", unresolvedCrossVault, "Update the target vault explicitly, or create a task with fields.kind=cross_vault_handoff and fields.targetVaultId.");
 
   if (!run.notes.length) warnings.push({ code: "AWG_RUN_NO_NOTES", severity: "warning", message: "Run has no notes.", suggestedFix: "Run `awg run note \"...\"` with meaningful progress or blockers." });
   if (!touched.length && !(summary?.createdEdgeIds.length || summary?.responseIds.length || summary?.evidenceNodeIds.length)) warnings.push({ code: "AWG_RUN_NO_CHANGES", severity: "warning", message: "Run has no changed or touched graph objects.", suggestedFix: "Record durable work before finishing, or finish as partial/abandoned." });
   if (!summary?.handoffGenerated) warnings.push({ code: "AWG_RUN_NO_HANDOFF", severity: "warning", message: "Run has no recorded handoff yet.", suggestedFix: "Use `awg run finish --auto-handoff` or `awg handoff`." });
 
   return { ok: warnings.length === 0, warnings: dedupeWarnings(warnings) };
+}
+
+function hasUnhandledCrossVaultImpact(node: unknown, runId: string, nodes: Map<string, CompiledGraph["nodes"][number]> | CompiledGraph["nodes"]): boolean {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+  const record = node as CompiledGraph["nodes"][number];
+  const refs = record.fields?.crossVaultRefs;
+  if (!Array.isArray(refs)) return false;
+  const open = refs.filter((ref) => {
+    const item = ref && typeof ref === "object" && !Array.isArray(ref) ? ref as Record<string, unknown> : {};
+    return typeof item.vaultId === "string" && !["reviewed", "resolved", "handoff_recorded"].includes(String(item.status ?? "open"));
+  }) as Array<Record<string, unknown>>;
+  if (!open.length) return false;
+  const allNodes = nodes instanceof Map ? [...nodes.values()] : nodes;
+  return !open.every((ref) => allNodes.some((candidate) => {
+    const fields = candidate.fields ?? {};
+    const sourceRunId = typeof fields.sourceRunId === "string" ? fields.sourceRunId : undefined;
+    const sourceNodeIds = Array.isArray(fields.sourceNodeIds) ? fields.sourceNodeIds : [];
+    return candidate.type === "task" && fields.kind === "cross_vault_handoff" && fields.targetVaultId === ref.vaultId && runIdFromObject(candidate) === runId && (sourceRunId === runId || sourceNodeIds.includes(record.id));
+  }));
 }
 
 export function qualityForRun(graph: CompiledGraph, run: AgentRun | undefined, preflight?: RunPreflightResult): HandoffQuality {
@@ -76,7 +98,8 @@ export function qualityForRun(graph: CompiledGraph, run: AgentRun | undefined, p
     { id: "template_conflicts_absent", ok: (graph.operating_templates?.conflicts.length ?? 0) === 0, weight: 5, count: graph.operating_templates?.conflicts.length ?? 0 },
     { id: "invalid_blocks_absent_for_touched_nodes", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_INVALID_BLOCK_TOUCHED"), weight: 10 },
     { id: "template_required_fields_present", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_TEMPLATE_FIELD_MISSING"), weight: 10 },
-    { id: "secret_like_values_absent", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_SENSITIVE_VALUE_TOUCHED"), weight: 10 }
+    { id: "secret_like_values_absent", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_SENSITIVE_VALUE_TOUCHED"), weight: 10 },
+    { id: "cross_vault_impacts_handled", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_CROSS_VAULT_IMPACT_UNHANDLED"), weight: 10 }
   ];
   const total = checks.reduce((sum, check) => sum + check.weight, 0);
   const earned = checks.reduce((sum, check) => sum + (check.ok ? check.weight : 0), 0);

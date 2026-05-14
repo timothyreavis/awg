@@ -256,6 +256,7 @@ export interface CompiledGraph {
   run_summaries?: unknown[];
   operating_templates?: OperatingTemplateIndex;
   anchor_index?: AnchorIndex;
+  topology?: unknown;
 }
 
 export interface ResumeLensOutput {

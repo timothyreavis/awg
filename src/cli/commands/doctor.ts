@@ -45,5 +45,9 @@ function suggestFix(diag: { code: string; id?: string; fixSuggestion?: unknown }
   if (diag.code === "active_blocker_linked_to_resolved_work") return { code: "AWG_HEALTH_REVIEW_ACTIVE_BLOCKER", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status resolved`] };
   if (diag.code === "decision_implemented_while_proposed") return { code: "AWG_HEALTH_REVIEW_PROPOSED_DECISION", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };
   if (diag.code === "dangling_edge") return { code: "AWG_HEALTH_DANGLING_EDGE", edgeIds: [id], suggestedCommands: ["Create the missing endpoint node, or add a corrective/superseding edge."] };
+  if (diag.code === "topology_missing_related_vault" || diag.code === "topology_related_vault_missing_or_invalid") return { code: "AWG_TOPOLOGY_REPAIR_RELATED_VAULT", edgeIds: [id], suggestedCommands: ["Run `awg vault topology --json`, then register the target project from its folder with `awg register --name <name>`."] };
+  if (diag.code === "topology_related_vault_not_built") return { code: "AWG_TOPOLOGY_BUILD_RELATED_VAULT", edgeIds: [id], suggestedCommands: ["Run `awg build` inside the related vault, then rerun `awg vault topology --json`."] };
+  if (diag.code === "topology_related_vault_compiled_artifact_unsafe" || diag.code === "topology_related_vault_compiled_artifact_invalid") return { code: "AWG_TOPOLOGY_REBUILD_RELATED_VAULT", edgeIds: [id], suggestedCommands: ["Inspect the related vault .awg/compiled artifacts, remove unsafe symlinks if present, then run `awg build` inside that vault."] };
+  if (diag.code === "invalid_cross_vault_refs") return { code: "AWG_TOPOLOGY_REVIEW_CROSS_VAULT_REFS", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };
   return undefined;
 }

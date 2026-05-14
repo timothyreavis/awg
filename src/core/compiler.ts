@@ -8,6 +8,7 @@ import { buildRunSummaries } from "./runs.js";
 import { parseAndValidate } from "./validation.js";
 import { renderStaticSite } from "./renderStaticSite.js";
 import { buildCurrentView } from "./views.js";
+import { buildTopologyIndex } from "./topology.js";
 import type { AwgEdge, AwgLens, AwgNode, AwgObject, AwgPolicy, AwgResponse, AwgView, BuildResult, CompiledGraph, Diagnostic } from "./types.js";
 import type { AwgStorage } from "../storage/AwgStorage.js";
 
@@ -80,6 +81,11 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   const sortedResponses = [...responses.values()].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   const operatingTemplates = buildOperatingTemplateIndex(sortedNodes);
   const anchorIndex = buildAnchorIndex(sortedNodes);
+  let topology = undefined as Awaited<ReturnType<typeof buildTopologyIndex>> | undefined;
+  if ("root" in storage && typeof (storage as { root?: unknown }).root === "string") {
+    topology = await buildTopologyIndex({ awg: AWG_VERSION, generated_at: generatedAt, source: { log_files: [], entry_count: 0 }, stats: {}, nodes: sortedNodes, edges: sortedEdges, events: events as never, views: [], lenses: [], responses: sortedResponses, policies: [], diagnostics: { awg: AWG_VERSION, generated_at: generatedAt, summary: emptySummary(sortedNodes.length, sortedEdges.length), diagnostics: [] } }, (storage as { root: string }).root);
+    diagnostics.push(...topology.diagnostics);
+  }
   const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, events as never, diagnostics, strict, config, operatingTemplates);
   const diagnosticsReport = { awg: AWG_VERSION, generated_at: generatedAt, summary: diag.summary, diagnostics: diag.diagnostics };
   const graph: CompiledGraph = {
@@ -96,7 +102,8 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     policies: [...policies.values()].sort(byId),
     diagnostics: diagnosticsReport,
     operating_templates: operatingTemplates,
-    anchor_index: anchorIndex
+    anchor_index: anchorIndex,
+    topology
   };
   graph.run_summaries = buildRunSummaries(graph);
   const resumeLens = buildResumeLens(sortedNodes, sortedResponses, diag.summary, diag.recommended, generatedAt);
@@ -170,6 +177,11 @@ async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): P
   await storage.writeCompiledArtifact("indexes/tags.json", tags);
   if (graph.operating_templates) await storage.writeCompiledArtifact("indexes/operating-templates.json", graph.operating_templates);
   if (graph.anchor_index) await storage.writeCompiledArtifact("indexes/anchors.json", graph.anchor_index);
+  if (graph.topology) await storage.writeCompiledArtifact("indexes/topology.json", graph.topology as object);
+}
+
+function emptySummary(nodes: number, edges: number): CompiledGraph["diagnostics"]["summary"] {
+  return { ok: true, fatal_error_count: 0, warning_count: 0, node_count: nodes, edge_count: edges, orphan_node_count: 0, stale_node_count: 0, unverified_completion_count: 0, dangling_edge_count: 0, unanswered_question_count: 0 };
 }
 
 async function writeFailedBuildArtifacts(storage: AwgStorage, diagnostics: CompiledGraph["diagnostics"], resumeLens: unknown, currentView: unknown): Promise<void> {

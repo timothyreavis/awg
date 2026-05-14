@@ -275,6 +275,7 @@ function codexTemplate(): string {
 
 Start of session:
 - Run \`awg handoff\`.
+- Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
@@ -284,6 +285,7 @@ Start of session:
 During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
+- Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Durable writes automatically attach to the active run. Use \`--run <run-id>\` for an explicit active run or \`--no-run\` to suppress attribution.
 - Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for references.
 - Link related nodes by AWG node ID.
@@ -310,13 +312,13 @@ Anti-patterns:
 function claudeCodeTemplate(): string {
   return `# AWG Claude Code Snippet
 
-This project uses AWG as local durable project memory. Start with \`awg handoff\`, then \`awg run start --goal "<goal>"\`. Use \`awg search\`, \`awg template status --goal "<goal>" --json\`, and \`awg lens task --goal "<goal>"\` before adding context; use \`awg node show <node-id> --json\` when you need a surfaced node's full detail. Durable writes automatically attach to the active run; use fields, safe blocks, freshness, and anchors when helpful; add run notes and evidence for completed work. Before finishing, update stale statuses, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, then finish with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
+This project uses AWG as local durable project memory. Start with \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`. Use \`awg search\`, \`awg template status --goal "<goal>" --json\`, and \`awg lens task --goal "<goal>"\` before adding context; use \`awg node show <node-id> --json\` when you need a surfaced node's full detail. Durable writes automatically attach to the active run; use fields, safe blocks, freshness, and anchors when helpful; add run notes and evidence for completed work. Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates. Before finishing, update stale statuses, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, then finish with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }
 
 function antigravityTemplate(): string {
   return `# AWG Antigravity Snippet
 
-Use the project-local .awg vault only. Start with \`awg handoff\`, then \`awg run start --goal "<goal>"\`. Use \`awg search\` before creating nodes, inspect \`awg template status --goal "<goal>" --json\`, scope work with \`awg lens task --goal "<goal>"\`, and inspect full surfaced nodes with \`awg node show <node-id> --json\` when needed. Update existing nodes, use structured fields/safe blocks/freshness/anchors when useful, add run notes, attach evidence for completed work, then run \`awg build\`, \`awg doctor --fix-suggestions --json\`, and \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
+Use the project-local .awg vault only. Start with \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`. Use \`awg search\` before creating nodes, inspect \`awg template status --goal "<goal>" --json\`, scope work with \`awg lens task --goal "<goal>"\`, and inspect full surfaced nodes with \`awg node show <node-id> --json\` when needed. Update existing nodes, use structured fields/safe blocks/freshness/anchors when useful, add run notes, attach evidence for completed work, write only to the current explicit target vault, then run \`awg build\`, \`awg doctor --fix-suggestions --json\`, and \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }

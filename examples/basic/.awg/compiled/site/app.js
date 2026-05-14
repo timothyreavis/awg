@@ -6,8 +6,10 @@ const diagnostics = data.diagnostics || graph.diagnostics || { summary: {}, diag
 const resumeLens = data.resumeLens;
 const byId = new Map(graph.nodes.map((node) => [node.id, node]));
 const diagnosticsByNode = groupDiagnostics(diagnostics.diagnostics || []);
+const topology = graph.topology || data.topology || { directNeighbors: [], relationships: [], diagnostics: [] };
 const routes = [
   ["overview", "Overview"],
+  ["topology", "Topology"],
   ["graph", "Graph"],
   ["kanban", "Kanban"],
   ["nodes", "Nodes"],
@@ -85,6 +87,7 @@ function renderRoute() {
   else if (parsed.route === "graph") root.innerHTML = renderGraphRoute(parsed.params);
   else if (parsed.route === "kanban") root.innerHTML = renderKanbanRoute(parsed.params);
   else if (parsed.route === "nodes") root.innerHTML = renderNodesRoute(parsed.params);
+  else if (parsed.route === "topology") root.innerHTML = renderTopologyRoute();
   else if (parsed.route === "runs") root.innerHTML = renderRunsRoute();
   else if (parsed.route === "health") root.innerHTML = renderHealthRoute(parsed.params);
   else if (parsed.route === "views") root.innerHTML = renderViewsRoute(parsed.params);
@@ -129,6 +132,17 @@ function renderOverview() {
   if (!graph.nodes.length) return '<div class="empty"><h2>No graph yet</h2><p>Add AWG nodes, run <code>awg build</code>, then reopen the viewer.</p></div>';
   const blocks = buildOverviewBlocks();
   return '<div class="surface-grid">' + blocks.map(renderBlock).join("") + '</div>';
+}
+
+function renderTopologyRoute() {
+  const current = topology.currentVault;
+  const neighbors = topology.directNeighbors || [];
+  const rels = topology.relationships || [];
+  const header = current ? '<section class="panel"><h2>' + esc(current.name || "Current vault") + '</h2><p><code>' + esc(current.id || "") + '</code></p><p class="muted">' + esc(current.path || "") + '</p></section>' : '<section class="panel"><h2>No registered current vault</h2><p class="muted">Run <code>awg register</code> in this project.</p></section>';
+  const neighborCards = neighbors.length ? neighbors.map((vault) => '<section class="panel"><div class="chip-row">' + badge(vault.stale ? "stale/missing" : "ok", "status") + badge(vault.scope || "project", "type") + '</div><h2>' + esc(vault.name || vault.id) + '</h2><p><code>' + esc(vault.id || "") + '</code></p><p class="muted">' + esc(vault.path || "") + '</p><p>' + esc(vault.summary?.text || "") + '</p><h3>Why surfaced</h3><div class="chip-row">' + (vault.whySurfaced || []).map((why) => '<span class="badge type">' + esc(why) + '</span>').join("") + '</div></section>').join("") : '<section class="panel"><h2>No direct neighbors</h2><p class="muted">Create explicit links with <code>awg vault link</code>.</p></section>';
+  const relationshipRows = rels.length ? '<section class="panel span-2"><h2>Relationships</h2><table><thead><tr><th>ID</th><th>Relationship</th><th>Direction</th><th>Summary</th></tr></thead><tbody>' + rels.map((rel) => '<tr><td><code>' + esc(rel.id) + '</code></td><td>' + esc(rel.rel || "") + '</td><td>' + esc(rel.direction || "") + '</td><td>' + esc(rel.summary || "") + '</td></tr>').join("") + '</tbody></table></section>' : "";
+  const diagRows = (topology.diagnostics || []).length ? '<section class="panel span-2"><h2>Topology Health</h2>' + renderDiagnostics(topology.diagnostics || []) + '</section>' : "";
+  return '<div class="surface-grid">' + header + neighborCards + relationshipRows + diagRows + '</div>';
 }
 
 function buildOverviewBlocks() {
@@ -280,6 +294,7 @@ function renderNodeDetail(id) {
   const evidenceCount = Array.isArray(node.evidence) ? node.evidence.length : 0;
   const nodeEvents = (graph.events || []).filter((event) => event.target === id);
   const sections = [
+    Array.isArray(node.fields?.crossVaultRefs) ? nodeSection("Cross-Vault References", renderKeyValueTable({ crossVaultRefs: node.fields.crossVaultRefs })) : "",
     nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
     Array.isArray(node.blocks) && node.blocks.length ? nodeSection("Structured View", node.blocks.map(renderNodeAuthoredBlock).join("")) : "",
     outgoing.length || incoming.length ? nodeSection("Connected work", renderRelationshipIndex(outgoing, incoming)) : "",

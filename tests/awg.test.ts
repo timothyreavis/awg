@@ -37,7 +37,7 @@ function tempHome(): string {
   return mkdtempSync(path.join(tmpdir(), "awg-home-"));
 }
 
-function readRegistry(home: string): { vaults: Array<{ path: string; name: string; [key: string]: unknown }> } {
+function readRegistry(home: string): { vaults: Array<{ id: string; path: string; name: string; [key: string]: unknown }>; relationships?: Array<Record<string, unknown>>; [key: string]: unknown } {
   return JSON.parse(readFileSync(path.join(home, ".awg/registry.json"), "utf8"));
 }
 
@@ -332,6 +332,24 @@ test("register refuses symlinked global registry files", () => {
   const output = runFail(cwd, ["register"], { HOME: home });
   assert.ok(output.includes("Refusing to access symlink"));
   assert.deepEqual(JSON.parse(readFileSync(outside, "utf8")).vaults, []);
+});
+
+test("register refuses symlinked project config before identity backfill", () => {
+  const cwd = tmp();
+  const home = tempHome();
+  const outside = tmp();
+  const outsideConfig = path.join(outside, "config.json");
+  mkdirSync(path.join(cwd, ".awg/log"), { recursive: true });
+  writeFileSync(outsideConfig, JSON.stringify({
+    awg: "0.1",
+    project: { title: "Unsafe" },
+    storage: { adapter: "file", canonical: ".awg/log/**/*.awg.jsonl" }
+  }, null, 2));
+  symlinkSync(outsideConfig, path.join(cwd, ".awg/config.json"));
+  const before = readFileSync(outsideConfig, "utf8");
+  const output = runFail(cwd, ["register", "--name", "Unsafe"], { HOME: home });
+  assert.ok(output.includes("Refusing to access symlink"));
+  assert.equal(readFileSync(outsideConfig, "utf8"), before);
 });
 
 test("register and unregister work from a project subdirectory", () => {
@@ -1941,4 +1959,160 @@ test("upgrade --all updates registered vaults and reports skipped missing vaults
   assert.ok(output.includes("SKIPPED Missing"));
   assert.deepEqual(JSON.parse(readFileSync(path.join(one, ".awg/schema/core/node.schema.json"), "utf8")), schemaForFile("node"));
   assert.deepEqual(JSON.parse(readFileSync(path.join(two, ".awg/schema/core/node.schema.json"), "utf8")), schemaForFile("node"));
+});
+
+test("vault registration persists stable identity and preserves relationships", () => {
+  const home = tempHome();
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"], { HOME: home });
+  run(cwd, ["register", "--name", "Moved"], { HOME: home });
+  const first = readRegistry(home);
+  const id = first.vaults[0].id;
+  assert.ok(id.startsWith("vault:"));
+  const config = JSON.parse(readFileSync(path.join(cwd, ".awg/config.json"), "utf8"));
+  assert.equal(config.vault.id, id);
+  const moved = path.join(tmp(), "moved");
+  cpSync(cwd, moved, { recursive: true });
+  run(moved, ["register", "--name", "Moved Again"], { HOME: home });
+  const second = readRegistry(home);
+  assert.equal(second.vaults.length, 2);
+  assert.ok(second.vaults.some((vault) => vault.id === id && realpathSync(vault.path) === realpathSync(path.join(cwd, ".awg"))));
+  assert.ok(second.vaults.some((vault) => vault.id !== id && realpathSync(vault.path) === realpathSync(path.join(moved, ".awg"))));
+});
+
+test("vault link, unlink, topology, and build materialize deterministic topology", () => {
+  const home = tempHome();
+  const one = tmp();
+  const two = tmp();
+  run(one, ["init", "--empty"], { HOME: home });
+  run(two, ["init", "--empty"], { HOME: home });
+  run(one, ["register", "--name", "One"], { HOME: home });
+  run(two, ["register", "--name", "Two"], { HOME: home });
+  const registry = readRegistry(home);
+  registry["x-keep"] = true;
+  registry.vaults[1]["x-vault"] = true;
+  writeFileSync(path.join(home, ".awg/registry.json"), JSON.stringify(registry, null, 2));
+  const linked = JSON.parse(run(one, ["vault", "link", "--to", "Two", "--rel", "consumes_data_from", "--summary", "One consumes Two contracts.", "--json"], { HOME: home }));
+  assert.equal(linked.ok, true);
+  assert.equal(linked.relationship.rel, "provides_contract_for");
+  assert.equal(linked.fromVault.id, linked.relationship.fromVaultId);
+  assert.equal(linked.toVault.id, linked.relationship.toVaultId);
+  assert.equal(linked.created, true);
+  const repeated = JSON.parse(run(one, ["vault", "link", "--to", "Two", "--rel", "consumes_data_from", "--summary", "Updated.", "--json"], { HOME: home }));
+  assert.equal(repeated.created, false);
+  assert.equal(repeated.relationship.id, linked.relationship.id);
+  const topology = JSON.parse(run(one, ["vault", "topology", "--json"], { HOME: home }));
+  assert.equal(topology.ok, true);
+  assert.equal(topology.relatedVaults.length, 1);
+  assert.ok(topology.relatedVaults[0].whySurfaced.includes("direct_registry_relationship:provides_contract_for"));
+  run(one, ["build", "--json"], { HOME: home });
+  const compiled = JSON.parse(readFileSync(path.join(one, ".awg/compiled/indexes/topology.json"), "utf8"));
+  assert.equal(compiled.directNeighbors.length, 1);
+  const afterLink = readRegistry(home);
+  assert.equal(afterLink["x-keep"], true);
+  assert.equal(afterLink.vaults.some((vault) => vault["x-vault"] === true), true);
+  const unlinked = JSON.parse(run(one, ["vault", "unlink", "--relationship", linked.relationship.id, "--json"], { HOME: home }));
+  assert.equal(unlinked.ok, true);
+  const afterUnlink = readRegistry(home);
+  assert.equal(afterUnlink.relationships?.[0].archivedAt !== null, true);
+});
+
+test("vault link preserves private visibility and emits stable json errors", () => {
+  const home = tempHome();
+  const one = tmp();
+  const two = tmp();
+  run(one, ["init", "--empty"], { HOME: home });
+  run(two, ["init", "--empty"], { HOME: home });
+  run(one, ["register", "--name", "One"], { HOME: home });
+  run(two, ["register", "--name", "Two"], { HOME: home });
+  const first = JSON.parse(run(one, ["vault", "link", "--to", "Two", "--rel", "depends_on", "--visibility", "private", "--summary", "Secret relationship detail.", "--json"], { HOME: home }));
+  assert.equal(first.relationship.visibility, "private");
+  const second = JSON.parse(run(one, ["vault", "link", "--to", "Two", "--rel", "depends_on", "--summary", "Still private.", "--json"], { HOME: home }));
+  assert.equal(second.relationship.visibility, "private");
+  const listed = JSON.parse(run(one, ["vault", "list", "--json"], { HOME: home }));
+  assert.equal(listed.relationships[0].summary, undefined);
+  run(one, ["build", "--json"], { HOME: home });
+  const topology = JSON.parse(readFileSync(path.join(one, ".awg/compiled/indexes/topology.json"), "utf8"));
+  assert.equal(topology.directNeighbors[0].summary.source, "private_relationship");
+  assert.deepEqual(topology.directNeighbors[0].relationshipSummaries, []);
+  assert.equal(topology.relationships[0].summary, undefined);
+  const lens = JSON.parse(run(one, ["lens", "task", "--goal", "depends_on", "--json"], { HOME: home }));
+  assert.ok(!JSON.stringify(lens).includes("Secret relationship detail."));
+  assert.ok(!JSON.stringify(lens).includes("Still private."));
+  const handoff = JSON.parse(run(one, ["handoff", "--json", "--no-record"], { HOME: home }));
+  assert.ok(!JSON.stringify(handoff).includes("Secret relationship detail."));
+  assert.ok(!JSON.stringify(handoff).includes("Still private."));
+  const missing = JSON.parse(runFail(one, ["vault", "link", "--to", "Missing", "--rel", "depends_on", "--json"], { HOME: home }));
+  assert.equal(missing.ok, false);
+  assert.equal(missing.code, "AWG_VAULT_SELECTOR_NOT_FOUND");
+  const usage = JSON.parse(runFail(one, ["vault", "unlink", "--json"], { HOME: home }));
+  assert.equal(usage.code, "AWG_VAULT_UNLINK_USAGE");
+  const depth = JSON.parse(runFail(one, ["vault", "topology", "--depth", "2", "--json"], { HOME: home }));
+  assert.equal(depth.code, "AWG_VAULT_DEPTH_UNSUPPORTED");
+});
+
+test("topology skips symlinked neighbor compiled summaries", () => {
+  const home = tempHome();
+  const one = tmp();
+  const two = tmp();
+  const outside = tmp();
+  run(one, ["init", "--empty"], { HOME: home });
+  run(two, ["init", "--empty"], { HOME: home });
+  run(one, ["register", "--name", "One"], { HOME: home });
+  run(two, ["register", "--name", "Two"], { HOME: home });
+  run(two, ["build", "--json"], { HOME: home });
+  run(one, ["vault", "link", "--to", "Two", "--rel", "depends_on"], { HOME: home });
+  const outsideSummary = path.join(outside, "resume.json");
+  writeFileSync(outsideSummary, JSON.stringify({ summary: "LEAKED OUTSIDE SUMMARY" }));
+  rmSync(path.join(two, ".awg/compiled/lenses/resume.json"));
+  symlinkSync(outsideSummary, path.join(two, ".awg/compiled/lenses/resume.json"));
+  run(one, ["build", "--json"], { HOME: home });
+  const topology = JSON.parse(readFileSync(path.join(one, ".awg/compiled/indexes/topology.json"), "utf8"));
+  assert.ok(!JSON.stringify(topology).includes("LEAKED OUTSIDE SUMMARY"));
+  assert.ok(topology.diagnostics.some((diag: { code: string }) => diag.code === "topology_related_vault_compiled_artifact_unsafe"));
+});
+
+test("vault selectors prefer exact id before colliding names", () => {
+  const home = tempHome();
+  const one = tmp();
+  const two = tmp();
+  run(one, ["init", "--empty"], { HOME: home });
+  run(two, ["init", "--empty"], { HOME: home });
+  run(one, ["register", "--name", "One"], { HOME: home });
+  run(two, ["register", "--name", "Two"], { HOME: home });
+  const registry = readRegistry(home);
+  const oneId = registry.vaults.find((vault) => vault.name === "One")?.id;
+  const twoEntry = registry.vaults.find((vault) => vault.name === "Two");
+  assert.ok(oneId);
+  assert.ok(twoEntry);
+  twoEntry.name = oneId;
+  writeFileSync(path.join(home, ".awg/registry.json"), JSON.stringify(registry, null, 2));
+  const linked = JSON.parse(run(one, ["vault", "link", "--to", twoEntry.id, "--from", oneId, "--rel", "related_to", "--json"], { HOME: home }));
+  assert.deepEqual([linked.relationship.fromVaultId, linked.relationship.toVaultId].sort(), [oneId, twoEntry.id].sort());
+});
+
+test("lens, handoff, and run preflight surface related vault context", () => {
+  const home = tempHome();
+  const one = tmp();
+  const two = tmp();
+  run(one, ["init", "--empty"], { HOME: home });
+  run(two, ["init", "--empty"], { HOME: home });
+  run(one, ["register", "--name", "Portal"], { HOME: home });
+  run(two, ["register", "--name", "Sanity"], { HOME: home });
+  const registry = readRegistry(home);
+  const sanityId = registry.vaults.find((vault) => vault.name === "Sanity")?.id;
+  assert.ok(sanityId);
+  run(one, ["vault", "link", "--to", "Sanity", "--rel", "depends_on"], { HOME: home });
+  run(one, ["run", "start", "--goal", "Portal schema work", "--agent", "test"], { HOME: home });
+  run(one, ["add", "node", "--type", "task", "--title", "Schema impact", "--summary", "Touches Sanity.", "--status", "active", "--fields-json", JSON.stringify({ crossVaultRefs: [{ vaultId: sanityId, rel: "requires_update", status: "open", reason: "Schema contract changed." }] })], { HOME: home });
+  run(one, ["build", "--json"], { HOME: home });
+  const lens = JSON.parse(run(one, ["lens", "task", "--goal", "Sanity schema", "--json"], { HOME: home }));
+  const topologySection = lens.sections.find((section: { section: string }) => section.section === "topology");
+  assert.ok(topologySection.items.some((item: { id: string }) => item.id === sanityId));
+  const handoff = JSON.parse(run(one, ["handoff", "--json", "--no-record"], { HOME: home }));
+  assert.ok(handoff.sections.find((section: { section: string }) => section.section === "topology"));
+  assert.equal(handoff.topology.relatedVaults[0].id, sanityId);
+  const finish = JSON.parse(runFail(one, ["run", "finish", "--status", "completed", "--summary", "Done.", "--json"], { HOME: home }));
+  assert.equal(finish.ok, false);
+  assert.ok(finish.preflight.warnings.some((warning: { code: string }) => warning.code === "AWG_RUN_CROSS_VAULT_IMPACT_UNHANDLED"));
 });

@@ -122,6 +122,7 @@ function agentsTemplate(): string {
 
 Start of session:
 - Run \`awg handoff\`.
+- Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
@@ -131,6 +132,7 @@ Start of session:
 During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
+- Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Use \`body\` for narrative detail, \`fields\` for structured operational data, \`blocks\` for safe presentation primitives, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
@@ -171,6 +173,7 @@ This project uses AWG as its durable project memory.
 
 Before starting work:
 - Run \`awg handoff\`.
+- Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
@@ -184,6 +187,7 @@ During work:
 - Use structured \`fields\`, safe \`blocks\`, \`freshness\`, and \`anchors\` when those make the knowledge easier to maintain or present.
 - Use \`awg lens task --goal "..."\` for scoped work context.
 - Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
+- Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Link knowledge by AWG node ID, not by file path.
 - Do not edit \`.awg/compiled/*\`.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
@@ -230,11 +234,11 @@ function claudeTemplate(agentsFile = "AGENTS.md"): string {
 
 Follow the project instructions in \`${agentsFile}\`.
 
-This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context. Use \`awg node show <node-id> --json\` when a surfaced node needs full inspection.
+This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context. Use \`awg node show <node-id> --json\` when a surfaced node needs full inspection.
 
 Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Run \`awg template status --goal "<goal>" --json\` when scoping work. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Use structured fields, safe blocks, freshness metadata, and anchors when helpful. Do not edit \`.awg/compiled/*\`.
 
-Before stopping, update relevant statuses, add evidence for completed work, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, fix fatal validation errors, record AWG friction as durable knowledge when found, and finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
+Before stopping, update relevant statuses, add evidence for completed work, leave cross-vault handoff tasks for related vaults you did not update directly, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, fix fatal validation errors, record AWG friction as durable knowledge when found, and finish the run with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }
 

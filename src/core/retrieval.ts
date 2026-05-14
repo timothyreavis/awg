@@ -4,6 +4,7 @@ import { searchGraph } from "./search.js";
 import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
 import { activeRun, buildRuns, recentRuns, type AgentRun } from "./runs.js";
 import { preflightRun, qualityForRun, runSummaryFor, type HandoffQuality, type RunPreflightResult } from "./runPreflight.js";
+import { topologyRelevant, type TopologyIndex } from "./topology.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export interface TaskLensOutput {
@@ -26,6 +27,7 @@ export interface HandoffOutput {
   run?: AgentRun;
   preflight?: RunPreflightResult;
   quality?: HandoffQuality;
+  topology?: unknown;
 }
 
 export interface RecentOutput {
@@ -58,12 +60,14 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const runs = buildRuns(graph);
   const current = activeRun(runs);
   const relatedRuns = runs.filter((run) => runMatchesGoal(run, goal) || runSummaryFor(graph, run.id)?.touchedNodeIds.some((id) => relevantIds.has(id))).slice(0, 5);
+  const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, goal, [...relevantIds, ...(current ? runSummaryFor(graph, current.id)?.touchedNodeIds ?? [] : [])]);
   const decisions = relevantNodes.filter((item) => item.type === "decision").sort(byPriority);
   const risks = relevantNodes.filter((item) => item.type === "risk" || item.type === "blocker").sort(byPriority);
   const tasks = relevantNodes.filter((item) => item.type === "task" && actionable.has(item.status)).sort(byPriority);
   const questions = relevantNodes.filter((item) => item.type === "question" && !["resolved", "completed", "archived"].includes(item.status)).sort(byPriority);
   const sections = budgetSections<unknown>([
     { section: "templateContext", items: [templateContext(graph, goal)] },
+    { section: "topology", items: compactTopologyItems(topologyItems) },
     { section: "matches", items: matches },
     { section: "relatedNodes", items: related.sort(byPriority) },
     { section: "relatedDecisions", items: decisions },
@@ -94,10 +98,13 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const recentEvidence = graph.nodes.filter((n) => n.type === "evidence").sort(byUpdatedDesc).slice(0, 12);
   const stale = graph.nodes.filter((n) => ["stale", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 12);
   const recommendations = recommendedNextActions(graph.diagnostics.summary);
+  const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, current?.goal, runSummary?.touchedNodeIds ?? []);
+  const topologyObject = { currentVault: (graph.topology as TopologyIndex | undefined)?.currentVault ?? null, relatedVaults: compactTopologyItems(topologyItems), crossVaultRefs: ((graph.topology as TopologyIndex | undefined)?.crossVaultRefs ?? []).filter((ref) => (runSummary?.touchedNodeIds ?? []).includes(ref.nodeId)) };
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
     { section: "graphHealth", items: [graph.diagnostics.summary] },
     { section: "templateContext", items: [templateContext(graph)] },
+    { section: "topology", items: topologyObject.relatedVaults },
     { section: "runAttribution", items: runSummary ? [runSummary] : [] },
     { section: "recentRunNotes", items: runNotes },
     { section: "preflightWarnings", items: preflight?.warnings ?? [] },
@@ -114,12 +121,16 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "staleOrNeedsReview", items: stale }
   ], budget, renderItem).filter((section) => !budget || section.items.length || section.omitted);
   const outputQuality = budget ? { ...quality, checks: [] } : quality;
-  const output: HandoffOutput = { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections, quality: outputQuality };
+  const output: HandoffOutput = { awg: AWG_VERSION, kind: "handoff", generated_at: graph.generated_at, budget, sections, quality: outputQuality, topology: topologyObject };
   if (!budget) {
     output.run = current;
     output.preflight = preflight;
   }
   return output;
+}
+
+function compactTopologyItems(items: ReturnType<typeof topologyRelevant>): unknown[] {
+  return items.map((item) => ({ id: item.id, title: item.name, name: item.name, relationships: item.relationships, relationshipSummaries: item.relationshipSummaries, tags: item.tags, whySurfaced: item.whySurfaced, health: item.health, stale: item.stale, summary: item.summary.text, summaryDetail: item.summary }));
 }
 
 export function buildRecent(graph: CompiledGraph, days: number, asOf = Date.now(), runId?: string): RecentOutput {

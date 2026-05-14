@@ -15,5 +15,10 @@
   "validation": {
     "allow_unknown_node_types": true,
     "strict_links": false
+  },
+  "vault": {
+    "createdAt": "2026-05-13T23:21:43.321Z",
+    "id": "vault:fd54ba8edee44cfd",
+    "identityVersion": 1
   }
 }
