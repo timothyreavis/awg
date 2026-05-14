@@ -1,7 +1,7 @@
 {
   "awg": "0.1",
   "doctor": {
-    "activeRunStaleHours": 24,
+    "activeRunStaleHours": 100000,
     "recentRunWindowDays": 365,
     "runNoteStaleHours": 4
   },

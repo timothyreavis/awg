@@ -923,6 +923,17 @@ test("task lens and handoff include scoped context and respect budgets", () => {
   assert.ok(["activeRun", "mostRecentRun", "graphHealth"].includes(tinyParsed.sections[0].section));
   assert.ok(tinyParsed.sections.some((section: { omitted: number }) => section.omitted > 0));
   assert.ok(run(cwd, ["handoff", "--budget", "600"]).includes("AWG handoff"));
+  run(cwd, ["run", "start", "--goal", "Handoff text formatting"]);
+  run(cwd, ["add", "node", "--id", "n:run-attributed", "--type", "task", "--title", "Run attributed", "--summary", "Run attributed.", "--status", "in_progress"]);
+  const textHandoff = run(cwd, ["handoff"]);
+  assert.ok(textHandoff.includes("templateContext"));
+  assert.ok(textHandoff.includes("runAttribution"));
+  assert.ok(textHandoff.includes("handoffQuality"));
+  assert.ok(textHandoff.includes("1 created node"));
+  assert.ok(textHandoff.includes("1 touched node"));
+  assert.ok(!textHandoff.includes("[object Object]"));
+  assert.ok(!textHandoff.includes("createds"));
+  assert.ok(!textHandoff.includes("toucheds"));
 });
 
 test("run commands track start note finish status and list with json", () => {

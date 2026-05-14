@@ -44,5 +44,37 @@ function formatHandoffItem(record: Record<string, unknown>, item: unknown): stri
   if ("fatal_error_count" in record || "warning_count" in record) {
     return `${record.fatal_error_count ?? 0} fatal, ${record.warning_count ?? 0} warnings, ${record.node_count ?? 0} nodes, ${record.edge_count ?? 0} edges`;
   }
+  if ("activeTemplateId" in record || "selectedTemplate" in record) {
+    const selected = record.selectedTemplate as Record<string, unknown> | undefined;
+    const title = typeof selected?.title === "string" ? selected.title : record.activeTemplateId;
+    const bits = [
+      title,
+      typeof record.activeTemplateCount === "number" ? `${record.activeTemplateCount} active` : undefined,
+      countLabel(record.conflicts, "conflict"),
+      countLabel(record.warnings, "warning")
+    ].filter(Boolean);
+    return bits.join("; ");
+  }
+  if ("createdNodeIds" in record || "touchedNodeIds" in record || "evidenceNodeIds" in record || "handoffEventIds" in record) {
+    return [
+      countLabel(record.createdNodeIds, "created node"),
+      countLabel(record.touchedNodeIds, "touched node"),
+      countLabel(record.evidenceNodeIds, "evidence node"),
+      countLabel(record.diagnosticCodes, "diagnostic"),
+      countLabel(record.handoffEventIds, "handoff event")
+    ].filter(Boolean).join(", ") || "No run-attributed changes.";
+  }
+  if ("score" in record && ("checks" in record || "warnings" in record)) {
+    return [
+      typeof record.score === "number" ? `score ${record.score}` : undefined,
+      countLabel(record.checks, "check"),
+      countLabel(record.warnings, "warning")
+    ].filter(Boolean).join(", ") || "No quality checks.";
+  }
   return `${record.id ? `${record.id} ` : ""}${record.title ?? record.summary ?? record.message ?? String(item)}${record.status ? ` (${record.status})` : ""}`;
+}
+
+function countLabel(value: unknown, label: string): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  return `${value.length} ${label}${value.length === 1 ? "" : "s"}`;
 }
