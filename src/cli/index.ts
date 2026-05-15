@@ -5,11 +5,13 @@ import { buildCommand } from "./commands/build.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
+import { inboxCommand } from "./commands/inbox.js";
 import { instructionsCommand } from "./commands/instructions.js";
 import { lensCommand } from "./commands/lens.js";
 import { nodeCommand } from "./commands/node.js";
 import { openCommand } from "./commands/open.js";
 import { recentCommand } from "./commands/recent.js";
+import { reconcileCommand } from "./commands/reconcile.js";
 import { registerCommand, unregisterCommand } from "./commands/register.js";
 import { searchCommand } from "./commands/search.js";
 import { runCommand } from "./commands/run.js";
@@ -29,6 +31,7 @@ async function main(): Promise<void> {
   if (command === "template") return templateCommand(parsed);
   if (command === "upgrade") return upgradeCommand(parsed);
   if (command === "init") return initCommand(parsed);
+  if (command === "inbox") return inboxCommand(parsed);
   if (command === "register") return registerCommand(parsed);
   if (command === "unregister") return unregisterCommand(parsed);
   if (command === "vault") return vaultCommand(parsed);
@@ -44,6 +47,7 @@ async function main(): Promise<void> {
   if (command === "node") return nodeCommand(parsed);
   if (command === "handoff") return handoffCommand(parsed);
   if (command === "recent") return recentCommand(parsed);
+  if (command === "reconcile") return reconcileCommand(parsed);
   if (command === "view") return viewCommand(parsed);
   if (command === "open") return openCommand(parsed);
   throw new Error(`Unknown command: ${command}`);
@@ -56,7 +60,9 @@ Commands:
   setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
   template status [--goal <goal>] [--json]
   upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
-  init [--empty] [--force] [--register] [--no-register]
+  init [--empty] [--demo] [--force] [--register] [--no-register]
+  inbox [--kind <kind>] [--limit <n>] [--json]
+  inbox show <item-id> [--json]
   register [--name <name>] [--scope project|org|user]
   unregister [--path <path>]
   vault list [--missing] [--json]
@@ -86,6 +92,11 @@ Commands:
   node show <node-id> [--json]
   handoff [--budget <n>] [--json] [--no-record]
   recent [--days <n>] [--json]
+  reconcile duplicate <a> <b> --canonical <id> [--reason <text>] [--json]
+  reconcile supersede <old> <new> [--reason <text>] [--json]
+  reconcile contradict <a> <b> [--reason <text>] [--json]
+  reconcile resolved-by <target> <resolver> [--reason <text>] [--json]
+  reconcile intentionally-open <target> [--reason <text>] [--json]
   view current [--json] [--text]
   open [--global] [--no-launch]`);
 }

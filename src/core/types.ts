@@ -233,6 +233,51 @@ export interface DiagnosticsReport {
   diagnostics: Diagnostic[];
 }
 
+export type MaintenanceInboxKind =
+  | "stale"
+  | "needs_review"
+  | "duplicates"
+  | "orphans"
+  | "evidence"
+  | "questions"
+  | "risks"
+  | "blockers"
+  | "decisions"
+  | "topology"
+  | "hygiene";
+
+export type MaintenanceInboxSeverity = "info" | "warning" | "error";
+
+export interface MaintenanceInboxItem {
+  id: string;
+  kind: MaintenanceInboxKind;
+  code: string;
+  severity: MaintenanceInboxSeverity;
+  priority: number;
+  message: string;
+  nodeIds: string[];
+  edgeIds: string[];
+  runIds: string[];
+  vaultIds: string[];
+  relationshipIds: string[];
+  reasons: string[];
+  suggestedCommands: string[];
+  autonomousSafe: boolean;
+  needsHumanReview: boolean;
+}
+
+export interface MaintenanceInbox {
+  awg: string;
+  generated_at: string;
+  items: MaintenanceInboxItem[];
+  summary: {
+    total: number;
+    byKind: Record<string, number>;
+    bySeverity: Record<string, number>;
+    highPriority: number;
+  };
+}
+
 export interface BuildResult {
   graph: CompiledGraph;
   diagnostics: DiagnosticsReport;
@@ -257,6 +302,7 @@ export interface CompiledGraph {
   operating_templates?: OperatingTemplateIndex;
   anchor_index?: AnchorIndex;
   topology?: unknown;
+  maintenance_inbox?: MaintenanceInbox;
 }
 
 export interface ResumeLensOutput {
@@ -273,6 +319,7 @@ export interface ResumeLensOutput {
   recent_responses: AwgResponse[];
   diagnostics_summary: DiagnosticsSummary;
   recommended_maintenance: string[];
+  maintenance_inbox?: MaintenanceInboxItem[];
 }
 
 export interface CurrentViewOutput {

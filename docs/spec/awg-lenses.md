@@ -51,3 +51,5 @@ Node detail retrieval:
 - The command rebuilds from canonical logs with `write: false`; it does not append events, update compiled artifacts, or record handoffs.
 
 Budgeted handoff and lens output may omit empty sections. Non-empty sections keep stable `omitted` counts so agents can tell when lower-priority context was truncated.
+
+V1.9 adds maintenance inbox context to retrieval. Resume lens output includes the top derived inbox items. Task lenses include inbox items related to matched or nearby nodes. Handoff includes a compact high-priority inbox section so the next agent can see stale, unsupported, duplicate-looking, unresolved, risky, or topology-related work before continuing. These sections are derived from compiled graph state and remain local, deterministic, budget-aware, and read-only.

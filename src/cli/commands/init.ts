@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { AWG_VERSION } from "../../core/constants.js";
-import { coreSchemaNames, currentSchemaManifest, schemaBodyForFile } from "../../core/schemas.js";
+import { coreSchemaNames, currentSchemaManifest, isKnownAwgManagedSchemaBody, schemaBodyForFile, schemaContentHash } from "../../core/schemas.js";
 import { nodeId } from "../../core/ids.js";
 import { stableStringify } from "../../util/json.js";
 import { nowIso, todayPathParts } from "../../util/time.js";
@@ -70,7 +70,7 @@ async function writeProjectVault(root: string, parsed: ParsedArgs, options: { pr
   for (const name of coreSchemaNames) await writeFile(root, path.join(root, ".awg/schema/core", `${name}.schema.json`), schemaBodyForFile(name), options);
   await writeFile(root, path.join(root, ".awg/schema/core/.awg-managed.json"), stableStringify(currentSchemaManifest()), options);
 
-  if (!parsed.flags.empty && (!options.preserveExistingFiles || !(await hasLogEntries(root)))) await writeStarterLog(root);
+  if (parsed.flags.demo && !parsed.flags.empty && (!options.preserveExistingFiles || !(await hasLogEntries(root)))) await writeStarterLog(root);
 }
 
 async function ensureProjectDir(root: string, dir: string): Promise<void> {
@@ -125,6 +125,7 @@ Start of session:
 - Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
+- Run \`awg inbox --limit 10\` to review deterministic maintenance items.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
@@ -145,6 +146,7 @@ Before finishing:
 - Add evidence for completed work.
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
+- Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
 - Fix fatal validation errors and review warnings.
 - Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
 - If forced, document why in the run summary or a run note.
@@ -184,6 +186,7 @@ Before starting work:
 During work:
 - Record durable facts, decisions, risks, tasks, questions, constraints, and preferences in AWG.
 - Use \`awg search <query>\` before creating duplicate nodes.
+- Run \`awg inbox --limit 10\` to see stale, duplicate, orphaned, unsupported, and unresolved maintenance items.
 - Use structured \`fields\`, safe \`blocks\`, \`freshness\`, and \`anchors\` when those make the knowledge easier to maintain or present.
 - Use \`awg lens task --goal "..."\` for scoped work context.
 - Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
@@ -195,6 +198,7 @@ During work:
 Before stopping:
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
+- Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
 - Fix fatal validation errors.
 - Add evidence for completed work.
 - Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
@@ -221,12 +225,40 @@ async function writeSchemaManifestIfMissing(root: string): Promise<void> {
 
 async function writeSchemasIfMissing(root: string): Promise<void> {
   await ensureProjectDir(root, path.join(root, ".awg/schema/core"));
+  const manifest = await readSchemaManifest(root);
   for (const name of coreSchemaNames) {
     const file = path.join(root, ".awg/schema/core", `${name}.schema.json`);
     await assertSafeProjectPath(root, file, "file");
-    if (!(await exists(file))) await fs.writeFile(file, schemaBodyForFile(name));
+    const body = schemaBodyForFile(name);
+    const prior = await fs.readFile(file, "utf8").catch(() => null);
+    if (prior === null || prior === body || manifestSchemaHash(manifest, name) === schemaContentHash(prior) || isKnownAwgManagedSchemaBody(name, prior)) await fs.writeFile(file, body);
   }
-  await writeSchemaManifestIfMissing(root);
+  await writeSchemaManifest(root);
+}
+
+async function writeSchemaManifest(root: string): Promise<void> {
+  const file = path.join(root, ".awg/schema/core/.awg-managed.json");
+  await assertSafeProjectPath(root, file, "file");
+  await ensureProjectDir(root, path.dirname(file));
+  await fs.writeFile(file, stableStringify(currentSchemaManifest()));
+}
+
+async function readSchemaManifest(root: string): Promise<{ schemas?: Record<string, { hash?: unknown }> } | null> {
+  const file = path.join(root, ".awg/schema/core/.awg-managed.json");
+  await assertSafeProjectPath(root, file, "file");
+  const body = await fs.readFile(file, "utf8").catch(() => null);
+  if (!body) return null;
+  try {
+    const value = JSON.parse(body);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function manifestSchemaHash(manifest: { schemas?: Record<string, { hash?: unknown }> } | null, name: string): string | null {
+  const hash = manifest?.schemas?.[name]?.hash;
+  return typeof hash === "string" ? hash : null;
 }
 
 function claudeTemplate(agentsFile = "AGENTS.md"): string {

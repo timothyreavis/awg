@@ -72,6 +72,32 @@ function initialV1NodeSchemaBody(): string {
   });
 }
 
+function initialV1EdgeSchemaBody(): string {
+  const base = {
+    type: "object",
+    required: ["awg", "kind"],
+    properties: {
+      awg: { const: "0.1" },
+      kind: { enum: ["node", "edge", "event", "view", "lens", "response", "policy"] }
+    },
+    additionalProperties: true
+  };
+  return stableStringify({
+    ...base,
+    required: ["awg", "kind", "id", "from", "rel", "to", "created_at"],
+    properties: {
+      ...base.properties,
+      kind: { const: "edge" },
+      id: { type: "string", pattern: "^e:.+" },
+      from: { type: "string", pattern: "^n:.+" },
+      rel: { enum: ["relates_to", "depends_on", "blocks", "supports", "contradicts", "answers", "asks", "implements", "affects", "supersedes", "derived_from", "part_of", "caused_by", "requires", "recommends", "references", "owned_by", "applies_to"] },
+      to: { type: "string", pattern: "^n:.+" },
+      created_at: { type: "string" },
+      confidence: { type: "number", minimum: 0, maximum: 1 }
+    }
+  });
+}
+
 function node(overrides: Partial<AwgNode> & Pick<AwgNode, "id" | "type" | "title" | "summary" | "status">): AwgNode {
   return {
     awg: "0.1",
@@ -132,24 +158,34 @@ test("example compiled viewer is current", () => {
   assert.deepEqual(after, before);
 });
 
-test("packed package installs and exposes the awg bin", () => {
+test("packed package exposes the awg bin and runs offline smoke", () => {
   const packDir = tmp();
-  const installDir = tmp();
-  const output = execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir], { cwd: path.resolve("."), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const extractDir = tmp();
+  const npmHome = tempHome();
+  const output = execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, HOME: npmHome, npm_config_cache: path.join(npmHome, ".npm-cache"), npm_config_logs_dir: path.join(npmHome, ".npm-logs") }
+  });
   const packed = JSON.parse(output) as Array<{ filename: string }>;
   const tarball = path.join(packDir, packed[0].filename);
-  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], { cwd: installDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  const help = execFileSync(path.join(installDir, "node_modules/.bin/awg"), ["--help"], { cwd: installDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  execFileSync("tar", ["-xzf", tarball, "-C", extractDir], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const packageDir = path.join(extractDir, "package");
+  const pkg = JSON.parse(readFileSync(path.join(packageDir, "package.json"), "utf8"));
+  assert.equal(pkg.bin.awg.replace(/^\.\//, ""), "dist/src/cli/index.js");
+  symlinkSync(path.resolve("node_modules"), path.join(packageDir, "node_modules"), "dir");
+  const bin = path.join(packageDir, pkg.bin.awg);
+  const help = execFileSync(process.execPath, [bin, "--help"], { cwd: packageDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   assert.ok(help.includes("awg <command>"));
   assert.ok(help.includes("--block-json"));
   assert.ok(help.includes("--freshness-json"));
   assert.ok(help.includes("--evidence-required"));
   assert.ok(help.includes("node show <node-id> [--json]"));
-  const bin = path.join(installDir, "node_modules/.bin/awg");
   const vault = tmp();
   const home = tempHome();
-  execFileSync(bin, ["init", "--empty", "--no-register"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } });
-  execFileSync(bin, [
+  execFileSync(process.execPath, [bin, "init", "--empty", "--no-register"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } });
+  execFileSync(process.execPath, [bin,
     "add", "node",
     "--id", "n:package-template",
     "--type", "process",
@@ -162,15 +198,15 @@ test("packed package installs and exposes the awg bin", () => {
     "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
     "--json"
   ], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } });
-  const templateStatus = JSON.parse(execFileSync(bin, ["template", "status", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  const templateStatus = JSON.parse(execFileSync(process.execPath, [bin, "template", "status", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(templateStatus.activeTemplateId, "n:package-template");
-  const build = JSON.parse(execFileSync(bin, ["build", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  const build = JSON.parse(execFileSync(process.execPath, [bin, "build", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(build.fatal_error_count, 0);
-  const nodeDetail = JSON.parse(execFileSync(bin, ["node", "show", "n:package-template", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  const nodeDetail = JSON.parse(execFileSync(process.execPath, [bin, "node", "show", "n:package-template", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(nodeDetail.ok, true);
   assert.equal(nodeDetail.node.id, "n:package-template");
   assert.equal(nodeDetail.node.blocks[0].type, "brief");
-  const doctor = JSON.parse(execFileSync(bin, ["doctor", "--fix-suggestions", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
+  const doctor = JSON.parse(execFileSync(process.execPath, [bin, "doctor", "--fix-suggestions", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(doctor.summary.fatal_error_count, 0);
 });
 
@@ -501,6 +537,129 @@ test("add commands emit stable json", () => {
   assert.ok(runFail(cwd, ["add", "edge", "--from", "n:json", "--rel", "relates_to", "--to", "bad", "--json"]).includes("--to must be a node id starting with n:"));
 });
 
+test("maintenance inbox emits deterministic parseable json with filters and limits", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:root", "--type", "concept", "--title", "Root", "--summary", "Root.", "--status", "active"]);
+  run(cwd, ["add", "node", "--id", "n:stale", "--type", "task", "--title", "Stale task", "--summary", "Needs review.", "--status", "active", "--freshness-json", "{\"review_after\":\"2020-01-01\"}"]);
+  run(cwd, ["add", "node", "--id", "n:review", "--type", "task", "--title", "Review task", "--summary", "Review.", "--status", "needs_review"]);
+  run(cwd, ["add", "node", "--id", "n:done", "--type", "task", "--title", "Done task", "--summary", "Done.", "--status", "completed"]);
+  run(cwd, ["add", "node", "--id", "n:question", "--type", "question", "--title", "Open question", "--summary", "Open?", "--status", "active"]);
+  run(cwd, ["add", "node", "--id", "n:risk", "--type", "risk", "--title", "Active risk", "--summary", "Risk.", "--status", "active"]);
+  run(cwd, ["add", "node", "--id", "n:review-risk", "--type", "risk", "--title", "Review risk", "--summary", "Review risk.", "--status", "needs_review"]);
+  run(cwd, ["add", "node", "--id", "n:decision", "--type", "decision", "--title", "Proposed decision", "--summary", "Decision.", "--status", "proposed"]);
+  run(cwd, ["add", "node", "--id", "n:dupe-a", "--type", "concept", "--title", "Duplicate title", "--summary", "A.", "--status", "active"]);
+  run(cwd, ["add", "node", "--id", "n:dupe-b", "--type", "concept", "--title", "Duplicate title", "--summary", "B.", "--status", "active"]);
+  for (const id of ["n:stale", "n:review", "n:done", "n:question", "n:risk", "n:review-risk", "n:decision", "n:dupe-a", "n:dupe-b"]) {
+    run(cwd, ["add", "edge", "--from", "n:root", "--rel", "relates_to", "--to", id]);
+  }
+  run(cwd, ["add", "edge", "--from", "n:done", "--rel", "implements", "--to", "n:decision"]);
+  const first = JSON.parse(run(cwd, ["inbox", "--json"]));
+  const second = JSON.parse(run(cwd, ["inbox", "--json"]));
+  assert.deepEqual(second.items.map((item: { id: string }) => item.id), first.items.map((item: { id: string }) => item.id));
+  assert.ok(first.items.some((item: { kind: string; code: string; nodeIds: string[] }) => item.kind === "stale" && item.nodeIds.includes("n:stale")));
+  assert.ok(first.items.some((item: { kind: string; code: string; nodeIds: string[] }) => item.kind === "needs_review" && item.nodeIds.includes("n:review")));
+  assert.ok(first.items.some((item: { kind: string; code: string; nodeIds: string[] }) => item.kind === "evidence" && item.nodeIds.includes("n:done")));
+  assert.ok(first.items.some((item: { kind: string; nodeIds: string[] }) => item.kind === "questions" && item.nodeIds.includes("n:question")));
+  assert.ok(first.items.some((item: { kind: string; nodeIds: string[] }) => item.kind === "risks" && item.nodeIds.includes("n:risk")));
+  assert.ok(first.items.some((item: { kind: string; nodeIds: string[] }) => item.kind === "needs_review" && item.nodeIds.includes("n:review-risk")));
+  assert.ok(!first.items.some((item: { kind: string; nodeIds: string[]; suggestedCommands: string[] }) => item.kind === "risks" && item.nodeIds.includes("n:review-risk") && item.suggestedCommands.includes("awg update node n:review-risk --status needs_review")));
+  assert.ok(first.items.some((item: { kind: string; nodeIds: string[] }) => item.kind === "decisions" && item.nodeIds.includes("n:decision")));
+  assert.ok(first.items.some((item: { kind: string; nodeIds: string[] }) => item.kind === "duplicates" && item.nodeIds.includes("n:dupe-a") && item.nodeIds.includes("n:dupe-b")));
+  const limited = JSON.parse(run(cwd, ["inbox", "--kind", "risks", "--limit", "1", "--json"]));
+  assert.equal(limited.items.length, 1);
+  assert.equal(limited.items[0].kind, "risks");
+  const shown = JSON.parse(run(cwd, ["inbox", "show", first.items[0].id, "--json"]));
+  assert.equal(shown.item.id, first.items[0].id);
+  assert.ok(run(cwd, ["inbox", "--limit", "2"]).includes("suggestion:"));
+});
+
+test("doctor shares maintenance inbox suggestions without mutating logs", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:done", "--type", "task", "--title", "Done task", "--summary", "Done.", "--status", "completed"]);
+  const before = new FileAwgStorage(cwd).readLogEntries();
+  return before.then(async (entriesBefore) => {
+    const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+    assert.ok(doctor.maintenanceInbox.items.some((item: { code: string }) => item.code === "AWG_INBOX_COMPLETED_TASK_WITHOUT_EVIDENCE"));
+    assert.ok(doctor.fixSuggestions.some((item: { itemId?: string; suggestedCommands: string[]; autonomousSafe?: boolean; needsHumanReview?: boolean }) => item.itemId && item.autonomousSafe === false && item.needsHumanReview === true && item.suggestedCommands.some((command) => command.includes("awg add evidence"))));
+    const entriesAfter = await new FileAwgStorage(cwd).readLogEntries();
+    assert.equal(entriesAfter.length, entriesBefore.length);
+  });
+});
+
+test("reconcile commands append edges and preserve run attribution", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:a", "--type", "concept", "--title", "A", "--summary", "A."]);
+  run(cwd, ["add", "node", "--id", "n:b", "--type", "concept", "--title", "B", "--summary", "B."]);
+  run(cwd, ["run", "start", "--goal", "Reconcile test", "--agent", "tester"]);
+  const output = JSON.parse(run(cwd, ["reconcile", "duplicate", "n:a", "n:b", "--canonical", "n:a", "--reason", "Same thing.", "--json"]));
+  assert.equal(output.ok, true);
+  assert.equal(output.runId.startsWith("run:"), true);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const rels = graph.edges.filter((edge: { rel: string }) => ["duplicate_of", "canonical_for"].includes(edge.rel));
+  assert.equal(rels.length, 2);
+  assert.ok(rels.every((edge: { runId?: string }) => edge.runId === output.runId));
+  assert.ok(graph.events.some((event: { type: string; action?: string; runId?: string }) => event.type === "reconciliation_added" && event.action === "duplicate" && event.runId === output.runId));
+  const inbox = JSON.parse(run(cwd, ["inbox", "--kind", "duplicates", "--json"]));
+  assert.ok(!inbox.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:a") || item.nodeIds.includes("n:b")));
+  assert.ok(runFail(cwd, ["reconcile", "duplicate", "n:a", "n:a", "--canonical", "n:a"]).includes("distinct node IDs"));
+  assert.ok(runFail(cwd, ["reconcile", "intentionally-open", "n:a"]).includes("--reason is required"));
+  assert.ok(runFail(cwd, ["reconcile", "supersede", "n:a", "n:missing"]).includes("Node not found: n:missing"));
+});
+
+test("init refreshes managed edge schema for reconciliation relations", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const schema = path.join(cwd, ".awg/schema/core/edge.schema.json");
+  writeFileSync(schema, initialV1EdgeSchemaBody());
+  run(cwd, ["init", "--empty"]);
+  const parsed = JSON.parse(readFileSync(schema, "utf8"));
+  const manifest = JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8"));
+  assert.ok(parsed.properties.rel.enum.includes("duplicate_of"));
+  assert.ok(parsed.properties.rel.enum.includes("resolved_by"));
+  assert.equal(manifest.schemas.edge.hash, schemaContentHash(readFileSync(schema, "utf8")));
+});
+
+test("intentionally-open acknowledgements suppress active risk inbox and preflight only when current", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:risk", "--type", "risk", "--title", "Carry risk", "--summary", "Risk.", "--status", "active"]);
+  run(cwd, ["run", "start", "--goal", "Carry risk", "--agent", "tester"]);
+  let inbox = JSON.parse(run(cwd, ["inbox", "--kind", "risks", "--json"]));
+  assert.ok(inbox.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:risk")));
+  run(cwd, ["reconcile", "intentionally-open", "n:risk", "--reason", "Known carry-forward for this run."]);
+  inbox = JSON.parse(run(cwd, ["inbox", "--kind", "risks", "--json"]));
+  assert.ok(!inbox.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:risk")));
+  let status = JSON.parse(run(cwd, ["run", "finish", "--status", "completed", "--summary", "Done.", "--force", "--json"]));
+  assert.ok(!status.preflight.warnings.some((warning: { code: string; nodeIds?: string[] }) => warning.code === "AWG_RUN_ACTIVE_RISK_TOUCHED" && warning.nodeIds?.includes("n:risk")));
+  run(cwd, ["update", "node", "n:risk", "--summary", "Risk changed."]);
+  inbox = JSON.parse(run(cwd, ["inbox", "--kind", "risks", "--json"]));
+  assert.ok(inbox.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:risk")));
+});
+
+test("intentionally-open acknowledgements do not hide orphan nodes", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:orphan-risk", "--type", "risk", "--title", "Orphan risk", "--summary", "Risk.", "--status", "active"]);
+  run(cwd, ["reconcile", "intentionally-open", "n:orphan-risk", "--reason", "Known carry-forward."]);
+  const doctor = JSON.parse(run(cwd, ["doctor", "--json"]));
+  assert.ok(doctor.diagnostics.some((diag: { code: string; id?: string }) => diag.code === "orphan_node" && diag.id === "n:orphan-risk"));
+  const inbox = JSON.parse(run(cwd, ["inbox", "--kind", "orphans", "--json"]));
+  assert.ok(inbox.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:orphan-risk")));
+});
+
+test("run preflight only surfaces inbox items for touched nodes", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:risk", "--type", "risk", "--title", "Unrelated risk", "--summary", "Risk.", "--status", "active"]);
+  run(cwd, ["run", "start", "--goal", "Empty run", "--agent", "tester"]);
+  const status = JSON.parse(run(cwd, ["run", "finish", "--status", "completed", "--summary", "Done.", "--force", "--json"]));
+  assert.ok(!status.preflight.warnings.some((warning: { code: string }) => warning.code === "AWG_RUN_INBOX_ITEM_TOUCHED"));
+});
+
 test("search finds id title summary and filters deterministically", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -657,6 +816,24 @@ test("node show exposes duplicate node snapshots without raw jsonl inspection", 
   assert.equal(detail.history.snapshotCount, 2);
   assert.deepEqual(detail.history.snapshots.map((snapshot: { node: { fields: { version: number } } }) => snapshot.node.fields.version), [1, 2]);
   assert.ok(detail.diagnostics.some((diag: { code: string }) => diag.code === "duplicate_id_upsert"));
+  const inbox = JSON.parse(run(cwd, ["inbox", "--json"]));
+  assert.ok(inbox.items.some((item: { kind: string; code: string; nodeIds: string[]; suggestedCommands: string[] }) => item.kind === "hygiene" && item.code === "AWG_INBOX_DUPLICATE_ID_UPSERT" && item.nodeIds.includes("n:dup") && item.suggestedCommands.includes("awg node show n:dup --json")));
+  assert.ok(!inbox.items.some((item: { kind: string; code: string; nodeIds: string[] }) => item.kind === "duplicates" && item.code === "AWG_INBOX_DUPLICATE_SIGNAL" && item.nodeIds.includes("n:dup")));
+});
+
+test("maintenance inbox treats duplicate non-node ids as hygiene without reconciliation commands", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(file), { recursive: true }));
+  const event = { awg: "0.1", kind: "event", id: "ev:dup", type: "note", target: "n:missing", by: "agent:test", at: "2026-01-01T00:00:00.000Z" };
+  writeFileSync(file, `${JSON.stringify(event)}\n${JSON.stringify(event)}\n`);
+  const inbox = JSON.parse(run(cwd, ["inbox", "--json"]));
+  const item = inbox.items.find((candidate: { code: string }) => candidate.code === "AWG_INBOX_DUPLICATE_ID_UPSERT");
+  assert.equal(item.kind, "hygiene");
+  assert.deepEqual(item.nodeIds, []);
+  assert.deepEqual(item.suggestedCommands, []);
+  assert.ok(!inbox.items.some((candidate: { kind: string; code: string }) => candidate.kind === "duplicates" && candidate.code === "AWG_INBOX_DUPLICATE_SIGNAL"));
 });
 
 test("update node appends an upsert and event without touching compiled source", async () => {

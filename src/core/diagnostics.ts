@@ -25,8 +25,10 @@ export function buildDiagnostics(
   const incomingByTarget = new Map<string, AwgEdge[]>();
 
   for (const edge of edges) {
-    linked.add(edge.from);
-    linked.add(edge.to);
+    if (countsAsGraphLink(edge)) {
+      linked.add(edge.from);
+      linked.add(edge.to);
+    }
     const incoming = incomingByTarget.get(edge.to) ?? [];
     incoming.push(edge);
     incomingByTarget.set(edge.to, incoming);
@@ -161,6 +163,10 @@ export function buildDiagnostics(
   if (summary.active_run_count) recommended.push("Finish active runs with a summary and generate a handoff before stopping.");
 
   return { diagnostics, summary, recommended };
+}
+
+function countsAsGraphLink(edge: AwgEdge): boolean {
+  return edge.rel !== "intentionally_open";
 }
 
 function numberConfig(value: unknown, fallback: number): number {

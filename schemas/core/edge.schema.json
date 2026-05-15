@@ -1,24 +1,47 @@
 {
-  "type": "object",
-  "required": ["awg", "kind", "id", "from", "rel", "to", "created_at"],
+  "additionalProperties": true,
   "properties": {
-    "awg": { "const": "0.1" },
-    "kind": { "const": "edge" },
-    "id": { "type": "string", "pattern": "^e:.+" },
-    "from": { "type": "string", "pattern": "^n:.+" },
+    "awg": {
+      "const": "0.1"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "from": {
+      "pattern": "^n:.+",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^e:.+",
+      "type": "string"
+    },
+    "kind": {
+      "const": "edge"
+    },
     "rel": {
       "enum": [
         "relates_to",
         "depends_on",
         "blocks",
         "supports",
+        "duplicate_of",
+        "canonical_for",
         "contradicts",
         "answers",
         "asks",
         "implements",
         "affects",
         "supersedes",
+        "superseded_by",
+        "resolved_by",
+        "verified_by",
         "derived_from",
+        "intentionally_open",
         "part_of",
         "caused_by",
         "requires",
@@ -28,9 +51,19 @@
         "applies_to"
       ]
     },
-    "to": { "type": "string", "pattern": "^n:.+" },
-    "created_at": { "type": "string" },
-    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+    "to": {
+      "pattern": "^n:.+",
+      "type": "string"
+    }
   },
-  "additionalProperties": true
+  "required": [
+    "awg",
+    "kind",
+    "id",
+    "from",
+    "rel",
+    "to",
+    "created_at"
+  ],
+  "type": "object"
 }

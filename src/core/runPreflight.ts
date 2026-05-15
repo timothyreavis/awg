@@ -2,6 +2,7 @@ import type { AgentRun, RunSummary } from "./runs.js";
 import { isBlockDiagnosticCode } from "./blocks.js";
 import { hasEvidenceReference } from "./evidence.js";
 import { runIdFromObject } from "./runAttribution.js";
+import { filterInboxItems } from "./maintenance.js";
 import type { CompiledGraph } from "./types.js";
 
 export interface RunPreflightWarning {
@@ -40,8 +41,8 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
 
   addNodeWarning("AWG_RUN_COMPLETED_TASK_WITHOUT_EVIDENCE", "Task completed in this run has no evidence.", summary?.completedTasksMissingEvidence ?? [], "Run `awg add evidence --target <node-id> --summary \"...\"`.");
   addNodeWarning("AWG_RUN_EVIDENCE_REQUIRED_WITHOUT_EVIDENCE", "Touched node requires evidence but has none.", touched.filter((id) => Boolean(nodes.get(id)?.evidence_required) && !hasNodeEvidence(id)), "Run `awg add evidence --target <node-id> --summary \"...\"`.");
-  addNodeWarning("AWG_RUN_ACTIVE_BLOCKER_TOUCHED", "Blocker touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "blocker" && activeStatus(nodes.get(id)?.status)), "Resolve, review, or leave an explicit run note.");
-  addNodeWarning("AWG_RUN_ACTIVE_RISK_TOUCHED", "Risk touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "risk" && activeStatus(nodes.get(id)?.status)), "Review the risk or leave an explicit run note.");
+  addNodeWarning("AWG_RUN_ACTIVE_BLOCKER_TOUCHED", "Blocker touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "blocker" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id)), "Resolve, review, or run `awg reconcile intentionally-open <node-id> --reason \"...\"`.");
+  addNodeWarning("AWG_RUN_ACTIVE_RISK_TOUCHED", "Risk touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "risk" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id)), "Review the risk or run `awg reconcile intentionally-open <node-id> --reason \"...\"`.");
   addNodeWarning("AWG_RUN_PROPOSED_DECISION_TOUCHED", "Decision touched during this run is still proposed.", summary?.proposedDecisionIds ?? [], "Update the decision status when implementation depends on it.");
   addNodeWarning("AWG_RUN_ORPHAN_NODE_CREATED", "Node created during this run has no graph edges.", summary?.orphanNodeIds ?? [], "Run `awg add edge --from <node-id> --rel relates_to --to <node-id>`.");
   addNodeWarning("AWG_RUN_DUPLICATEISH_NODE_CREATED", "Node created during this run has a duplicate-looking title or alias.", idsForDiagnostics(summary, "duplicate_alias"), "Use `awg search` and update existing nodes instead of duplicating context.");
@@ -52,12 +53,23 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   addNodeWarning("AWG_RUN_SENSITIVE_VALUE_TOUCHED", "Touched node appears to contain a secret-like value.", idsForDiagnostics(summary, "sensitive_value_detected"), "Redact the value and keep only a safe reference.");
   const unresolvedCrossVault = touched.filter((id) => hasUnhandledCrossVaultImpact(nodes.get(id), run.id, graph.nodes));
   addNodeWarning("AWG_RUN_CROSS_VAULT_IMPACT_UNHANDLED", "Touched node has open cross-vault impact with no same-run handoff task.", unresolvedCrossVault, "Update the target vault explicitly, or create a task with fields.kind=cross_vault_handoff and fields.targetVaultId.");
+  if (touched.length) {
+    for (const item of filterInboxItems(graph.maintenance_inbox, { nodeIds: touched, limit: 8 }).filter((item) => item.priority >= 70)) {
+      warnings.push({ code: "AWG_RUN_INBOX_ITEM_TOUCHED", severity: "warning", message: item.message, nodeIds: item.nodeIds, suggestedFix: item.suggestedCommands[0] ?? "Run `awg inbox --json`." });
+    }
+  }
 
   if (!run.notes.length) warnings.push({ code: "AWG_RUN_NO_NOTES", severity: "warning", message: "Run has no notes.", suggestedFix: "Run `awg run note \"...\"` with meaningful progress or blockers." });
   if (!touched.length && !(summary?.createdEdgeIds.length || summary?.responseIds.length || summary?.evidenceNodeIds.length)) warnings.push({ code: "AWG_RUN_NO_CHANGES", severity: "warning", message: "Run has no changed or touched graph objects.", suggestedFix: "Record durable work before finishing, or finish as partial/abandoned." });
   if (!summary?.handoffGenerated) warnings.push({ code: "AWG_RUN_NO_HANDOFF", severity: "warning", message: "Run has no recorded handoff yet.", suggestedFix: "Use `awg run finish --auto-handoff` or `awg handoff`." });
 
   return { ok: warnings.length === 0, warnings: dedupeWarnings(warnings) };
+}
+
+function isIntentionallyOpen(graph: CompiledGraph, nodeId: string): boolean {
+  const node = graph.nodes.find((item) => item.id === nodeId);
+  if (!node) return false;
+  return graph.edges.some((edge) => edge.rel === "intentionally_open" && edge.from === nodeId && edge.to === nodeId && Boolean(edge.reason) && edge.created_at >= node.updated_at);
 }
 
 function hasUnhandledCrossVaultImpact(node: unknown, runId: string, nodes: Map<string, CompiledGraph["nodes"][number]> | CompiledGraph["nodes"]): boolean {

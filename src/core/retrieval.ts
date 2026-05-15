@@ -5,6 +5,7 @@ import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
 import { activeRun, buildRuns, recentRuns, type AgentRun } from "./runs.js";
 import { preflightRun, qualityForRun, runSummaryFor, type HandoffQuality, type RunPreflightResult } from "./runPreflight.js";
 import { topologyRelevant, type TopologyIndex } from "./topology.js";
+import { filterInboxItems } from "./maintenance.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export interface TaskLensOutput {
@@ -56,6 +57,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const related = [...relatedIds].map(node).filter(Boolean) as AwgNode[];
   const relevantNodes = [...relevantIds].map(node).filter(Boolean) as AwgNode[];
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && relevantIds.has(diag.id)).sort(bySeverity);
+  const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { nodeIds: [...relevantIds], limit: 10 });
   const evidence = graph.nodes.filter((item) => item.type === "evidence" && graph.edges.some((edge) => edge.from === item.id && relevantIds.has(edge.to))).sort(byUpdatedDesc).slice(0, 10);
   const runs = buildRuns(graph);
   const current = activeRun(runs);
@@ -77,6 +79,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "activeRun", items: current ? [runWithSummary(graph, current)] : [] },
     { section: "relatedRuns", items: relatedRuns.map((run) => runWithSummary(graph, run)) },
     { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
+    { section: "maintenanceInbox", items: maintenanceInbox },
     { section: "diagnostics", items: diagnostics },
     { section: "anchors", items: relatedAnchorEntries(graph, relevantIds).slice(0, 10) },
     { section: "recentEvidence", items: evidence }
@@ -100,6 +103,7 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const recommendations = recommendedNextActions(graph.diagnostics.summary);
   const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, current?.goal, runSummary?.touchedNodeIds ?? []);
   const topologyObject = { currentVault: (graph.topology as TopologyIndex | undefined)?.currentVault ?? null, relatedVaults: compactTopologyItems(topologyItems), crossVaultRefs: ((graph.topology as TopologyIndex | undefined)?.crossVaultRefs ?? []).filter((ref) => (runSummary?.touchedNodeIds ?? []).includes(ref.nodeId)) };
+  const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { limit: 12 });
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
     { section: "graphHealth", items: [graph.diagnostics.summary] },
@@ -110,6 +114,7 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "preflightWarnings", items: preflight?.warnings ?? [] },
     { section: "handoffQuality", items: [quality] },
     { section: "recommendedNextActions", items: recommendations },
+    { section: "maintenanceInbox", items: maintenanceInbox },
     { section: "currentFocus", items: activeTasks.slice(0, 3) },
     { section: "activeTasks", items: activeTasks },
     { section: "openDecisions", items: openDecisions },

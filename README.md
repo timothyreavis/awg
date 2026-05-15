@@ -59,6 +59,8 @@ No server is required.
 The generated viewer is a tokenized, hash-routed human surface:
 
 - `#/overview` for curated current focus and attention
+- `#/topology` for registered project relationships and cross-vault context
+- `#/maintenance` for the derived maintenance inbox
 - `#/graph` for focused relationship traversal
 - `#/kanban` for read-only workflow review
 - `#/nodes` for searchable node browsing
@@ -141,7 +143,7 @@ awg upgrade --force
 ```sh
 awg setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
 awg upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
-awg init [--empty] [--force] [--register] [--no-register]
+awg init [--empty] [--demo] [--force] [--register] [--no-register]
 awg register [--name <name>] [--scope project|org|user]
 awg unregister [--path <path>]
 awg vault list [--missing] [--json]
@@ -165,6 +167,13 @@ awg run list [--json]
 awg build [--json] [--strict]
 awg validate [--json] [--strict]
 awg doctor [--fix-suggestions] [--json]
+awg inbox [--kind <kind>] [--limit <n>] [--json]
+awg inbox show <item-id> [--json]
+awg reconcile duplicate <a> <b> --canonical <id> [--reason <text>] [--json]
+awg reconcile supersede <old> <new> [--reason <text>] [--json]
+awg reconcile contradict <a> <b> [--reason <text>] [--json]
+awg reconcile resolved-by <target> <resolver> [--reason <text>] [--json]
+awg reconcile intentionally-open <target> --reason <text> [--json]
 awg lens resume [--budget <n>] [--json]
 awg lens task --goal <goal> [--budget <n>] [--json]
 awg handoff [--budget <n>] [--json] [--no-record]
@@ -191,7 +200,11 @@ Node `body` is rendered by the static viewer with a safe outline renderer, not a
 
 An agent run is one focused work session. `awg run start --goal "<goal>"` appends a run-start event, `awg run note "..."` records meaningful progress or blockers, and `awg run finish --status completed|partial|blocked|failed --summary "..."` records the final outcome. Durable write commands attach to the active run by default; use `--run <run-id>` for an explicit active run and `--no-run` to suppress attribution. The compiler derives created, updated, touched, evidenced, completed, unresolved, diagnostic, and handoff state for each run from canonical log metadata. `awg run status` reports the active run and `awg run list --json` includes derived attribution summaries. Run history is canonical AWG event data, not hidden mutable state.
 
-`awg run finish --status completed` runs a deterministic preflight. It warns about completed tasks without evidence, evidence-required nodes without evidence, active risks/blockers, proposed decisions, orphan or duplicate-ish nodes created in the run, missing notes, missing changes, missing handoff, stale touched nodes, and doctor warnings affecting touched nodes. Completed runs with substantive unresolved preflight warnings require `--force`; partial, blocked, failed, and abandoned runs remain usable and report warnings. `--auto-handoff` records and prints a compact handoff after finishing, and JSON output includes finish, preflight, and handoff data. If `--force` is used, document why in the summary or a run note.
+`awg inbox` derives a deterministic maintenance queue from compiled graph state. It is read-only and local. Item kinds include `stale`, `needs_review`, `duplicates`, `orphans`, `evidence`, `questions`, `risks`, `blockers`, `decisions`, `topology`, and `hygiene`. `awg inbox --json` returns stable item objects with ids, severity, priority, involved nodes/runs/vaults, reasons, conservative suggested commands, and autonomous/human-review flags. `--kind` filters the queue and `--limit` caps output. `awg doctor --fix-suggestions --json`, `handoff`, task lenses, resume lenses, run preflight, and the viewer reuse this inbox where safe.
+
+`awg reconcile` records cleanup relationships as append-only edges and events. It never deletes, merges, or rewrites old history. The V1.9 CLI creates `duplicate_of`, `canonical_for`, `supersedes`, `superseded_by`, `contradicts`, `resolved_by`, and `intentionally_open` relationships; the schema also accepts existing evidence/provenance relationships such as `verified_by` and `derived_from`. Reconciliation commands validate local node targets and preserve active run attribution. `intentionally-open` is for explicit carry-forward acknowledgements; it requires a reason and only suppresses active risk/blocker preflight and inbox pressure while the acknowledgement is current for that node.
+
+`awg run finish --status completed` runs a deterministic preflight. It warns about completed tasks without evidence, evidence-required nodes without evidence, active risks/blockers, proposed decisions, orphan or duplicate-ish nodes created during the run, high-priority inbox items affecting touched nodes, missing notes, missing changes, missing handoff, stale touched nodes, and doctor warnings affecting touched nodes. Completed runs with substantive unresolved preflight warnings require `--force`; partial, blocked, failed, and abandoned runs remain usable and report warnings. `--auto-handoff` records and prints a compact handoff after finishing, and JSON output includes finish, preflight, and handoff data. If `--force` is used, document why in the summary or a run note.
 
 Recommended loop:
 

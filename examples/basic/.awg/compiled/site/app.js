@@ -10,6 +10,7 @@ const topology = graph.topology || data.topology || { directNeighbors: [], relat
 const routes = [
   ["overview", "Overview"],
   ["topology", "Topology"],
+  ["maintenance", "Maintenance"],
   ["graph", "Graph"],
   ["kanban", "Kanban"],
   ["nodes", "Nodes"],
@@ -88,6 +89,7 @@ function renderRoute() {
   else if (parsed.route === "kanban") root.innerHTML = renderKanbanRoute(parsed.params);
   else if (parsed.route === "nodes") root.innerHTML = renderNodesRoute(parsed.params);
   else if (parsed.route === "topology") root.innerHTML = renderTopologyRoute();
+  else if (parsed.route === "maintenance") root.innerHTML = renderMaintenanceRoute(parsed.params);
   else if (parsed.route === "runs") root.innerHTML = renderRunsRoute();
   else if (parsed.route === "health") root.innerHTML = renderHealthRoute(parsed.params);
   else if (parsed.route === "views") root.innerHTML = renderViewsRoute(parsed.params);
@@ -143,6 +145,29 @@ function renderTopologyRoute() {
   const relationshipRows = rels.length ? '<section class="panel span-2"><h2>Relationships</h2><table><thead><tr><th>ID</th><th>Relationship</th><th>Direction</th><th>Summary</th></tr></thead><tbody>' + rels.map((rel) => '<tr><td><code>' + esc(rel.id) + '</code></td><td>' + esc(rel.rel || "") + '</td><td>' + esc(rel.direction || "") + '</td><td>' + esc(rel.summary || "") + '</td></tr>').join("") + '</tbody></table></section>' : "";
   const diagRows = (topology.diagnostics || []).length ? '<section class="panel span-2"><h2>Topology Health</h2>' + renderDiagnostics(topology.diagnostics || []) + '</section>' : "";
   return '<div class="surface-grid">' + header + neighborCards + relationshipRows + diagRows + '</div>';
+}
+
+function renderMaintenanceRoute(params) {
+  const inbox = graph.maintenance_inbox || { items: [], summary: { total: 0, byKind: {}, bySeverity: {}, highPriority: 0 } };
+  let items = inbox.items || [];
+  if (params.kind) items = items.filter((item) => item.kind === params.kind);
+  if (params.severity) items = items.filter((item) => item.severity === params.severity);
+  const kinds = unique((inbox.items || []).map((item) => item.kind));
+  const severities = unique((inbox.items || []).map((item) => item.severity));
+  const summary = inbox.summary || {};
+  const stats = [
+    metric("Inbox Items", summary.total || 0, "#/maintenance"),
+    metric("High Priority", summary.highPriority || 0, "#/maintenance"),
+    metric("Errors", (summary.bySeverity || {}).error || 0, "#/maintenance?severity=error"),
+    metric("Warnings", (summary.bySeverity || {}).warning || 0, "#/maintenance?severity=warning")
+  ].join("");
+  const filters = '<div class="filters"><select data-control="maintenance-kind"><option value="">All kinds</option>' + optionList(kinds, params.kind) + '</select><select data-control="maintenance-severity"><option value="">All severities</option>' + optionList(severities, params.severity) + '</select></div>';
+  const rows = items.length ? '<div class="card-list">' + items.map((item) => {
+    const reasons = (item.reasons || []).length ? '<h3>Reasons</h3><ul>' + item.reasons.map((reason) => '<li>' + esc(reason) + '</li>').join("") + '</ul>' : "";
+    const commands = (item.suggestedCommands || []).length ? '<h3>Suggested commands</h3><ul>' + item.suggestedCommands.map((command) => '<li><code>' + esc(command) + '</code></li>').join("") + '</ul>' : "";
+    return '<article class="node-card severity-' + esc(item.severity) + '"><div class="chip-row">' + badge(item.severity, "severity") + badge(item.kind, "type") + '<code>' + esc(item.id) + '</code></div><h2>' + esc(item.message) + '</h2><p><code>' + esc(item.code) + '</code> priority ' + esc(String(item.priority)) + '</p>' + (item.nodeIds || []).map((id) => nodeLink(id)).join(" ") + reasons + commands + '</article>';
+  }).join("") + '</div>' : '<div class="empty"><h2>No maintenance items</h2><p>The derived inbox is empty for this filter.</p></div>';
+  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body">' + filters + rows + '</div></section>';
 }
 
 function buildOverviewBlocks() {
@@ -845,6 +870,9 @@ function wireRouteControls(root, route) {
     root.querySelectorAll("[data-control^='nodes-']").forEach((control) => control.addEventListener("change", updateNodesHash));
     root.querySelector("[data-control='nodes-q']")?.addEventListener("input", debounce(updateNodesHash, 200));
   }
+  if (route === "maintenance") {
+    root.querySelectorAll("[data-control^='maintenance-']").forEach((control) => control.addEventListener("change", updateMaintenanceHash));
+  }
   if (route === "settings") {
     root.querySelector("[data-control='settings-theme']")?.addEventListener("change", (event) => updateSetting("theme", event.target.value));
     root.querySelector("[data-control='settings-density']")?.addEventListener("change", (event) => updateSetting("density", event.target.value));
@@ -887,6 +915,16 @@ function updateNodesHash() {
     if (value) params.set(key, value);
   }
   location.hash = "#/nodes" + (params.size ? "?" + params.toString() : "");
+}
+
+function updateMaintenanceHash() {
+  const params = new URLSearchParams();
+  const map = { kind: "maintenance-kind", severity: "maintenance-severity" };
+  for (const [key, control] of Object.entries(map)) {
+    const value = document.querySelector("[data-control='" + control + "']")?.value;
+    if (value) params.set(key, value);
+  }
+  location.hash = "#/maintenance" + (params.size ? "?" + params.toString() : "");
 }
 
 function updateSetting(key, value) {

@@ -6,9 +6,19 @@ export async function doctorCommand(parsed: ParsedArgs): Promise<void> {
   const nonMutatingJsonSuggestions = Boolean(parsed.flags["fix-suggestions"] && parsed.flags.json);
   const result = await buildAwg(new FileAwgStorage(), { write: !nonMutatingJsonSuggestions });
   if (result.diagnostics.summary.fatal_error_count > 0) process.exitCode = 1;
-  const fixSuggestions = parsed.flags["fix-suggestions"] ? result.diagnostics.diagnostics.map(suggestFix).filter(Boolean) : undefined;
+  const inboxSuggestions = result.graph.maintenance_inbox?.items.filter((item) => item.suggestedCommands.length).map((item) => ({
+    code: item.code,
+    itemId: item.id,
+    nodeIds: item.nodeIds,
+    edgeIds: item.edgeIds,
+    runIds: item.runIds,
+    autonomousSafe: item.autonomousSafe,
+    needsHumanReview: item.needsHumanReview,
+    suggestedCommands: item.suggestedCommands
+  })) ?? [];
+  const fixSuggestions = parsed.flags["fix-suggestions"] ? [...result.diagnostics.diagnostics.map(suggestFix).filter(Boolean), ...inboxSuggestions] : undefined;
   if (parsed.flags.json) {
-    console.log(JSON.stringify(fixSuggestions ? { ...result.diagnostics, fixSuggestions } : result.diagnostics, null, 2));
+    console.log(JSON.stringify(fixSuggestions ? { ...result.diagnostics, maintenanceInbox: result.graph.maintenance_inbox, fixSuggestions } : result.diagnostics, null, 2));
     return;
   }
   for (const diag of result.diagnostics.diagnostics) {

@@ -1,7 +1,7 @@
 import { AWG_VERSION } from "./constants.js";
-import type { AwgNode, AwgResponse, DiagnosticsSummary, ResumeLensOutput } from "./types.js";
+import type { AwgNode, AwgResponse, DiagnosticsSummary, MaintenanceInboxItem, ResumeLensOutput } from "./types.js";
 
-export function buildResumeLens(nodes: AwgNode[], responses: AwgResponse[], diagnostics: DiagnosticsSummary, recommended: string[], generatedAt: string): ResumeLensOutput {
+export function buildResumeLens(nodes: AwgNode[], responses: AwgResponse[], diagnostics: DiagnosticsSummary, recommended: string[], generatedAt: string, inboxItems: MaintenanceInboxItem[] = []): ResumeLensOutput {
   const active = (node: AwgNode) => !["archived", "rejected", "superseded"].includes(node.status);
   return {
     awg: AWG_VERSION,
@@ -16,6 +16,7 @@ export function buildResumeLens(nodes: AwgNode[], responses: AwgResponse[], diag
     unanswered_questions: nodes.filter((n) => n.type === "question" && !["resolved", "completed", "archived"].includes(n.status)).slice(0, 20),
     recent_responses: responses.slice(-10).reverse(),
     diagnostics_summary: diagnostics,
-    recommended_maintenance: recommended.slice(0, 8)
+    recommended_maintenance: recommended.slice(0, 8),
+    maintenance_inbox: inboxItems
   };
 }
