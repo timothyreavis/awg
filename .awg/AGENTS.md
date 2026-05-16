@@ -9,6 +9,7 @@ Start of session:
 - Run `awg inbox --limit 10` to review deterministic maintenance items.
 - Run `awg template status --goal "<goal>" --json` to understand the vault operating template.
 - Use `awg lens task --goal "<goal>"` for scoped context.
+- Run `awg queue next --json` when selecting undirected next work; use `awg queue show <item-id> --json` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
 - Use `awg node show <node-id> --json` when search, lens, or handoff surfaces a node whose full detail matters.
 
 During work:
@@ -24,6 +25,7 @@ During work:
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
 - Mark work that requires proof with `--evidence-required` and satisfy it before completion.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 

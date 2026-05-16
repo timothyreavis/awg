@@ -6,6 +6,7 @@ import { activeRun, buildRuns, recentRuns, type AgentRun } from "./runs.js";
 import { preflightRun, qualityForRun, runSummaryFor, type HandoffQuality, type RunPreflightResult } from "./runPreflight.js";
 import { topologyRelevant, type TopologyIndex } from "./topology.js";
 import { filterInboxItems } from "./maintenance.js";
+import { filterWorkQueueItems } from "./workQueues.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export interface TaskLensOutput {
@@ -58,6 +59,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const relevantNodes = [...relevantIds].map(node).filter(Boolean) as AwgNode[];
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && relevantIds.has(diag.id)).sort(bySeverity);
   const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { nodeIds: [...relevantIds], limit: 10 });
+  const workQueueItems = filterWorkQueueItems(graph.work_queue_index, { goal, graph }).filter((item) => !item.nodeIds.length || item.nodeIds.some((id) => relevantIds.has(id))).slice(0, 10);
   const claimIssues = (graph.claim_index?.claims ?? []).filter((claim) => relevantIds.has(claim.id) && (claim.diagnostics.length || ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus))).slice(0, 10);
   const evidence = graph.nodes.filter((item) => item.type === "evidence" && graph.edges.some((edge) => edge.from === item.id && relevantIds.has(edge.to))).sort(byUpdatedDesc).slice(0, 10);
   const runs = buildRuns(graph);
@@ -81,6 +83,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "relatedRuns", items: relatedRuns.map((run) => runWithSummary(graph, run)) },
     { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
     { section: "maintenanceInbox", items: maintenanceInbox },
+    { section: "workQueues", items: workQueueItems },
     { section: "claimTrustIssues", items: claimIssues },
     { section: "diagnostics", items: diagnostics },
     { section: "anchors", items: relatedAnchorEntries(graph, relevantIds).slice(0, 10) },
@@ -106,6 +109,8 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, current?.goal, runSummary?.touchedNodeIds ?? []);
   const topologyObject = { currentVault: (graph.topology as TopologyIndex | undefined)?.currentVault ?? null, relatedVaults: compactTopologyItems(topologyItems), crossVaultRefs: ((graph.topology as TopologyIndex | undefined)?.crossVaultRefs ?? []).filter((ref) => (runSummary?.touchedNodeIds ?? []).includes(ref.nodeId)) };
   const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { limit: 12 });
+  const topQueueItems = filterWorkQueueItems(graph.work_queue_index, { limit: 12, includeHumanReview: true });
+  const handoffFollowup = filterWorkQueueItems(graph.work_queue_index, { queue: "handoff_followup", limit: 8, includeHumanReview: true });
   const claimTrustIssues = (graph.claim_index?.claims ?? []).filter((claim) => ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus) || claim.nodeStatus === "needs_review").slice(0, 12);
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
@@ -117,6 +122,8 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "preflightWarnings", items: preflight?.warnings ?? [] },
     { section: "handoffQuality", items: [quality] },
     { section: "recommendedNextActions", items: recommendations },
+    { section: "workQueues", items: topQueueItems },
+    { section: "handoffFollowup", items: handoffFollowup },
     { section: "maintenanceInbox", items: maintenanceInbox },
     { section: "claimTrustIssues", items: claimTrustIssues },
     { section: "currentFocus", items: activeTasks.slice(0, 3) },
@@ -179,7 +186,7 @@ function relatedNodeIds(edges: AwgEdge[], start: Set<string>, depth: number): Se
 }
 
 function recommendedNextActions(summary: DiagnosticsSummary): string[] {
-  const out = ["Run awg search before adding duplicate durable context.", "Run awg template status --json when work feels under-specified.", "Use awg lens task --goal \"...\" before focused implementation work."];
+  const out = ["Run awg search before adding duplicate durable context.", "Run awg template status --json when work feels under-specified.", "Use awg lens task --goal \"...\" before focused implementation work.", "Use awg queue next --json when selecting undirected next work."];
   if (summary.fatal_error_count) out.unshift("Fix fatal diagnostics before relying on compiled graph output.");
   if (summary.unverified_completion_count) out.push("Attach evidence to completed task nodes.");
   if (summary.stale_node_count) out.push("Review stale or needs-review nodes.");

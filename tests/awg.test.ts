@@ -116,6 +116,12 @@ function canonicalLogSnapshot(cwd: string): string {
   return files.map((file) => `${path.relative(root, file)}\n${readFileSync(file, "utf8")}`).join("\n");
 }
 
+function compiledSnapshot(cwd: string): string {
+  const root = path.join(cwd, ".awg/compiled");
+  const files = walk(root).sort();
+  return files.map((file) => `${path.relative(root, file)}\n${readFileSync(file, "utf8")}`).join("\n");
+}
+
 function walk(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -134,6 +140,8 @@ test("init creates expected files", () => {
   assert.ok(agents.includes("awg doctor --fix-suggestions --json"));
   assert.ok(agents.includes("--auto-handoff"));
   assert.ok(agents.includes("awg node show <node-id> --json"));
+  assert.ok(agents.includes("awg queue next --json"));
+  assert.ok(agents.includes("do not claim, reserve, lock, assign"));
   assert.ok(claude.includes("Follow the project instructions in `AGENTS.md`"));
   assert.ok(claude.includes("awg doctor --fix-suggestions --json"));
   assert.ok(claude.includes("--auto-handoff"));
@@ -713,6 +721,7 @@ test("reconcile commands append edges and preserve run attribution", () => {
   assert.equal(output.ok, true);
   assert.equal(output.runId.startsWith("run:"), true);
   run(cwd, ["build"]);
+  const compiledBefore = compiledSnapshot(cwd);
   const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
   const rels = graph.edges.filter((edge: { rel: string }) => ["duplicate_of", "canonical_for"].includes(edge.rel));
   assert.equal(rels.length, 2);
@@ -1371,7 +1380,8 @@ test("release notes, relations, evidence help, and generated instructions expose
   assert.equal(release.ok, true);
   const v191 = release.releases.find((item: { version: string }) => item.version === "0.1.0-v2.1");
   assert.ok(v191.newCommands.includes("awg rels [--json]"));
-  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg add claim")));
+  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg queue next")));
+  assert.ok(release.releases.some((item: { newCommands: string[] }) => item.newCommands.some((command: string) => command.startsWith("awg add claim"))));
   assert.ok(run(cwd, ["release", "current"]).includes("AWG release"));
   const rels = JSON.parse(run(cwd, ["rels", "--json"]));
   assert.ok(rels.relations.some((rel: { id: string; example: string }) => rel.id === "relates_to" && rel.example.includes("--rel relates_to")));
@@ -2085,6 +2095,87 @@ test("compiled output is deterministic for unchanged source", () => {
   run(cwd, ["build"]);
   const second = readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8");
   assert.equal(second, first);
+});
+
+test("work queue index derives deterministic queue items and CLI is read-only", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:run:start", type: "run_started", target: "run:active", run: "run:active", by: "agent:codex", at, goal: "Queue smoke" }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:active-task", type: "task", title: "Active task", summary: "Active task.", status: "active", importance: 0.6, confidence: 0.8, created_at: at, updated_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:done", type: "task", title: "Done task", summary: "Done task.", status: "completed", importance: 0.7, confidence: 0.8, created_at: at, updated_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:blocker", type: "blocker", title: "Blocker", summary: "Blocker.", status: "active", importance: 0.9, confidence: 0.8, created_at: at, updated_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:blocked", type: "task", title: "Blocked", summary: "Blocked.", status: "active", importance: 0.6, confidence: 0.8, created_at: at, updated_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "edge", id: "e:blocker-blocks", from: "n:blocker", rel: "blocks", to: "n:blocked", created_at: at }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:claim", type: "claim", title: "Claim", summary: "Claim.", status: "active", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at, claim: "A claim." }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:old", type: "requirement", title: "Old", summary: "Old.", status: "active", importance: 0.5, confidence: 0.8, created_at: at, updated_at: at, freshness: { state: "current", review_after: "2020-01-01" } })
+  ].join("\n") + "\n");
+  const before = canonicalLogSnapshot(cwd);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const index = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/indexes/work-queues.json"), "utf8"));
+  assert.equal(graph.work_queue_index.kind, "work-queue-index");
+  assert.equal(index.kind, "work-queue-index");
+  assert.ok(index.items.some((item: { queue: string; nodeIds: string[] }) => item.queue === "next" && item.nodeIds.includes("n:active-task")));
+  assert.ok(index.items.some((item: { queue: string; nodeIds: string[] }) => item.queue === "evidence_needed" && item.nodeIds.includes("n:done")));
+  assert.ok(index.items.some((item: { queue: string; nodeIds: string[]; blockedByNodeIds: string[] }) => item.queue === "blocked" && item.nodeIds.includes("n:blocked") && item.blockedByNodeIds.includes("n:blocker")));
+  assert.ok(index.items.some((item: { queue: string; nodeIds: string[] }) => item.queue === "stale_review" && item.nodeIds.includes("n:old")));
+  const firstWorkQueueArtifact = readFileSync(path.join(cwd, ".awg/compiled/indexes/work-queues.json"), "utf8");
+  run(cwd, ["build"]);
+  const secondWorkQueueArtifact = readFileSync(path.join(cwd, ".awg/compiled/indexes/work-queues.json"), "utf8");
+  assert.equal(secondWorkQueueArtifact, firstWorkQueueArtifact);
+  const compiledBefore = compiledSnapshot(cwd);
+  const list = JSON.parse(run(cwd, ["queue", "list", "--queue", "evidence_needed", "--json"]));
+  assert.equal(list.ok, true);
+  assert.ok(list.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:done")));
+  assert.ok(run(cwd, ["queue", "list", "--queue", "evidence_needed"]).includes("Evidence Needed (evidence_needed)"));
+  assert.ok(run(cwd, ["queue", "list", "--limit", "1"]).includes("1 shown of"));
+  const next = JSON.parse(run(cwd, ["queue", "next", "--include-human-review", "--goal", "blocked", "--json"]));
+  assert.ok(next.items.some((item: { nodeIds: string[] }) => item.nodeIds.includes("n:blocked")));
+  const autonomous = JSON.parse(run(cwd, ["queue", "next", "--autonomous", "--json"]));
+  assert.ok(autonomous.items.every((item: { autonomousSafe: boolean }) => item.autonomousSafe));
+  const shown = JSON.parse(run(cwd, ["queue", "show", list.items[0].id, "--json"]));
+  assert.equal(shown.ok, true);
+  assert.ok(Array.isArray(shown.nodes));
+  assert.equal(canonicalLogSnapshot(cwd), before);
+  assert.equal(compiledSnapshot(cwd), compiledBefore);
+  assert.ok(runFail(cwd, ["queue", "list", "--queue", "missing"]).includes("Unknown queue id"));
+  assert.ok(runFail(cwd, ["queue", "next", "--limit", "-1"]).includes("--limit must be a non-negative integer"));
+  assert.ok(runFail(cwd, ["queue", "show", "wq:missing"]).includes("Work queue item not found"));
+});
+
+test("work queues feed lenses handoff configurable lenses and viewer route", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:queue-task", "--type", "task", "--title", "Queue task", "--summary", "Queue task.", "--status", "active"]);
+  run(cwd, ["add", "node", "--id", "n:queue-task-filtered", "--type", "task", "--title", "Queue task filtered", "--summary", "Queue task filtered.", "--status", "active"]);
+  run(cwd, ["add", "lens", "--id", "lens:queues", "--title", "Queues", "--purpose", "Queue lens.", "--sections-json", "[{\"id\":\"queues\",\"source\":\"workQueues\",\"query\":{\"queue\":\"next\",\"minPriority\":1},\"limit\":5},{\"id\":\"scoped\",\"source\":\"workQueues\",\"query\":{\"queue\":\"next\",\"nodeIds\":[\"n:queue-task-filtered\"]},\"limit\":1}]", "--json"]);
+  run(cwd, ["build"]);
+  const taskLens = JSON.parse(run(cwd, ["lens", "task", "--goal", "queue", "--json"]));
+  assert.ok(taskLens.sections.some((section: { section: string; items: unknown[] }) => section.section === "workQueues" && section.items.length));
+  const handoff = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
+  assert.ok(handoff.sections.some((section: { section: string; items: unknown[] }) => section.section === "workQueues" && section.items.length));
+  const configured = JSON.parse(run(cwd, ["lens", "run", "lens:queues", "--json"]));
+  assert.ok(configured.sections[0].items.some((item: { queue: string }) => item.queue === "next"));
+  assert.deepEqual(configured.sections.find((section: { section: string }) => section.section === "scoped").items.map((item: { nodeIds: string[] }) => item.nodeIds[0]), ["n:queue-task-filtered"]);
+  const js = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.ok(js.includes('["queues", "Queues"]'));
+  assert.ok(js.includes("renderQueuesRoute"));
+  assert.ok(js.includes("item.runIds"));
+  assert.ok(js.includes("item.inboxItemIds"));
+});
+
+test("forced run finish preflight warnings surface as handoff follow-up queue items", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["run", "start", "--goal", "Forced finish queue", "--json"]);
+  run(cwd, ["add", "node", "--id", "n:forced-done", "--type", "task", "--title", "Forced done", "--summary", "Forced done.", "--status", "completed"]);
+  run(cwd, ["run", "finish", "--status", "completed", "--summary", "Forced done.", "--force", "--json"]);
+  const queue = JSON.parse(run(cwd, ["queue", "list", "--queue", "handoff_followup", "--json"]));
+  assert.ok(queue.items.some((item: { title: string; runIds: string[]; nodeIds: string[] }) => item.title.includes("Forced finish left unresolved preflight warnings") && item.runIds.length && item.nodeIds.includes("n:forced-done")));
 });
 
 test("completed task without evidence and stale review_after warn", async () => {

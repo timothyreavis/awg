@@ -1,0 +1,137 @@
+{
+  "awg": "0.1",
+  "generated_at": "2026-05-11T00:00:00.000Z",
+  "items": [
+    {
+      "autonomousSafe": false,
+      "blocked": false,
+      "blockedByNodeIds": [],
+      "claimIds": [],
+      "createdAt": "2026-05-11T00:00:00.000Z",
+      "edgeIds": [],
+      "evidenceIds": [],
+      "id": "wq:next:ff0343a80de1e95e",
+      "inboxItemIds": [],
+      "needsHumanReview": false,
+      "nodeIds": [
+        "n:review-static-view"
+      ],
+      "priority": 72,
+      "queue": "next",
+      "reasons": [
+        "Task status is in_progress"
+      ],
+      "relationshipIds": [],
+      "runIds": [],
+      "severity": "info",
+      "sourceIds": [
+        "n:review-static-view"
+      ],
+      "sourceKind": "node",
+      "suggestedCommands": [
+        "awg node show n:review-static-view --json"
+      ],
+      "summary": "Inspect the generated static current review view.",
+      "title": "Review static view",
+      "updatedAt": "2026-05-11T00:00:00.000Z",
+      "vaultIds": []
+    }
+  ],
+  "kind": "work-queue-index",
+  "queues": [
+    {
+      "autonomousSafe": 0,
+      "count": 1,
+      "description": "Highest-value currently actionable work.",
+      "highPriority": 0,
+      "id": "next",
+      "needsHumanReview": 0,
+      "title": "Next"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Work an agent can do without human review.",
+      "highPriority": 0,
+      "id": "autonomous",
+      "needsHumanReview": 0,
+      "title": "Autonomous"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Work that should be inspected or approved by a human.",
+      "highPriority": 0,
+      "id": "human_review",
+      "needsHumanReview": 0,
+      "title": "Human Review"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Work blocked by blockers, dependencies, risks, or explicit blocked state.",
+      "highPriority": 0,
+      "id": "blocked",
+      "needsHumanReview": 0,
+      "title": "Blocked"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Completed, claim-bearing, or evidence-required work missing current evidence.",
+      "highPriority": 0,
+      "id": "evidence_needed",
+      "needsHumanReview": 0,
+      "title": "Evidence Needed"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Stale, orphan, duplicate, topology, and repair-oriented work.",
+      "highPriority": 0,
+      "id": "maintenance",
+      "needsHumanReview": 0,
+      "title": "Maintenance"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Stale, expired, review-after, and currentness review work.",
+      "highPriority": 0,
+      "id": "stale_review",
+      "needsHumanReview": 0,
+      "title": "Stale Review"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Active risks, blockers, contradictions, and high-risk unresolved items.",
+      "highPriority": 0,
+      "id": "risk_review",
+      "needsHumanReview": 0,
+      "title": "Risk Review"
+    },
+    {
+      "autonomousSafe": 0,
+      "count": 0,
+      "description": "Unfinished runs, preflight warnings, and cross-run follow-up.",
+      "highPriority": 0,
+      "id": "handoff_followup",
+      "needsHumanReview": 0,
+      "title": "Handoff Follow-Up"
+    }
+  ],
+  "summary": {
+    "autonomousSafe": 0,
+    "blocked": 0,
+    "byQueue": {
+      "next": 1
+    },
+    "bySeverity": {
+      "info": 1
+    },
+    "highPriority": 0,
+    "needsHumanReview": 0,
+    "total": 1
+  }
+}

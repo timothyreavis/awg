@@ -14,6 +14,8 @@ export interface AgentRun {
   updated_at: string;
   finished_at?: string;
   summary?: string;
+  forced?: boolean;
+  preflight?: unknown;
   notes: RunNote[];
   evidence: string[];
   changed_nodes: string[];
@@ -83,6 +85,8 @@ export function buildRuns(graph: Pick<CompiledGraph, "events">): AgentRun[] {
       run.status = RUN_STATUSES.includes(status as RunStatus) ? status as RunStatus : "partial";
       run.finished_at = event.at;
       run.summary = typeof event.summary === "string" ? event.summary : undefined;
+      run.forced = Boolean(event.forced);
+      run.preflight = event.preflight;
     }
     if (event.type === "evidence_added" && typeof event.evidence === "string") run.evidence.push(event.evidence);
     if (event.type === "node_updated" && typeof event.target === "string") run.changed_nodes.push(event.target);

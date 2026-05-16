@@ -3,6 +3,7 @@ import { isBlockDiagnosticCode } from "./blocks.js";
 import { hasEvidenceReference } from "./evidence.js";
 import { runIdFromObject } from "./runAttribution.js";
 import { filterInboxItems } from "./maintenance.js";
+import { filterWorkQueueItems } from "./workQueues.js";
 import type { CompiledGraph } from "./types.js";
 
 export interface RunPreflightWarning {
@@ -61,6 +62,9 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   if (touched.length) {
     for (const item of filterInboxItems(graph.maintenance_inbox, { nodeIds: touched, limit: 8 }).filter((item) => item.priority >= 70)) {
       warnings.push({ code: "AWG_RUN_INBOX_ITEM_TOUCHED", severity: "warning", message: item.message, nodeIds: item.nodeIds, suggestedFix: item.suggestedCommands[0] ?? "Run `awg inbox --json`." });
+    }
+    for (const item of filterWorkQueueItems(graph.work_queue_index, { includeHumanReview: true }).filter((item) => item.priority >= 80 && item.nodeIds.some((id) => touched.includes(id))).slice(0, 8)) {
+      warnings.push({ code: "AWG_RUN_QUEUE_ITEM_TOUCHED", severity: "warning", message: item.title, nodeIds: item.nodeIds, suggestedFix: item.suggestedCommands[0] ?? "Run `awg queue next --json`." });
     }
   }
 

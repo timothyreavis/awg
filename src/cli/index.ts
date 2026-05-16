@@ -18,6 +18,7 @@ import { relsCommand } from "./commands/rels.js";
 import { registerCommand, unregisterCommand } from "./commands/register.js";
 import { searchCommand } from "./commands/search.js";
 import { quickCommand } from "./commands/quick.js";
+import { queueCommand } from "./commands/queue.js";
 import { runCommand } from "./commands/run.js";
 import { setupCommand } from "./commands/setup.js";
 import { templateCommand } from "./commands/template.js";
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   if (command === "release") return releaseCommand(parsed);
   if (command === "rels") return relsCommand(parsed);
   if (command === "quick") return quickCommand(parsed);
+  if (command === "queue") return queueCommand(parsed);
   if (command === "add") return addCommand(parsed);
   if (command === "verify") return verifyCommand(parsed);
   if (command === "claim") return claimCommand(parsed);
@@ -97,6 +99,9 @@ Commands:
   claim status <node-id> [--json]
   claims [--status <status>] [--kind <kind>] [--tag <tag>] [--limit <n>] [--json]
   quick note|task|risk|question|decision <summary> [--title <title>] [--body <body>] [--tag <tag>] [--target <node-id>] [--status <status>] [--run <run-id>|--no-run] [--json]
+  queue list [--queue <id>] [--limit <n>] [--autonomous] [--human-review] [--json]
+  queue next [--goal <goal>] [--queue <id>] [--limit <n>] [--autonomous] [--include-human-review] [--json]
+  queue show <work-queue-item-id> [--json]
   rels [--json]
   update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   update view <id> [--title <title>] [--summary <summary>] [--audience <human|agent|reviewer>] [--tag <tag>] [--block-json <json>] [--blocks-json <json|@file>] [--clear-blocks] [--run <run-id>|--no-run] [--json]

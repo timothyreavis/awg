@@ -232,8 +232,10 @@ const resumeLens = data.resumeLens;
 const byId = new Map(graph.nodes.map((node) => [node.id, node]));
 const diagnosticsByNode = groupDiagnostics(diagnostics.diagnostics || []);
 const topology = graph.topology || data.topology || { directNeighbors: [], relationships: [], diagnostics: [] };
+const workQueues = graph.work_queue_index || { queues: [], items: [], summary: { total: 0, byQueue: {}, bySeverity: {}, autonomousSafe: 0, needsHumanReview: 0, blocked: 0, highPriority: 0 } };
 const routes = [
   ["overview", "Overview"],
+  ["queues", "Queues"],
   ["topology", "Topology"],
   ["maintenance", "Maintenance"],
   ["graph", "Graph"],
@@ -311,6 +313,7 @@ function renderRoute() {
   const title = parsed.route === "node" ? "Node Detail" : labelForRoute(parsed.route);
   routeTitle.textContent = title;
   if (parsed.route === "overview") root.innerHTML = renderOverview();
+  else if (parsed.route === "queues") root.innerHTML = renderQueuesRoute(parsed.params);
   else if (parsed.route === "graph") root.innerHTML = renderGraphRoute(parsed.params);
   else if (parsed.route === "kanban") root.innerHTML = renderKanbanRoute(parsed.params);
   else if (parsed.route === "nodes") root.innerHTML = renderNodesRoute(parsed.params);
@@ -348,12 +351,44 @@ function renderTopSummary() {
   const healthValue = (s.fatal_error_count || 0) > 0 ? String(s.fatal_error_count) : (s.warning_count || 0) > 0 ? String(s.warning_count) : "OK";
   const healthLabel = (s.fatal_error_count || 0) > 0 ? "Errors" : (s.warning_count || 0) > 0 ? "Warnings" : "Health";
   return [
+    metric("Queue Items", (workQueues.summary || {}).total || 0, "#/queues"),
     metric("Needs Attention", needsAttention, needsAttention ? "#/nodes?needsAttention=true" : "#/health"),
     metric("Active Work", activeWork, "#/kanban"),
     metric("Open Decisions", openDecisions, "#/nodes?type=decision&open=true"),
     metric("Open Questions", openQuestions, "#/nodes?type=question&open=true"),
     metric(healthLabel, healthValue, "#/health")
   ].join("");
+}
+
+function renderQueuesRoute(params) {
+  let items = workQueues.items || [];
+  if (params.queue) items = items.filter((item) => item.queue === params.queue);
+  if (params.autonomous === "true") items = items.filter((item) => item.autonomousSafe);
+  if (params.humanReview === "true") items = items.filter((item) => item.needsHumanReview);
+  const queueIds = unique((workQueues.queues || []).map((queue) => queue.id));
+  const stats = [
+    metric("Total", (workQueues.summary || {}).total || 0, "#/queues"),
+    metric("High Priority", (workQueues.summary || {}).highPriority || 0, "#/queues"),
+    metric("Autonomous", (workQueues.summary || {}).autonomousSafe || 0, "#/queues?autonomous=true"),
+    metric("Human Review", (workQueues.summary || {}).needsHumanReview || 0, "#/queues?humanReview=true"),
+    metric("Blocked", (workQueues.summary || {}).blocked || 0, "#/queues?queue=blocked")
+  ].join("");
+  const filters = '<div class="filters"><select data-control="queue-id"><option value="">All queues</option>' + optionList(queueIds, params.queue) + '</select></div>';
+  const queueSummary = (workQueues.queues || []).length ? '<section class="panel span-2"><h2>Queue Summary</h2><div class="metric-row">' + (workQueues.queues || []).map((queue) => metric(queue.title || queue.id, queue.count || 0, "#/queues?queue=" + encodeURIComponent(queue.id))).join("") + '</div></section>' : "";
+  const rows = items.length ? '<div class="card-list">' + items.slice(0, 100).map(renderQueueItemCard).join("") + '</div>' : '<div class="empty"><h2>No queue items</h2><p>The derived work queue is empty for this filter.</p></div>';
+  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body">' + filters + queueSummary + rows + '</div></section>';
+}
+
+function renderQueueItemCard(item) {
+  const nodes = (item.nodeIds || []).slice(0, 8).map((id) => nodeLink(id)).join(" ");
+  const runs = (item.runIds || []).slice(0, 6).map((id) => '<a class="badge type" href="#/runs">' + esc(id) + '</a>').join(" ");
+  const inbox = (item.inboxItemIds || []).slice(0, 6).map((id) => '<a class="badge type" href="#/maintenance">' + esc(id) + '</a>').join(" ");
+  const claims = (item.claimIds || []).slice(0, 6).map((id) => byId.has(id) ? nodeLink(id) : '<code>' + esc(id) + '</code>').join(" ");
+  const evidence = (item.evidenceIds || []).slice(0, 6).map((id) => byId.has(id) ? nodeLink(id) : '<code>' + esc(id) + '</code>').join(" ");
+  const links = [nodes && '<h3>Nodes</h3><div class="chip-row">' + nodes + '</div>', runs && '<h3>Runs</h3><div class="chip-row">' + runs + '</div>', inbox && '<h3>Inbox</h3><div class="chip-row">' + inbox + '</div>', claims && '<h3>Claims</h3><div class="chip-row">' + claims + '</div>', evidence && '<h3>Evidence</h3><div class="chip-row">' + evidence + '</div>'].filter(Boolean).join("");
+  const commands = (item.suggestedCommands || []).length ? '<h3>Suggested commands</h3><ul>' + item.suggestedCommands.slice(0, 3).map((command) => '<li><code>' + esc(command) + '</code></li>').join("") + '</ul>' : "";
+  const reasons = (item.reasons || []).length ? '<h3>Reasons</h3><ul>' + item.reasons.slice(0, 4).map((reason) => '<li>' + esc(reason) + '</li>').join("") + '</ul>' : "";
+  return '<article class="node-card severity-' + esc(item.severity || "info") + '"><div class="chip-row">' + badge(item.queue || "queue", "type") + badge(item.severity || "info", "severity") + (item.autonomousSafe ? badge("autonomous", "status") : "") + (item.needsHumanReview ? badge("human review", "status") : "") + '<code>' + esc(item.id || "") + '</code></div><h2>' + esc(item.title || item.summary || "Queue item") + '</h2><p>' + esc(item.summary || "") + '</p><p class="muted">priority ' + esc(String(item.priority || 0)) + '</p>' + links + reasons + commands + '</article>';
 }
 
 function renderOverview() {
@@ -1129,6 +1164,9 @@ function wireRouteControls(root, route) {
   if (route === "maintenance") {
     root.querySelectorAll("[data-control^='maintenance-']").forEach((control) => control.addEventListener("change", updateMaintenanceHash));
   }
+  if (route === "queues") {
+    root.querySelectorAll("[data-control^='queue-']").forEach((control) => control.addEventListener("change", updateQueueHash));
+  }
   if (route === "settings") {
     root.querySelector("[data-control='settings-theme']")?.addEventListener("change", (event) => updateSetting("theme", event.target.value));
     root.querySelector("[data-control='settings-density']")?.addEventListener("change", (event) => updateSetting("density", event.target.value));
@@ -1181,6 +1219,13 @@ function updateMaintenanceHash() {
     if (value) params.set(key, value);
   }
   location.hash = "#/maintenance" + (params.size ? "?" + params.toString() : "");
+}
+
+function updateQueueHash() {
+  const params = new URLSearchParams();
+  const value = document.querySelector("[data-control='queue-id']")?.value;
+  if (value) params.set("queue", value);
+  location.hash = "#/queues" + (params.size ? "?" + params.toString() : "");
 }
 
 function updateSetting(key, value) {

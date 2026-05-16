@@ -61,5 +61,52 @@
     "Capture important human feedback as AWG responses when decisions change."
   ],
   "summary": "2 nodes, 1 edges, 1 warnings, 0 fatal errors.",
-  "unanswered_questions": []
+  "unanswered_questions": [],
+  "work_queue_items": [
+    {
+      "autonomousSafe": false,
+      "blocked": false,
+      "blockedByNodeIds": [],
+      "claimIds": [],
+      "createdAt": "2026-05-11T00:00:00.000Z",
+      "edgeIds": [],
+      "evidenceIds": [],
+      "id": "wq:next:ff0343a80de1e95e",
+      "inboxItemIds": [],
+      "needsHumanReview": false,
+      "nodeIds": [
+        "n:review-static-view"
+      ],
+      "priority": 72,
+      "queue": "next",
+      "reasons": [
+        "Task status is in_progress"
+      ],
+      "relationshipIds": [],
+      "runIds": [],
+      "severity": "info",
+      "sourceIds": [
+        "n:review-static-view"
+      ],
+      "sourceKind": "node",
+      "suggestedCommands": [
+        "awg node show n:review-static-view --json"
+      ],
+      "summary": "Inspect the generated static current review view.",
+      "title": "Review static view",
+      "updatedAt": "2026-05-11T00:00:00.000Z",
+      "vaultIds": []
+    }
+  ],
+  "work_queue_summary": [
+    {
+      "autonomousSafe": 0,
+      "count": 1,
+      "description": "Highest-value currently actionable work.",
+      "highPriority": 0,
+      "id": "next",
+      "needsHumanReview": 0,
+      "title": "Next"
+    }
+  ]
 }

@@ -12,6 +12,7 @@ import { buildTopologyIndex } from "./topology.js";
 import { buildMaintenanceInbox } from "./maintenance.js";
 import { buildLensIndex, validateLenses } from "./lensConfigs.js";
 import { buildClaimIndex, buildEvidenceIndex, claimDiagnostics } from "./claims.js";
+import { buildWorkQueueIndex } from "./workQueues.js";
 import type { AwgEdge, AwgLens, AwgNode, AwgObject, AwgPolicy, AwgResponse, AwgView, BuildResult, CompiledGraph, Diagnostic } from "./types.js";
 import type { AwgStorage } from "../storage/AwgStorage.js";
 
@@ -128,7 +129,8 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
   graph.maintenance_inbox = buildMaintenanceInbox(graph);
   graph.run_summaries = buildRunSummaries(graph);
-  const resumeLens = buildResumeLens(sortedNodes, sortedResponses, graph.diagnostics.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10));
+  graph.work_queue_index = buildWorkQueueIndex(graph);
+  const resumeLens = buildResumeLens(sortedNodes, sortedResponses, graph.diagnostics.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10), graph.work_queue_index);
   const currentView = buildCurrentView(sortedNodes, graph.diagnostics.summary, generatedAt);
   graph.authored_views = buildAuthoredViewOutputs(sortedViews, diagnosticsReport.diagnostics, generatedAt);
 
@@ -224,6 +226,7 @@ async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): P
   if (graph.lens_index) await storage.writeCompiledArtifact("lenses/index.json", graph.lens_index);
   if (graph.claim_index) await storage.writeCompiledArtifact("indexes/claims.json", graph.claim_index);
   if (graph.evidence_index) await storage.writeCompiledArtifact("indexes/evidence.json", graph.evidence_index);
+  if (graph.work_queue_index) await storage.writeCompiledArtifact("indexes/work-queues.json", graph.work_queue_index);
 }
 
 function emptySummary(nodes: number, edges: number): CompiledGraph["diagnostics"]["summary"] {

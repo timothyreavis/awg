@@ -388,6 +388,76 @@ export interface MaintenanceInbox {
   };
 }
 
+export type WorkQueueId =
+  | "next"
+  | "autonomous"
+  | "human_review"
+  | "blocked"
+  | "evidence_needed"
+  | "maintenance"
+  | "stale_review"
+  | "risk_review"
+  | "handoff_followup";
+
+export type WorkQueueSeverity = "info" | "warning" | "error";
+export type WorkQueueSourceKind = "node" | "inbox" | "diagnostic" | "claim" | "evidence" | "run" | "topology";
+
+export interface WorkQueueSummary {
+  id: WorkQueueId;
+  title: string;
+  description: string;
+  count: number;
+  highPriority: number;
+  autonomousSafe: number;
+  needsHumanReview: number;
+}
+
+export interface WorkQueueItem {
+  id: string;
+  queue: WorkQueueId;
+  title: string;
+  summary: string;
+  severity: WorkQueueSeverity;
+  priority: number;
+  sourceKind: WorkQueueSourceKind;
+  sourceIds: string[];
+  nodeIds: string[];
+  edgeIds: string[];
+  runIds: string[];
+  inboxItemIds: string[];
+  claimIds: string[];
+  evidenceIds: string[];
+  vaultIds: string[];
+  relationshipIds: string[];
+  reasons: string[];
+  suggestedCommands: string[];
+  autonomousSafe: boolean;
+  needsHumanReview: boolean;
+  blocked: boolean;
+  blockedByNodeIds: string[];
+  reviewAfter?: string;
+  updatedAt: string;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+export interface WorkQueueIndex {
+  awg: string;
+  kind: "work-queue-index";
+  generated_at: string;
+  queues: WorkQueueSummary[];
+  items: WorkQueueItem[];
+  summary: {
+    total: number;
+    byQueue: Record<string, number>;
+    bySeverity: Record<string, number>;
+    autonomousSafe: number;
+    needsHumanReview: number;
+    blocked: number;
+    highPriority: number;
+  };
+}
+
 export interface BuildResult {
   graph: CompiledGraph;
   diagnostics: DiagnosticsReport;
@@ -417,6 +487,7 @@ export interface CompiledGraph {
   lens_index?: LensIndex;
   claim_index?: ClaimIndex;
   evidence_index?: EvidenceIndex;
+  work_queue_index?: WorkQueueIndex;
 }
 
 export interface LensIndexEntry {
@@ -470,6 +541,8 @@ export interface ResumeLensOutput {
   diagnostics_summary: DiagnosticsSummary;
   recommended_maintenance: string[];
   maintenance_inbox?: MaintenanceInboxItem[];
+  work_queue_summary?: WorkQueueSummary[];
+  work_queue_items?: WorkQueueItem[];
 }
 
 export interface CurrentViewOutput {

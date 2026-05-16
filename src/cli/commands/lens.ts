@@ -34,6 +34,10 @@ export async function lensCommand(parsed: ParsedArgs): Promise<void> {
       console.log("\nrecommended_maintenance:");
       for (const item of lens.recommended_maintenance) console.log(`- ${item}`);
     }
+    if (lens.work_queue_items?.length) {
+      console.log("\nwork_queues:");
+      for (const item of lens.work_queue_items.slice(0, 8)) console.log(`- ${item.id} [${item.queue}] ${item.title} (${item.priority})`);
+    }
   }
 }
 
@@ -91,7 +95,7 @@ async function taskLens(parsed: ParsedArgs): Promise<void> {
 
 function budgetResume(lens: Record<string, any>, budget: number): Record<string, any> {
   let used = String(lens.summary ?? "").length;
-  for (const key of ["important", "open_decisions", "active_tasks", "active_risks", "unanswered_questions", "recent_responses"]) {
+  for (const key of ["important", "open_decisions", "active_tasks", "active_risks", "unanswered_questions", "recent_responses", "work_queue_items"]) {
     const items = Array.isArray(lens[key]) ? lens[key] : [];
     const kept = [];
     for (const item of items) {

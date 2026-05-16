@@ -129,6 +129,7 @@ Start of session:
 - Run \`awg inbox --limit 10\` to review deterministic maintenance items.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Run \`awg queue next --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
 - Use \`awg lens list --goal "<goal>"\` and \`awg lens run <lens-id> --goal "<goal>"\` only when a reviewed vault-local lens fits a repeated context shape.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
@@ -137,6 +138,7 @@ During work:
 - Search first, then update the canonical node or create the smallest useful node.
 - Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
 - Use \`awg add claim\` for assertions that may guide future work and \`awg verify <node-id> --summary "..."\` before treating claims as proven.
+- Prefer autonomous-safe queue items only when the human has not directed a specific task; queue priority is context, not permission to override the user's request.
 - During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
 - Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
@@ -146,6 +148,7 @@ During work:
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
 - Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
@@ -190,6 +193,7 @@ Before starting work:
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Run \`awg queue next --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
 - Use \`awg lens list --goal "<goal>"\` before adding a configurable lens, and prefer updating near-duplicates.
 - Use \`awg node show <node-id> --json\` when you need full detail for a surfaced node.
 - Read \`.awg/AGENTS.md\`.
@@ -202,6 +206,7 @@ During work:
 - Record durable facts, decisions, risks, tasks, questions, constraints, and preferences in AWG.
 - Use \`awg search <query>\` before creating duplicate nodes.
 - Run \`awg inbox --limit 10\` to see stale, duplicate, orphaned, unsupported, and unresolved maintenance items.
+- Prefer autonomous-safe queue items only when the human has not directed a specific task; queue priority is context, not permission to override the user's request.
 - Use structured \`fields\`, safe \`blocks\`, \`freshness\`, and \`anchors\` when those make the knowledge easier to maintain or present.
 - Use \`awg lens task --goal "..."\` for scoped work context.
 - Create configurable lenses only for recurring context shapes; keep them compact, query-backed, and \`needs_review\` until accepted.
@@ -209,6 +214,7 @@ During work:
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Link knowledge by AWG node ID, not by file path.
 - Do not edit \`.awg/compiled/*\`.
+- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before stopping:

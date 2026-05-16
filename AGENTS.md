@@ -27,7 +27,7 @@ Before stopping:
 - Finish the run with `awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff`; if forced, document why.
 - Ensure `awg lens resume` reflects the current project state.
 
-<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:5b43468b9633be699a9e48f74fd27174fd77bad7e4e62c24bc6c558b0230c327 -->
+<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:e9ee0b82dfe4e462ca7a1039222b396c5c27bfec08a9a43cc79a11607db303ef -->
 # AWG Agent Loop
 
 Start of session:
@@ -38,22 +38,29 @@ Start of session:
 - Use `awg search <query>` before creating durable nodes.
 - Run `awg template status --goal "<goal>" --json` to understand local operating rules.
 - Use `awg lens task --goal "<goal>"` for scoped context.
+- Run `awg queue next --json` when selecting undirected next work; use `awg queue show <item-id> --json` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
+- Use `awg lens list --goal "<goal>"` and `awg lens run <lens-id> --goal "<goal>"` only when a reviewed vault-local lens fits better than built-in task/handoff context.
 - Use `awg node show <node-id> --json` when a surfaced node's full body, fields, blocks, evidence, or run attribution matter.
 
 During work:
 - Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
 - Search first, then update the canonical node or create the smallest useful node.
 - Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- Use `awg add claim` for assertions that may guide future work, `awg verify <node-id> --summary "..."` before treating claims as proven, and `awg claim status <node-id> --json` before relying on stale, external, metric, policy, pricing, or implementation claims.
+- Prefer autonomous-safe queue items only when the human has not directed a specific task; queue priority is context, not permission to override the user's request.
 - During brainstorming, wait or capture only as a `needs_review` note/question; use a `hypothesis` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
 - Use `awg quick note|task|risk|question|decision "summary"` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Durable writes automatically attach to the active run. Use `--run <run-id>` for an explicit active run or `--no-run` to suppress attribution.
-- Use `body` for narrative detail, `fields` for structured operational data, safe `blocks` for presentation, `freshness` for currentness, and `anchors` for references.
+- Use `body` for narrative detail, `fields` for structured operational data, safe node-local `blocks` for presentation, authored `view` records for recurring multi-node human review surfaces, `freshness` for currentness, and `anchors` for references.
+- Create configurable `lens` records for repeated agent context shapes; start new lenses as `needs_review` unless the vault template allows activation, update near-duplicates instead of creating more, and keep lenses compact, query-backed, and read-only.
 - Link related nodes by AWG node ID.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
+- Use contradictions explicitly with evidence instead of silently replacing old claims, and keep sensitive evidence redacted.
 
 Before finishing:
 - Update task, risk, blocker, and decision statuses.

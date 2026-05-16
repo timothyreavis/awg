@@ -10,6 +10,42 @@ export interface ReleaseNote {
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [{
+  version: "0.1.0-v2.3",
+  date: "2026-05-16",
+  highlights: [
+    "AWG now derives deterministic read-only agent work queues from compiled graph state.",
+    "Built-in queues surface next work, autonomous-safe work, human review, blockers, evidence gaps, maintenance, stale review, risk review, and handoff follow-up.",
+    "Queue data is compiled into graph.work_queue_index and .awg/compiled/indexes/work-queues.json without adding mutable queue records.",
+    "Lens, handoff, run preflight, and the static viewer can surface compact queue context."
+  ],
+  newCommands: [
+    "awg queue list [--queue <id>] [--limit <n>] [--autonomous] [--human-review] [--json]",
+    "awg queue next [--goal \"...\"] [--queue <id>] [--limit <n>] [--autonomous] [--include-human-review] [--json]",
+    "awg queue show <work-queue-item-id> [--json]"
+  ],
+  agentActions: [
+    "Run awg queue next --json after handoff, template status, and task lens when selecting undirected next work.",
+    "Prefer autonomous-safe queue items only when the human has not directed a specific task.",
+    "Use awg queue show before acting on queue items with multiple related nodes, evidence requirements, or blockers.",
+    "Record evidence after completing queue-driven work.",
+    "Rebuild and rerun queue commands after substantial graph updates."
+  ],
+  adoption: [
+    "Regenerate AGENTS/CLAUDE instructions with awg instructions install or awg upgrade --instructions when appropriate.",
+    "Use configurable lens source workQueues for repeated queue-backed retrieval recipes.",
+    "Keep queue commands read-only; do not claim, lock, reserve, assign, or execute work from queues in V2.3."
+  ],
+  docs: [
+    "README.md",
+    "docs/spec/awg-work-queues.md",
+    "docs/spec/awg-core.md"
+  ],
+  nonGoals: [
+    "No mutable queue records.",
+    "No claiming, locks, leases, reservations, assignments, or multi-agent coordination.",
+    "No daemon, scheduler, reminders, external sync, network calls, vector search, LLM dependency, plugin execution, or automatic task execution."
+  ]
+}, {
   version: "0.1.0-v2.2",
   date: "2026-05-16",
   highlights: [

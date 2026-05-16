@@ -4,12 +4,13 @@ import { searchGraph } from "./search.js";
 import { buildRuns } from "./runs.js";
 import { runSummaryFor } from "./runPreflight.js";
 import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
+import { filterWorkQueueItems } from "./workQueues.js";
 import type { AwgEdge, AwgLens, AwgLensSection, AwgNode, CompiledGraph, Diagnostic, LensIndex } from "./types.js";
 
 export const LENS_STATUSES = ["active", "proposed", "needs_review", "archived"] as const;
 export const LENS_SCOPES = ["vault", "project", "workflow"] as const;
 export const LENS_AUDIENCES = ["agent", "human", "reviewer"] as const;
-export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
+export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "workQueues", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
 
 const SOURCE_SET = new Set<string>(LENS_SECTION_SOURCES);
 const MAX_SECTION_DATA_BYTES = 50_000;
@@ -128,6 +129,22 @@ function executeSection(graph: CompiledGraph, lens: AwgLens, section: AwgLensSec
       return graph.nodes.filter((node) => node.type === "evidence").filter((node) => matchesNode(node, query)).slice(0, limit).map((node) => compactNode(node, section));
     case "maintenanceInbox":
       return (graph.maintenance_inbox?.items ?? []).filter((item) => matchesRecord(item as unknown as Record<string, unknown>, query)).slice(0, limit);
+    case "workQueues":
+      return filterWorkQueueItems(graph.work_queue_index, {
+        queue: typeof query?.queue === "string" ? query.queue : undefined,
+        autonomous: query?.autonomousSafe === true,
+        humanReview: query?.needsHumanReview === true,
+        goal: typeof query?.goal === "string" ? query.goal : typeof query?.q === "string" ? query.q : typeof query?.text === "string" ? query.text : undefined,
+        graph
+      }).filter((item) => {
+        if (query?.queues && !stringArray(query.queues).includes(item.queue)) return false;
+        if (query?.blocked !== undefined && item.blocked !== (query.blocked === true || query.blocked === "true")) return false;
+        if (query?.minPriority !== undefined && item.priority < Number(query.minPriority)) return false;
+        if (query?.severity && item.severity !== String(query.severity)) return false;
+        if (query?.nodeIds && !item.nodeIds.some((id) => stringArray(query.nodeIds).includes(id))) return false;
+        if (query?.runIds && !item.runIds.some((id) => stringArray(query.runIds).includes(id))) return false;
+        return true;
+      }).slice(0, limit);
     case "diagnostics":
       return graph.diagnostics.diagnostics.filter((diag) => matchesRecord(diag as unknown as Record<string, unknown>, query)).slice(0, limit);
     case "templateContext":
@@ -161,7 +178,7 @@ function validateSection(lensId: string, section: AwgLensSection, index: number,
 }
 
 function invalidQueryKeys(query: Record<string, unknown>): string[] {
-  const allowed = new Set(["text", "q", "id", "ids", "type", "types", "status", "statuses", "tag", "tags", "rel", "from", "to", "severity", "code", "kind", "limit", "sortBy", "verificationStatus", "claimKind", "sourceOfTruth", "needsAttention", "nodeIds"]);
+  const allowed = new Set(["text", "q", "id", "ids", "type", "types", "status", "statuses", "tag", "tags", "rel", "from", "to", "severity", "code", "kind", "limit", "sortBy", "verificationStatus", "claimKind", "sourceOfTruth", "needsAttention", "nodeIds", "queue", "queues", "autonomousSafe", "needsHumanReview", "blocked", "minPriority", "runIds", "goal"]);
   return Object.keys(query).filter((key) => !allowed.has(key));
 }
 
