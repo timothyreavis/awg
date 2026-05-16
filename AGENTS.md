@@ -27,11 +27,12 @@ Before stopping:
 - Finish the run with `awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff`; if forced, document why.
 - Ensure `awg lens resume` reflects the current project state.
 
-<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:407df5ffd5696aa80f14789b6d9bc40e51edf77501dcc92896c041ea88a2b6a5 -->
+<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:5b43468b9633be699a9e48f74fd27174fd77bad7e4e62c24bc6c558b0230c327 -->
 # AWG Agent Loop
 
 Start of session:
 - Run `awg handoff`.
+- Run `awg release current` after install or upgrade to discover current local capabilities.
 - Run `awg vault topology --json` before cross-project work.
 - Run `awg run start --goal "<goal>"`.
 - Use `awg search <query>` before creating durable nodes.
@@ -40,6 +41,11 @@ Start of session:
 - Use `awg node show <node-id> --json` when a surfaced node's full body, fields, blocks, evidence, or run attribution matter.
 
 During work:
+- Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
+- Search first, then update the canonical node or create the smallest useful node.
+- Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- During brainstorming, wait or capture only as a `needs_review` note/question; use a `hypothesis` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
+- Use `awg quick note|task|risk|question|decision "summary"` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.

@@ -12,8 +12,11 @@ import { nodeCommand } from "./commands/node.js";
 import { openCommand } from "./commands/open.js";
 import { recentCommand } from "./commands/recent.js";
 import { reconcileCommand } from "./commands/reconcile.js";
+import { releaseCommand } from "./commands/release.js";
+import { relsCommand } from "./commands/rels.js";
 import { registerCommand, unregisterCommand } from "./commands/register.js";
 import { searchCommand } from "./commands/search.js";
+import { quickCommand } from "./commands/quick.js";
 import { runCommand } from "./commands/run.js";
 import { setupCommand } from "./commands/setup.js";
 import { templateCommand } from "./commands/template.js";
@@ -36,6 +39,9 @@ async function main(): Promise<void> {
   if (command === "unregister") return unregisterCommand(parsed);
   if (command === "vault") return vaultCommand(parsed);
   if (command === "instructions") return instructionsCommand(parsed);
+  if (command === "release") return releaseCommand(parsed);
+  if (command === "rels") return relsCommand(parsed);
+  if (command === "quick") return quickCommand(parsed);
   if (command === "add") return addCommand(parsed);
   if (command === "update") return updateCommand(parsed);
   if (command === "search") return searchCommand(parsed);
@@ -59,6 +65,9 @@ function help(): void {
 Commands:
   setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
   template status [--goal <goal>] [--json]
+  template scaffold --title <title> [--scope vault|project] [--json]
+  release notes [--json]
+  release current [--json]
   upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
   init [--empty] [--demo] [--force] [--register] [--no-register]
   inbox [--kind <kind>] [--limit <n>] [--json]
@@ -76,7 +85,9 @@ Commands:
   add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--evidence-required] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
   add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
-  add evidence --target <id> --summary <summary> [--run <run-id>|--no-run]
+  add evidence --target <id> --summary <summary> [--source <terminal|test|manual|file|url|log|other>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--rel <relation>] [--json] [--run <run-id>|--no-run]
+  quick note|task|risk|question|decision <summary> [--title <title>] [--body <body>] [--tag <tag>] [--target <node-id>] [--status <status>] [--run <run-id>|--no-run] [--json]
+  rels [--json]
   update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
   run start --goal <goal> [--agent <name>] [--force] [--json]
@@ -90,7 +101,7 @@ Commands:
   lens resume [--budget <n>] [--json]
   lens task --goal <goal> [--budget <n>] [--json]
   node show <node-id> [--json]
-  handoff [--budget <n>] [--json] [--no-record]
+  handoff [--budget <n>] [--compact] [--json] [--no-record]
   recent [--days <n>] [--json]
   reconcile duplicate <a> <b> --canonical <id> [--reason <text>] [--json]
   reconcile supersede <old> <new> [--reason <text>] [--json]

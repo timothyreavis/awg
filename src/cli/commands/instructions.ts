@@ -275,6 +275,7 @@ function codexTemplate(): string {
 
 Start of session:
 - Run \`awg handoff\`.
+- Run \`awg release current\` after install or upgrade to discover current local capabilities.
 - Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
@@ -283,6 +284,11 @@ Start of session:
 - Use \`awg node show <node-id> --json\` when a surfaced node's full body, fields, blocks, evidence, or run attribution matter.
 
 During work:
+- Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
+- Search first, then update the canonical node or create the smallest useful node.
+- Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
+- Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
@@ -312,13 +318,13 @@ Anti-patterns:
 function claudeCodeTemplate(): string {
   return `# AWG Claude Code Snippet
 
-This project uses AWG as local durable project memory. Start with \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`. Use \`awg search\`, \`awg template status --goal "<goal>" --json\`, and \`awg lens task --goal "<goal>"\` before adding context; use \`awg node show <node-id> --json\` when you need a surfaced node's full detail. Durable writes automatically attach to the active run; use fields, safe blocks, freshness, and anchors when helpful; add run notes and evidence for completed work. Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates. Before finishing, update stale statuses, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, then finish with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
+This project uses AWG as local durable project memory. Start with \`awg handoff\`, run \`awg release current\` after install or upgrade, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`. Use \`awg search\`, \`awg template status --goal "<goal>" --json\`, and \`awg lens task --goal "<goal>"\` before adding context; use \`awg node show <node-id> --json\` when you need a surfaced node's full detail. Capture the consequence, not the conversation: persist decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work; during brainstorming, wait or capture only as a \`needs_review\` note/question, using a \`hypothesis\` tag when useful. Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures. Durable writes automatically attach to the active run; use fields, safe blocks, freshness, and anchors when helpful; add run notes and evidence for completed work. Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates. Before finishing, update stale statuses, run \`awg build\` and \`awg doctor --fix-suggestions --json\`, then finish with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }
 
 function antigravityTemplate(): string {
   return `# AWG Antigravity Snippet
 
-Use the project-local .awg vault only. Start with \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`. Use \`awg search\` before creating nodes, inspect \`awg template status --goal "<goal>" --json\`, scope work with \`awg lens task --goal "<goal>"\`, and inspect full surfaced nodes with \`awg node show <node-id> --json\` when needed. Update existing nodes, use structured fields/safe blocks/freshness/anchors when useful, add run notes, attach evidence for completed work, write only to the current explicit target vault, then run \`awg build\`, \`awg doctor --fix-suggestions --json\`, and \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
+Use the project-local .awg vault only. Start with \`awg handoff\`, run \`awg release current\` after install or upgrade, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`. Use \`awg search\` before creating nodes, inspect \`awg template status --goal "<goal>" --json\`, scope work with \`awg lens task --goal "<goal>"\`, and inspect full surfaced nodes with \`awg node show <node-id> --json\` when needed. Capture the consequence, not the conversation; preserve durable decisions, requirements, accepted plans, constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback, while leaving brainstorming in chat or capturing it only as a \`needs_review\` note/question with a \`hypothesis\` tag when useful. Use \`awg quick note|task|risk|question|decision "summary"\` for small durable captures. Update existing nodes, use structured fields/safe blocks/freshness/anchors when useful, add run notes, attach evidence for completed work, write only to the current explicit target vault, then run \`awg build\`, \`awg doctor --fix-suggestions --json\`, and \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`. If forced, document why.
 `;
 }

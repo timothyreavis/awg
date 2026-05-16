@@ -152,12 +152,17 @@ awg vault prune [--dry-run] [--yes] [--json]
 awg instructions list
 awg instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
 awg template status [--goal <goal>] [--json]
+awg template scaffold --title <title> [--scope vault|project] [--json]
+awg release notes [--json]
+awg release current [--json]
 awg search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
 awg node show <node-id> [--json]
 awg add node --type <type> --title <title> --summary <summary> [--evidence-required] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
 awg add edge --from <node-id> --rel <relation> --to <node-id> [--run <run-id>|--no-run]
 awg add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
 awg add evidence --target <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--run <run-id>|--no-run] [--json]
+awg quick note|task|risk|question|decision <summary> [--title <title>] [--body <body>] [--tag <tag>] [--target <node-id>] [--status <status>] [--run <run-id>|--no-run] [--json]
+awg rels [--json]
 awg update node <node-id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
 awg run start --goal <goal> [--agent <name>] [--force] [--json]
 awg run note <note> [--run <run-id>] [--json]
@@ -176,7 +181,7 @@ awg reconcile resolved-by <target> <resolver> [--reason <text>] [--json]
 awg reconcile intentionally-open <target> --reason <text> [--json]
 awg lens resume [--budget <n>] [--json]
 awg lens task --goal <goal> [--budget <n>] [--json]
-awg handoff [--budget <n>] [--json] [--no-record]
+awg handoff [--budget <n>] [--compact] [--json] [--no-record]
 awg recent [--days <n>] [--json]
 awg view current [--json] [--text]
 awg open [--global] [--no-launch]
@@ -188,6 +193,14 @@ awg open [--global] [--no-launch]
 
 `awg node show <node-id>` is a read-only detail view for a single node. It returns the full node body, fields, blocks, freshness, anchors, incoming and outgoing edges, responses, evidence, node diagnostics, run attribution, and raw node snapshot history for duplicate/upsert inspection. Use `--json` when an agent needs the complete machine-readable node after `search` or `lens task` surfaced only summaries.
 
+`awg release notes` and `awg release current` expose local deterministic release notes for agents after install or upgrade. They include version/date, highlights, new commands, agent actions, adoption suggestions, docs/node references, and explicit non-goals. They do not perform network checks or package self-update; until distribution is stable, docs point agents at the local `awg` command path rather than a promised `awg update`.
+
+Capture discernment: use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation. Persist decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work. During brainstorming, wait or capture only as a `needs_review` note/question; use a `hypothesis` tag when useful.
+
+`awg quick note|task|risk|question|decision "summary"` is a low-ceremony shortcut over normal node writes. It creates ordinary AWG nodes, attaches the active run by default, supports `--run` and `--no-run`, and can create a normal `relates_to` edge with `--target`. It is intended for small durable captures, not transcript-like bulk records.
+
+`awg rels` lists allowed edge relation ids with descriptions and example usage. Invalid `--rel` errors point to this discovery command.
+
 Nodes keep `summary` as concise retrieval/scanning text. Optional `body` stores narrative detail, `fields` stores operational JSON data, `blocks` stores typed presentation blocks, and `freshness` stores currentness metadata such as `state`, `last_verified`, `review_after`, `verified_by`, `source_of_truth`, `supersedes`, and `superseded_by`. Older nodes without these fields remain valid, and unknown fields are preserved.
 
 Node granularity should follow retrieval and maintenance boundaries, not a fixed word count. Keep `summary` to one or two scan-friendly sentences. Use `body` when a future agent needs deeper explanation, SOP detail, requirements, rationale, or examples that would make the summary too dense. Use `fields` for facts agents need to update deterministically, compare, filter, or validate. Use `blocks` only when the information has a natural human presentation shape such as a checklist, table, metric row, timeline, node list, callout, or brief. Use `freshness` whenever correctness can decay over time, and update linked/current nodes when behavior, policy, ownership, pricing, process, or implementation changes. Use `anchors` when a node must stay tied to a file, symbol, URL, command, document, or external reference.
@@ -196,7 +209,9 @@ Node-authored presentation blocks are data, not markup. The V1.7 write path acce
 
 Node `body` is rendered by the static viewer with a safe outline renderer, not arbitrary Markdown or HTML. It preserves paragraphs and recognizes simple section labels, `#` headings, bullet lists, numbered lists, and inline code spans while escaping HTML. Use `blocks` when the content needs a stronger presentation primitive such as a table, checklist, timeline, metric row, callout, or node list.
 
-`awg template status` is a read-only discovery surface for vault-local operating templates stored as AWG knowledge. Prefer regular core node types such as `process`, `standard`, or `policy` tagged `template`, `operating-template`, or `template:operating`; the legacy/custom `template` node type is only recognized for compatibility. The compiler derives `.awg/compiled/indexes/operating-templates.json` and exposes the same index on `graph.operating_templates`. The command reports active templates, selected template, scopes, missing required sections (`purpose`, `taxonomy`, `freshness_rules`, `agent_rules`), conflicts, warnings, and suggested inspection commands. It does not initialize, apply, migrate, publish, or mutate templates.
+`awg template status` is a read-only discovery surface for vault-local operating templates stored as AWG knowledge. Prefer regular core node types such as `process`, `standard`, or `policy` tagged `template`, `operating-template`, or `template:operating`; the legacy/custom `template` node type is only recognized for compatibility. The compiler derives `.awg/compiled/indexes/operating-templates.json` and exposes the same index on `graph.operating_templates`. The command reports active templates, selected template, scopes, missing required sections (`purpose`, `taxonomy`, `freshness_rules`, `agent_rules`), conflicts, warnings, suggested inspection commands, and required structured fields (`scope`, `purpose`, `taxonomy`, `freshness_rules`, `agent_rules`, `review_state`, `human_approved`).
+
+`awg template scaffold --title "..." [--scope vault|project]` creates a normal `process` node tagged `template:operating` with the required structured fields. It starts as `needs_review` so a human or future agent can refine and approve it. It is not a template marketplace or domain pack installer.
 
 An agent run is one focused work session. `awg run start --goal "<goal>"` appends a run-start event, `awg run note "..."` records meaningful progress or blockers, and `awg run finish --status completed|partial|blocked|failed --summary "..."` records the final outcome. Durable write commands attach to the active run by default; use `--run <run-id>` for an explicit active run and `--no-run` to suppress attribution. The compiler derives created, updated, touched, evidenced, completed, unresolved, diagnostic, and handoff state for each run from canonical log metadata. `awg run status` reports the active run and `awg run list --json` includes derived attribution summaries. Run history is canonical AWG event data, not hidden mutable state.
 
@@ -222,13 +237,13 @@ awg doctor --fix-suggestions --json
 awg run finish --status completed --summary "Implemented task lens ranking and tests." --auto-handoff
 ```
 
-`awg lens task --goal "<goal>"` returns compact task-scoped context: selected template context, matched nodes, nearby related nodes, related decisions, active tasks, risks/blockers, open questions, active/current run context, related prior runs, related run notes, diagnostics, anchors, and recent evidence. `awg handoff` is a next-agent briefing with the active or most recent run, template context, run attribution, preflight warnings, deterministic handoff quality score/checklist, run notes/summary, active tasks, open decisions, blockers, risks, recent completions, evidence, responses, graph health, anchor impact, stale items, and recommended next actions. Plain `awg handoff` records a lightweight handoff event; use `--no-record` to skip that. JSON handoff output remains parseable and does not add extra console noise. `awg recent --days 7` lists recent runs, run notes, nodes, evidence, responses, status changes, and diagnostics relative to the current wall-clock time.
+`awg lens task --goal "<goal>"` returns compact task-scoped context: selected template context, matched nodes, nearby related nodes, related decisions, active tasks, risks/blockers, open questions, active/current run context, related prior runs, related run notes, diagnostics, anchors, and recent evidence. `awg handoff` is a next-agent briefing with the active or most recent run, template context, run attribution, preflight warnings, deterministic handoff quality score/checklist, run notes/summary, active tasks, open decisions, blockers, risks, recent completions, evidence, responses, graph health, anchor impact, stale items, and recommended next actions. Plain `awg handoff` records a lightweight handoff event; use `--no-record` to skip that. Use `awg handoff --compact` for concise human/chat-ready text while preserving existing `--json` and budget behavior. JSON handoff output remains parseable and does not add extra console noise. `awg recent --days 7` lists recent runs, run notes, nodes, evidence, responses, status changes, and diagnostics relative to the current wall-clock time.
 
 Handoff quality scoring is deterministic and explainable. Checks have fixed weights for finished run state, summary presence, notes or changes, evidence coverage, evidence-required coverage, new orphan count, touched risk/blocker review, proposed decisions, touched-node doctor errors, recorded handoff, stale touched nodes, active template discovery, template conflicts, invalid touched blocks, template-required fields, and secret-like touched values. The score is the rounded percentage of passing weight.
 
 `--budget <n>` uses an approximate deterministic character budget. Section structure is preserved, high-priority items are emitted first, and omitted counts are included when lower-priority items are truncated. JSON mode always remains valid JSON.
 
-Agent-facing commands support stable `--json` output for parsing: `add node`, `add edge`, `add response`, `add evidence`, `update node`, `node show`, `template status`, `run start`, `run note`, `run finish`, `run status`, `run list`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
+Agent-facing commands support stable `--json` output for parsing: `release notes`, `release current`, `quick note/task/risk/question/decision`, `rels`, `add node`, `add edge`, `add response`, `add evidence`, `update node`, `node show`, `template status`, `template scaffold`, `run start`, `run note`, `run finish`, `run status`, `run list`, `search`, `lens resume`, `lens task`, `handoff`, `recent`, `vault list`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
 
 Use `awg update node <node-id>` to keep durable state current. It appends a new node snapshot and a node update event; it does not mutate compiled artifacts and it does not create missing nodes by default.
 

@@ -1072,6 +1072,72 @@ test("add evidence creates evidence node edge and satisfies completed task evide
   assert.ok(runFail(cwd, ["add", "evidence", "--target", "n:missing", "--summary", "Nope."]).includes("Target node not found"));
 });
 
+test("release notes, relations, evidence help, and generated instructions expose V1.9.1 ergonomics", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const release = JSON.parse(run(cwd, ["release", "notes", "--json"]));
+  assert.equal(release.ok, true);
+  assert.ok(release.releases[0].newCommands.includes("awg rels [--json]"));
+  assert.ok(run(cwd, ["release", "current"]).includes("AWG release"));
+  const rels = JSON.parse(run(cwd, ["rels", "--json"]));
+  assert.ok(rels.relations.some((rel: { id: string; example: string }) => rel.id === "relates_to" && rel.example.includes("--rel relates_to")));
+  assert.ok(runFail(cwd, ["add", "edge", "--from", "n:a", "--rel", "similar_to", "--to", "n:b"]).includes("Run awg rels"));
+  const help = run(cwd, ["--help"]);
+  for (const flag of ["--source", "--command", "--path", "--status", "--rel", "--target", "--summary", "--json"]) assert.ok(help.includes(flag));
+  const agents = readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+  assert.ok(agents.includes("awg release current"));
+  assert.ok(agents.includes("Capture the consequence, not the conversation"));
+  assert.ok(agents.includes("awg quick note|task|risk|question|decision"));
+});
+
+test("quick capture commands create normal nodes, optional edges, and run attribution", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Quick capture smoke", "--json"]));
+  const target = JSON.parse(run(cwd, ["quick", "note", "Target context", "--title", "Target context", "--json"]));
+  const note = JSON.parse(run(cwd, ["quick", "note", "Small durable note", "--title", "Small durable note", "--tag", "smoke", "--target", target.nodeId, "--json"]));
+  assert.equal(note.node.type, "note");
+  assert.equal(note.node.runId, started.runId);
+  assert.equal(note.edge.rel, "relates_to");
+  const task = JSON.parse(run(cwd, ["quick", "task", "Follow up task", "--status", "in_progress", "--json"]));
+  const risk = JSON.parse(run(cwd, ["quick", "risk", "Review risk", "--status", "needs_review", "--json"]));
+  const question = JSON.parse(run(cwd, ["quick", "question", "Open question", "--json"]));
+  const decision = JSON.parse(run(cwd, ["quick", "decision", "Use compact capture", "--status", "proposed", "--json"]));
+  assert.equal(task.node.type, "task");
+  assert.equal(risk.node.status, "needs_review");
+  assert.equal(question.node.type, "question");
+  assert.equal(decision.node.status, "proposed");
+  const noRun = JSON.parse(run(cwd, ["quick", "note", "No run note", "--no-run", "--json"]));
+  assert.equal(noRun.runId, null);
+  assert.equal(noRun.node.runId, undefined);
+  const graph = JSON.parse(run(cwd, ["build", "--json"]));
+  assert.equal(graph.fatal_error_count, 0);
+  const detail = JSON.parse(run(cwd, ["node", "show", note.nodeId, "--json"]));
+  assert.equal(detail.node.type, "note");
+  assert.ok(!JSON.stringify(detail.node).includes("transcript"));
+});
+
+test("template scaffold exposes structured fields and compact handoff stays deterministic", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["run", "start", "--goal", "Template scaffold smoke"]);
+  const scaffold = JSON.parse(run(cwd, ["template", "scaffold", "--title", "Project operating template", "--scope", "project", "--json"]));
+  assert.equal(scaffold.node.type, "process");
+  assert.equal(scaffold.node.status, "needs_review");
+  for (const field of ["scope", "purpose", "taxonomy", "freshness_rules", "agent_rules", "review_state", "human_approved"]) assert.ok(scaffold.requiredFields.includes(field));
+  const status = run(cwd, ["template", "status"]);
+  assert.ok(status.includes("requiredFields"));
+  assert.ok(status.includes("freshness_rules"));
+  const statusJson = JSON.parse(run(cwd, ["template", "status", "--json"]));
+  assert.ok(statusJson.requiredFields.includes("agent_rules"));
+  assert.ok(statusJson.fieldHints.taxonomy.includes("preferred node types"));
+  const compact = run(cwd, ["handoff", "--compact", "--no-record"]);
+  assert.ok(compact.includes("AWG compact handoff"));
+  assert.ok(compact.length < run(cwd, ["handoff", "--no-record"]).length);
+  const json = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
+  assert.equal(json.kind, "handoff");
+});
+
 test("task lens and handoff include scoped context and respect budgets", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
@@ -1979,6 +2045,55 @@ test("upgrade creates missing schemas and preserves config fields", () => {
   assert.ok(vaultAgents.includes("awg doctor --fix-suggestions --json"));
   assert.ok(vaultAgents.includes("--auto-handoff"));
   assert.ok(vaultAgents.includes("awg node show <node-id> --json"));
+  assert.ok(vaultAgents.includes("awg release current"));
+  assert.ok(vaultAgents.includes("Capture the consequence, not the conversation"));
+  assert.ok(vaultAgents.includes("awg quick note|task|risk|question|decision"));
+});
+
+test("upgrade refreshes known generated vault instructions and preserves custom vault instructions", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const vaultAgentsFile = path.join(cwd, ".awg/AGENTS.md");
+  writeFileSync(vaultAgentsFile, `# AWG Agent Instructions
+
+- Before starting work, run \`awg handoff\`, \`awg lens resume\`, or read \`.awg/compiled/lenses/resume.json\`.
+- Start a focused run with \`awg run start --goal "<goal>"\`.
+- If the lens is missing or stale, run \`awg build\`.
+- Store durable knowledge as AWG nodes/edges/responses/events.
+- Use \`awg search <query>\` before creating duplicate nodes.
+- Use \`awg template status --goal "..." --json\` to understand local operating templates and field expectations.
+- Use \`awg lens task --goal "..."\` for scoped work context.
+- Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
+- Prefer \`awg add\`, \`awg update node\`, and \`awg add evidence\` commands over manually editing JSONL.
+- Durable writes automatically attach to the active run; use \`--run <run-id>\` for an explicit active run or \`--no-run\` to suppress attribution.
+- Use concise summaries for scanning, \`body\` for deeper detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
+- Do not edit \`.awg/compiled/*\` manually.
+- Do not link by file path when linking knowledge. Link by AWG node ID.
+- Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
+- When making a durable decision, create or update a decision node.
+- When identifying a risk/blocker, create a risk/task node with review metadata if possible.
+- When completing work, update/add task status and add evidence.
+- When behavior, policy, implementation, ownership, pricing, or process changes, update related nodes and freshness metadata.
+- Add run notes for meaningful progress, blockers, and force-finish rationale.
+- After writing AWG data, run \`awg build\`.
+- Fix fatal validation errors before stopping.
+- Review \`awg doctor --fix-suggestions --json\` warnings and resolve obvious stale items.
+- End with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+- If forced, document why in the run summary or a run note.
+- Ensure \`.awg/compiled/lenses/resume.json\` reflects the current state.
+`);
+  run(cwd, ["upgrade"]);
+  const refreshed = readFileSync(vaultAgentsFile, "utf8");
+  assert.ok(refreshed.includes("awg release current"));
+  assert.ok(refreshed.includes("Capture the consequence, not the conversation"));
+  assert.ok(refreshed.includes("awg quick note|task|risk|question|decision"));
+
+  const custom = tmp();
+  run(custom, ["init", "--empty"]);
+  const customVaultAgentsFile = path.join(custom, ".awg/AGENTS.md");
+  writeFileSync(customVaultAgentsFile, "# Custom vault instructions\n\nKeep this.\n");
+  run(custom, ["upgrade"]);
+  assert.equal(readFileSync(customVaultAgentsFile, "utf8"), "# Custom vault instructions\n\nKeep this.\n");
 });
 
 test("upgrade preserves customized project schemas", () => {

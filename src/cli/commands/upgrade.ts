@@ -183,7 +183,8 @@ function manifestSchemaHash(manifest: SchemaManifest | null, name: string): stri
 
 async function ensureVaultAgents(root: string, options: { dryRun: boolean }, actions: string[]): Promise<boolean> {
   const file = path.join(root, ".awg/AGENTS.md");
-  if (await exists(file)) return false;
+  const prior = await readText(file, { root });
+  if (prior !== null && !isKnownVaultAgentsTemplate(prior)) return false;
   return writeIfChanged(root, file, vaultAgentsTemplate(), options, actions);
 }
 
@@ -306,26 +307,74 @@ function printResults(results: UpgradeResult[], dryRun: boolean): void {
   }
 }
 
+function isKnownVaultAgentsTemplate(body: string): boolean {
+  const normalized = normalizeTemplate(body);
+  return [vaultAgentsTemplate(), legacyVaultAgentsTemplate()].some((known) => normalizeTemplate(known) === normalized);
+}
+
+function normalizeTemplate(body: string): string {
+  return body.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+}
+
+function legacyVaultAgentsTemplate(): string {
+  return `# AWG Agent Instructions
+
+- Before starting work, run \`awg handoff\`, \`awg lens resume\`, or read \`.awg/compiled/lenses/resume.json\`.
+- Start a focused run with \`awg run start --goal "<goal>"\`.
+- If the lens is missing or stale, run \`awg build\`.
+- Store durable knowledge as AWG nodes/edges/responses/events.
+- Use \`awg search <query>\` before creating duplicate nodes.
+- Use \`awg template status --goal "..." --json\` to understand local operating templates and field expectations.
+- Use \`awg lens task --goal "..."\` for scoped work context.
+- Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
+- Prefer \`awg add\`, \`awg update node\`, and \`awg add evidence\` commands over manually editing JSONL.
+- Durable writes automatically attach to the active run; use \`--run <run-id>\` for an explicit active run or \`--no-run\` to suppress attribution.
+- Use concise summaries for scanning, \`body\` for deeper detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
+- Do not edit \`.awg/compiled/*\` manually.
+- Do not link by file path when linking knowledge. Link by AWG node ID.
+- Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
+- When making a durable decision, create or update a decision node.
+- When identifying a risk/blocker, create a risk/task node with review metadata if possible.
+- When completing work, update/add task status and add evidence.
+- When behavior, policy, implementation, ownership, pricing, or process changes, update related nodes and freshness metadata.
+- Add run notes for meaningful progress, blockers, and force-finish rationale.
+- After writing AWG data, run \`awg build\`.
+- Fix fatal validation errors before stopping.
+- Review \`awg doctor --fix-suggestions --json\` warnings and resolve obvious stale items.
+- End with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+- If forced, document why in the run summary or a run note.
+- Ensure \`.awg/compiled/lenses/resume.json\` reflects the current state.
+`;
+}
+
 function vaultAgentsTemplate(): string {
   return `# AWG Agent Instructions
 
 Start of session:
 - Run \`awg handoff\`.
+- Run \`awg release current\` after install or upgrade to discover current local capabilities.
 - Run \`awg vault topology --json\` before cross-project work.
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
-- Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
+- Run \`awg inbox --limit 10\` to review deterministic maintenance items.
+- Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
 During work:
+- Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
+- Search first, then update the canonical node or create the smallest useful node.
+- Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
+- Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
-- Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for references.
+- Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation primitives, \`freshness\` for currentness, and \`anchors\` for references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
@@ -333,6 +382,7 @@ Before finishing:
 - Add evidence for completed work.
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
+- Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
 - Fix fatal validation errors and review warnings.
 - Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
 - If forced, document why in the run summary or a run note.

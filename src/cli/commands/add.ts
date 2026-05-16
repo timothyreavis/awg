@@ -1,5 +1,6 @@
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
 import { AWG_VERSION, CORE_EDGE_RELS, CORE_STATUSES } from "../../core/constants.js";
+import { relationError } from "../../core/relations.js";
 import { buildAwg } from "../../core/compiler.js";
 import { runEventId } from "../../core/runs.js";
 import { attachRun, resolveWriteRunId } from "../../core/runAttribution.js";
@@ -67,7 +68,7 @@ async function addEdge(parsed: ParsedArgs): Promise<void> {
   if (!from.startsWith("n:")) throw new Error("--from must be a node id starting with n:");
   if (!to.startsWith("n:")) throw new Error("--to must be a node id starting with n:");
   if (id && !id.startsWith("e:")) throw new Error("--id for edge must start with e:");
-  if (!CORE_EDGE_RELS.includes(rel as never)) throw new Error(`--rel must be one of: ${CORE_EDGE_RELS.join(", ")}`);
+  if (!CORE_EDGE_RELS.includes(rel as never)) throw new Error(relationError(rel));
   const storage = new FileAwgStorage();
   const { graph } = await buildAwg(storage, { write: false });
   const runId = resolveWriteRunId(graph, parsed.flags);
@@ -130,7 +131,7 @@ async function addEvidence(parsed: ParsedArgs): Promise<void> {
   if (!["terminal", "test", "manual", "file", "url", "log", "other"].includes(source)) throw new Error("--source must be one of: terminal, test, manual, file, url, log, other");
   if (!["passed", "failed", "unknown"].includes(evidenceStatus)) throw new Error("--status must be one of: passed, failed, unknown");
   const rel = str(parsed.flags, "rel", "supports") ?? "supports";
-  if (!CORE_EDGE_RELS.includes(rel as never)) throw new Error(`--rel must be one of: ${CORE_EDGE_RELS.join(", ")}`);
+  if (!CORE_EDGE_RELS.includes(rel as never)) throw new Error(relationError(rel));
   const evidenceNode: AwgNode = attachRun({
     awg: AWG_VERSION,
     kind: "node",

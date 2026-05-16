@@ -25,6 +25,17 @@ export async function handoffCommand(parsed: ParsedArgs): Promise<void> {
     output = buildHandoff(rebuilt.graph, budget);
   }
   if (parsed.flags.json) return printJson(output);
+  if (parsed.flags.compact) {
+    console.log("AWG compact handoff");
+    for (const sectionName of ["mostRecentRun", "currentFocus", "activeTasks", "blockersAndRisks", "recommendedNextActions"]) {
+      const section = output.sections.find((item) => item.section === sectionName);
+      if (!section?.items.length) continue;
+      const first = section.items.slice(0, sectionName === "recommendedNextActions" ? 3 : 2);
+      console.log(`\n${section.section}:`);
+      for (const item of first) console.log(`- ${formatHandoffItem(item as Record<string, unknown>, item)}`);
+    }
+    return;
+  }
   console.log("AWG handoff");
   for (const section of output.sections) {
     if (!section.items.length && !section.omitted) continue;
