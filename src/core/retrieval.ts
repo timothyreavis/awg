@@ -58,6 +58,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const relevantNodes = [...relevantIds].map(node).filter(Boolean) as AwgNode[];
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && relevantIds.has(diag.id)).sort(bySeverity);
   const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { nodeIds: [...relevantIds], limit: 10 });
+  const claimIssues = (graph.claim_index?.claims ?? []).filter((claim) => relevantIds.has(claim.id) && (claim.diagnostics.length || ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus))).slice(0, 10);
   const evidence = graph.nodes.filter((item) => item.type === "evidence" && graph.edges.some((edge) => edge.from === item.id && relevantIds.has(edge.to))).sort(byUpdatedDesc).slice(0, 10);
   const runs = buildRuns(graph);
   const current = activeRun(runs);
@@ -80,6 +81,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "relatedRuns", items: relatedRuns.map((run) => runWithSummary(graph, run)) },
     { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
     { section: "maintenanceInbox", items: maintenanceInbox },
+    { section: "claimTrustIssues", items: claimIssues },
     { section: "diagnostics", items: diagnostics },
     { section: "anchors", items: relatedAnchorEntries(graph, relevantIds).slice(0, 10) },
     { section: "recentEvidence", items: evidence }
@@ -104,6 +106,7 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, current?.goal, runSummary?.touchedNodeIds ?? []);
   const topologyObject = { currentVault: (graph.topology as TopologyIndex | undefined)?.currentVault ?? null, relatedVaults: compactTopologyItems(topologyItems), crossVaultRefs: ((graph.topology as TopologyIndex | undefined)?.crossVaultRefs ?? []).filter((ref) => (runSummary?.touchedNodeIds ?? []).includes(ref.nodeId)) };
   const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { limit: 12 });
+  const claimTrustIssues = (graph.claim_index?.claims ?? []).filter((claim) => ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus) || claim.nodeStatus === "needs_review").slice(0, 12);
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
     { section: "graphHealth", items: [graph.diagnostics.summary] },
@@ -115,6 +118,7 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "handoffQuality", items: [quality] },
     { section: "recommendedNextActions", items: recommendations },
     { section: "maintenanceInbox", items: maintenanceInbox },
+    { section: "claimTrustIssues", items: claimTrustIssues },
     { section: "currentFocus", items: activeTasks.slice(0, 3) },
     { section: "activeTasks", items: activeTasks },
     { section: "openDecisions", items: openDecisions },

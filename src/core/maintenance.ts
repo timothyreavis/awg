@@ -51,6 +51,16 @@ export function buildMaintenanceInbox(graph: CompiledGraph): MaintenanceInbox {
   const duplicateReconciledNodeIds = reconciledDuplicateNodeIds(graph.edges);
   for (const diagnostic of graph.diagnostics.diagnostics) addDiagnosticItem(diagnostic, add, duplicateReconciledNodeIds);
 
+  for (const claim of graph.claim_index?.claims ?? []) {
+    if (claim.verificationStatus === "contradicted") add({ kind: "claims", code: "AWG_INBOX_CLAIM_CONTRADICTED", severity: "warning", priority: 96, message: `Claim is contradicted: ${claim.title}`, nodeIds: [claim.id], reasons: ["claim has contradictory evidence"], suggestedCommands: [`awg claim status ${claim.id} --json`] });
+    if (claim.expired || claim.verificationStatus === "expired") add({ kind: "claims", code: "AWG_INBOX_CLAIM_EXPIRED", severity: "warning", priority: 92, message: `Claim is expired: ${claim.title}`, nodeIds: [claim.id], reasons: ["claim expires_at is past"], suggestedCommands: [`awg update node ${claim.id} --status needs_review`] });
+    if (claim.stale || claim.verificationStatus === "stale") add({ kind: "claims", code: "AWG_INBOX_CLAIM_STALE", severity: "warning", priority: 88, message: `Claim needs re-verification: ${claim.title}`, nodeIds: [claim.id], reasons: ["claim review_after is past or freshness is stale"], suggestedCommands: [`awg verify ${claim.id} --summary "..."`] });
+    if (claim.verificationStatus === "unverified" && !["archived", "superseded", "rejected"].includes(claim.nodeStatus)) add({ kind: "claims", code: "AWG_INBOX_CLAIM_UNVERIFIED_REQUIRED", severity: "warning", priority: 84, message: `Claim is unverified: ${claim.title}`, nodeIds: [claim.id], reasons: ["claim has no current supporting evidence"], suggestedCommands: [`awg add evidence --target ${claim.id} --summary "..." --source manual`] });
+  }
+  for (const evidence of graph.evidence_index?.evidence ?? []) {
+    if (evidence.expired) add({ kind: "evidence", code: "AWG_INBOX_EVIDENCE_EXPIRED", severity: "warning", priority: 82, message: `Evidence is expired: ${evidence.title}`, nodeIds: [evidence.id], reasons: ["evidence expires_at is past"], suggestedCommands: [`awg add evidence --target <node-id> --summary "..." --source manual`] });
+  }
+
   for (const node of graph.nodes) {
     if (node.status === "needs_review") {
       add({

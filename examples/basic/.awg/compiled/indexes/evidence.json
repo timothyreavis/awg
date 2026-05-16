@@ -1,0 +1,13 @@
+{
+  "awg": "0.1",
+  "evidence": [],
+  "generated_at": "2026-05-11T00:00:00.000Z",
+  "kind": "evidence-index",
+  "summary": {
+    "expired": 0,
+    "failed": 0,
+    "passed": 0,
+    "total": 0,
+    "unknown": 0
+  }
+}

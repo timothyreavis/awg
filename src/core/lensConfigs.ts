@@ -9,7 +9,7 @@ import type { AwgEdge, AwgLens, AwgLensSection, AwgNode, CompiledGraph, Diagnost
 export const LENS_STATUSES = ["active", "proposed", "needs_review", "archived"] as const;
 export const LENS_SCOPES = ["vault", "project", "workflow"] as const;
 export const LENS_AUDIENCES = ["agent", "human", "reviewer"] as const;
-export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "evidence", "maintenanceInbox", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
+export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
 
 const SOURCE_SET = new Set<string>(LENS_SECTION_SOURCES);
 const MAX_SECTION_DATA_BYTES = 50_000;
@@ -122,6 +122,8 @@ function executeSection(graph: CompiledGraph, lens: AwgLens, section: AwgLensSec
       return filterEdges(graph, query, section).slice(0, limit);
     case "runs":
       return buildRuns(graph).filter((run) => matchesRun(run.id, section, query) && matchesRecord(run as unknown as Record<string, unknown>, query)).slice(0, limit).map((run) => ({ ...run, attribution: runSummaryFor(graph, run.id) }));
+    case "claims":
+      return filterClaims(graph, query, section).slice(0, limit);
     case "evidence":
       return graph.nodes.filter((node) => node.type === "evidence").filter((node) => matchesNode(node, query)).slice(0, limit).map((node) => compactNode(node, section));
     case "maintenanceInbox":
@@ -159,8 +161,26 @@ function validateSection(lensId: string, section: AwgLensSection, index: number,
 }
 
 function invalidQueryKeys(query: Record<string, unknown>): string[] {
-  const allowed = new Set(["text", "q", "id", "ids", "type", "types", "status", "statuses", "tag", "tags", "rel", "from", "to", "severity", "code", "kind", "limit", "sortBy"]);
+  const allowed = new Set(["text", "q", "id", "ids", "type", "types", "status", "statuses", "tag", "tags", "rel", "from", "to", "severity", "code", "kind", "limit", "sortBy", "verificationStatus", "claimKind", "sourceOfTruth", "needsAttention", "nodeIds"]);
   return Object.keys(query).filter((key) => !allowed.has(key));
+}
+
+function filterClaims(graph: CompiledGraph, query: Record<string, unknown> | undefined, section: AwgLensSection): unknown[] {
+  const ids = new Set([...(section.nodeIds ?? []), ...stringArray(query?.ids), ...stringArray(query?.nodeIds)]);
+  if (typeof query?.id === "string") ids.add(query.id);
+  return (graph.claim_index?.claims ?? []).filter((claim) => {
+    if (ids.size && !ids.has(claim.id)) return false;
+    if (query?.verificationStatus && claim.verificationStatus !== String(query.verificationStatus)) return false;
+    if (query?.claimKind && claim.claimKind !== String(query.claimKind)) return false;
+    if (query?.status && claim.nodeStatus !== String(query.status)) return false;
+    if (query?.sourceOfTruth && claim.sourceOfTruth !== String(query.sourceOfTruth)) return false;
+    if (query?.needsAttention && !["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus) && claim.nodeStatus !== "needs_review") return false;
+    if (query?.tag) {
+      const node = graph.nodes.find((item) => item.id === claim.id);
+      if (!(node?.tags ?? []).includes(String(query.tag))) return false;
+    }
+    return matchesRecord(claim as unknown as Record<string, unknown>, query);
+  });
 }
 
 function filterNodes(graph: CompiledGraph, query: Record<string, unknown> | undefined, section: AwgLensSection): AwgNode[] {

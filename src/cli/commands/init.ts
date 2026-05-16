@@ -136,6 +136,7 @@ During work:
 - Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
 - Search first, then update the canonical node or create the smallest useful node.
 - Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- Use \`awg add claim\` for assertions that may guide future work and \`awg verify <node-id> --summary "..."\` before treating claims as proven.
 - During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
 - Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
@@ -151,6 +152,7 @@ During work:
 Before finishing:
 - Update task, risk, blocker, and decision statuses.
 - Add evidence for completed work.
+- Check \`awg claim status <node-id> --json\` before relying on stale, external, metric, policy, pricing, or implementation claims, and keep contradictions explicit with evidence.
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
 - Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.

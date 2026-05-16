@@ -6,6 +6,22 @@
   },
   "authored_views": [],
   "awg": "0.1",
+  "claim_index": {
+    "awg": "0.1",
+    "claims": [],
+    "generated_at": "2026-05-11T00:00:00.000Z",
+    "kind": "claim-index",
+    "summary": {
+      "contradicted": 0,
+      "expired": 0,
+      "needs_review": 0,
+      "stale": 0,
+      "supported": 0,
+      "total": 0,
+      "unverified": 0,
+      "verified": 0
+    }
+  },
   "diagnostics": {
     "awg": "0.1",
     "diagnostics": [
@@ -41,6 +57,19 @@
     }
   ],
   "events": [],
+  "evidence_index": {
+    "awg": "0.1",
+    "evidence": [],
+    "generated_at": "2026-05-11T00:00:00.000Z",
+    "kind": "evidence-index",
+    "summary": {
+      "expired": 0,
+      "failed": 0,
+      "passed": 0,
+      "total": 0,
+      "unknown": 0
+    }
+  },
   "generated_at": "2026-05-11T00:00:00.000Z",
   "lens_index": {
     "awg": "0.1",

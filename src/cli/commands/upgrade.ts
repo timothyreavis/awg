@@ -365,7 +365,7 @@ Start of session:
 During work:
 - Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
 - Search first, then update the canonical node or create the smallest useful node.
-- Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, claims, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
 - During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
 - Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures.
 - Update existing nodes instead of creating duplicates.
@@ -375,12 +375,14 @@ During work:
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Use \`awg add claim\` for assertions that may guide future work, \`awg verify <node-id> --summary "..."\` before treating claims as proven, and \`awg claim status <node-id> --json\` before relying on stale, external, metric, policy, pricing, or implementation claims.
 - Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
 - Update task, risk, blocker, and decision statuses.
 - Add evidence for completed work.
+- Keep contradictions explicit with evidence and redact sensitive evidence.
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
 - Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.

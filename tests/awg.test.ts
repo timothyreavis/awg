@@ -265,6 +265,107 @@ test("setup --no-instructions still registers a nearby project vault", () => {
   assert.equal(readRegistry(home).vaults.length, 1);
 });
 
+test("claims evidence verification commands derive trust indexes and surface issues", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  const addClaim = JSON.parse(run(cwd, ["add", "claim", "--title", "Claims smoke", "--claim", "Claims smoke is implemented.", "--kind", "implementation_fact", "--evidence-required", "--json"]));
+  assert.equal(addClaim.ok, true);
+  const claimId = addClaim.claimId;
+  const initialStatus = JSON.parse(run(cwd, ["claim", "status", claimId, "--json"]));
+  assert.equal(initialStatus.claim.verificationStatus, "unverified");
+  const verify = JSON.parse(run(cwd, ["verify", claimId, "--summary", "Manual smoke passed.", "--source", "terminal", "--command", "npm test", "--status", "passed", "--url", "https://example.test/evidence", "--reliability", "high", "--redacted", "--json"]));
+  assert.equal(verify.ok, true);
+  assert.equal(verify.verificationStatus, "verified");
+  const status = JSON.parse(run(cwd, ["claim", "status", claimId, "--json"]));
+  assert.equal(status.claim.verificationStatus, "verified");
+  assert.deepEqual(status.claim.supportingEvidenceIds, [verify.evidenceNodeId]);
+  const claims = JSON.parse(run(cwd, ["claims", "--status", "verified", "--json"]));
+  assert.equal(claims.kind, "claim-index");
+  assert.equal(claims.claims.length, 1);
+  run(cwd, ["build", "--json"]);
+  const evidence = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/indexes/evidence.json"), "utf8"));
+  assert.equal(evidence.evidence[0].source, "terminal");
+  assert.equal(evidence.evidence[0].supportsIds[0], claimId);
+  const contradicted = JSON.parse(run(cwd, ["add", "evidence", "--target", claimId, "--summary", "A later check failed.", "--source", "system", "--status", "failed", "--rel", "contradicts", "--expires-at", "2000-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(contradicted.verificationStatus, "contradicted");
+  const built = JSON.parse(run(cwd, ["build", "--json"]));
+  assert.equal(built.fatal_error_count, 0);
+  const inbox = JSON.parse(run(cwd, ["inbox", "--json"]));
+  assert.ok(inbox.items.some((item: { code: string }) => item.code === "AWG_INBOX_CLAIM_CONTRADICTED"));
+  assert.ok(inbox.items.some((item: { code: string }) => item.code === "AWG_INBOX_EVIDENCE_EXPIRED"));
+  assert.ok(runFail(cwd, ["verify", claimId, "--summary", "Bad rel.", "--rel", "verified_by"]).includes("--rel for awg verify"));
+  assert.ok(runFail(cwd, ["add", "evidence", "--target", claimId, "--summary", "Bad status.", "--status", "maybe"]).includes("--status must be one of"));
+  assert.ok(JSON.parse(run(cwd, ["add", "evidence", "--target", claimId, "--summary", "Old evidence was superseded.", "--status", "superseded", "--json"])).ok);
+  const lens = JSON.parse(run(cwd, ["lens", "task", "--goal", "claims smoke", "--json"]));
+  assert.ok(lens.sections.some((section: { section: string; items: unknown[] }) => section.section === "claimTrustIssues" && section.items.length));
+  const handoff = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
+  assert.ok(handoff.sections.some((section: { section: string; items: unknown[] }) => section.section === "claimTrustIssues" && section.items.length));
+  const addVerifiedBy = JSON.parse(run(cwd, ["add", "evidence", "--target", claimId, "--summary", "Verified by normalized direction.", "--rel", "verified_by", "--status", "passed", "--json"]));
+  run(cwd, ["build", "--json"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const edge = graph.edges.find((item: { id: string }) => item.id === addVerifiedBy.edgeId);
+  assert.equal(edge.from, claimId);
+  assert.equal(edge.to, addVerifiedBy.evidenceNodeId);
+});
+
+test("claim index preserves inline evidence compatibility and avoids task evidence pollution", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  run(cwd, ["add", "node", "--id", "n:inline-proof", "--type", "evidence", "--title", "Inline proof", "--summary", "Inline proof passed.", "--field", "source=manual", "--field", "evidence_status=passed"]);
+  const logDir = path.join(cwd, ".awg/log/2026/01");
+  mkdirSync(logDir, { recursive: true });
+  writeFileSync(path.join(logDir, "2026-01-02.awg.jsonl"), JSON.stringify(node({
+    id: "n:inline-claim",
+    type: "claim",
+    title: "Inline claim",
+    summary: "Inline evidence works.",
+    status: "active",
+    fields: { claim: "Inline evidence works.", claim_kind: "fact" },
+    evidence_required: true,
+    evidence: [{ id: "n:inline-proof", summary: "Inline proof passed.", source: "manual", status: "passed" }]
+  })) + "\n");
+  run(cwd, ["add", "node", "--id", "n:done-task", "--type", "task", "--title", "Done task", "--summary", "Done.", "--status", "completed"]);
+  run(cwd, ["add", "evidence", "--target", "n:done-task", "--summary", "Task evidence passed.", "--status", "passed"]);
+  run(cwd, ["build", "--json"]);
+  const claims = JSON.parse(run(cwd, ["claims", "--json"]));
+  assert.ok(claims.claims.some((claim: { id: string; verificationStatus: string; supportingEvidenceIds: string[] }) => claim.id === "n:inline-claim" && claim.verificationStatus === "verified" && claim.supportingEvidenceIds.includes("n:inline-proof")));
+  assert.ok(!claims.claims.some((claim: { id: string }) => claim.id === "n:done-task"));
+  const evidenceIndex = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/indexes/evidence.json"), "utf8"));
+  assert.ok(evidenceIndex.evidence.some((evidence: { id: string; supportsIds: string[] }) => evidence.id === "n:inline-proof" && evidence.supportsIds.includes("n:inline-claim")));
+});
+
+test("claim index accepts compact inline evidence objects without separate evidence nodes", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  const logDir = path.join(cwd, ".awg/log/2026/01");
+  mkdirSync(logDir, { recursive: true });
+  writeFileSync(path.join(logDir, "2026-01-02.awg.jsonl"), JSON.stringify(node({
+    id: "n:compact-inline-claim",
+    type: "claim",
+    title: "Compact inline claim",
+    summary: "Compact inline evidence works.",
+    status: "active",
+    fields: { claim: "Compact inline evidence works.", claim_kind: "fact" },
+    evidence_required: true,
+    evidence: [{ summary: "Compact inline proof.", source: "manual", status: "passed", at: "2026-01-02T00:00:00.000Z" }]
+  })) + "\n");
+  run(cwd, ["build", "--json"]);
+  const claims = JSON.parse(run(cwd, ["claims", "--json"]));
+  assert.ok(claims.claims.some((claim: { id: string; verificationStatus: string; supportingEvidenceIds: string[] }) => claim.id === "n:compact-inline-claim" && claim.verificationStatus === "verified" && claim.supportingEvidenceIds.includes("n:compact-inline-claim:inline-evidence:1")));
+  const evidenceIndex = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/indexes/evidence.json"), "utf8"));
+  assert.ok(evidenceIndex.evidence.some((evidence: { id: string; supportsIds: string[] }) => evidence.id === "n:compact-inline-claim:inline-evidence:1" && evidence.supportsIds.includes("n:compact-inline-claim")));
+});
+
+test("claim diagnostics cover missing source of truth and evidence status", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  run(cwd, ["add", "claim", "--id", "n:sot-claim", "--title", "SOT claim", "--claim", "Source exists.", "--source-of-truth", "n:missing-source"]);
+  run(cwd, ["add", "node", "--id", "n:no-status-evidence", "--type", "evidence", "--title", "No status evidence", "--summary", "No status.", "--field", "source=manual"]);
+  const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+  assert.ok(doctor.diagnostics.some((diag: { code: string; id: string }) => diag.code === "source_of_truth_missing" && diag.id === "n:sot-claim"));
+  assert.ok(doctor.diagnostics.some((diag: { code: string; id: string }) => diag.code === "evidence_missing_status" && diag.id === "n:no-status-evidence"));
+});
+
 test("setup --no-register-current skips nearby project registration", () => {
   const parent = tmp();
   const child = path.join(parent, "child");
@@ -1268,7 +1369,9 @@ test("release notes, relations, evidence help, and generated instructions expose
   run(cwd, ["init", "--empty"]);
   const release = JSON.parse(run(cwd, ["release", "notes", "--json"]));
   assert.equal(release.ok, true);
-  assert.ok(release.releases[0].newCommands.includes("awg rels [--json]"));
+  const v191 = release.releases.find((item: { version: string }) => item.version === "0.1.0-v2.1");
+  assert.ok(v191.newCommands.includes("awg rels [--json]"));
+  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg add claim")));
   assert.ok(run(cwd, ["release", "current"]).includes("AWG release"));
   const rels = JSON.parse(run(cwd, ["rels", "--json"]));
   assert.ok(rels.relations.some((rel: { id: string; example: string }) => rel.id === "relates_to" && rel.example.includes("--rel relates_to")));

@@ -268,12 +268,87 @@ export interface DiagnosticsReport {
   diagnostics: Diagnostic[];
 }
 
+export type ClaimVerificationStatus = "unverified" | "supported" | "verified" | "contradicted" | "stale" | "expired" | "not_applicable";
+
+export interface ClaimIndexRecord {
+  id: string;
+  title: string;
+  summary: string;
+  claim: string;
+  claimKind: string;
+  nodeStatus: string;
+  verificationStatus: ClaimVerificationStatus;
+  sourceOfTruth?: string;
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+  verifiedByEvidenceIds: string[];
+  derivedFromIds: string[];
+  latestSupportingEvidenceAt?: string;
+  latestVerificationAt?: string;
+  reviewAfter?: string;
+  expiresAt?: string;
+  expiredEvidenceIds: string[];
+  stale: boolean;
+  expired: boolean;
+  diagnostics: string[];
+}
+
+export interface ClaimIndex {
+  awg: string;
+  kind: "claim-index";
+  generated_at: string;
+  claims: ClaimIndexRecord[];
+  summary: {
+    total: number;
+    verified: number;
+    supported: number;
+    unverified: number;
+    contradicted: number;
+    stale: number;
+    expired: number;
+    needs_review: number;
+  };
+}
+
+export interface EvidenceIndexRecord {
+  id: string;
+  title: string;
+  summary: string;
+  source?: string;
+  evidenceStatus: string;
+  evidenceStatusMissing?: boolean;
+  observedAt?: string;
+  reviewAfter?: string;
+  expiresAt?: string;
+  expired: boolean;
+  targetIds: string[];
+  supportsIds: string[];
+  contradictsIds: string[];
+  verifiesIds: string[];
+  derivedTargetIds: string[];
+}
+
+export interface EvidenceIndex {
+  awg: string;
+  kind: "evidence-index";
+  generated_at: string;
+  evidence: EvidenceIndexRecord[];
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    unknown: number;
+    expired: number;
+  };
+}
+
 export type MaintenanceInboxKind =
   | "stale"
   | "needs_review"
   | "duplicates"
   | "orphans"
   | "evidence"
+  | "claims"
   | "questions"
   | "risks"
   | "blockers"
@@ -340,6 +415,8 @@ export interface CompiledGraph {
   maintenance_inbox?: MaintenanceInbox;
   authored_views?: AuthoredViewOutput[];
   lens_index?: LensIndex;
+  claim_index?: ClaimIndex;
+  evidence_index?: EvidenceIndex;
 }
 
 export interface LensIndexEntry {

@@ -16,12 +16,56 @@ import { applyRichNodePatch, parseJsonInput, richNodePatch } from "../nodeConten
 export async function addCommand(parsed: ParsedArgs): Promise<void> {
   const [, sub] = parsed.positionals;
   if (sub === "node") return addNode(parsed);
+  if (sub === "claim") return addClaim(parsed);
   if (sub === "edge") return addEdge(parsed);
   if (sub === "response") return addResponse(parsed);
   if (sub === "evidence") return addEvidence(parsed);
   if (sub === "view") return addView(parsed);
   if (sub === "lens") return addLens(parsed);
-  throw new Error("Usage: awg add node|edge|response|evidence|view|lens ...");
+  throw new Error("Usage: awg add node|claim|edge|response|evidence|view|lens ...");
+}
+
+async function addClaim(parsed: ParsedArgs): Promise<void> {
+  const title = required(parsed, "title");
+  const claim = required(parsed, "claim");
+  const at = nowIso();
+  const storage = new FileAwgStorage();
+  const { graph } = await buildAwg(storage, { write: false });
+  const runId = resolveWriteRunId(graph, parsed.flags);
+  const kind = str(parsed.flags, "kind", "fact") ?? "fact";
+  if (!["fact", "assumption", "hypothesis", "requirement", "policy", "metric", "external_fact", "implementation_fact"].includes(kind)) throw new Error("--kind must be one of: fact, assumption, hypothesis, requirement, policy, metric, external_fact, implementation_fact");
+  const node: AwgNode = attachRun({
+    awg: AWG_VERSION,
+    kind: "node",
+    id: str(parsed.flags, "id") ?? nodeId(title),
+    type: "claim",
+    title,
+    summary: str(parsed.flags, "summary") ?? claim.slice(0, 160),
+    status: str(parsed.flags, "status", "active") ?? "active",
+    importance: numberFlag(parsed, "importance", 0.5),
+    confidence: numberFlag(parsed, "confidence", 0.8),
+    created_at: at,
+    updated_at: at,
+    tags: arr(parsed.flags, "tag"),
+    fields: {
+      claim,
+      claim_kind: kind,
+      verification_status: "unverified",
+      source_of_truth: str(parsed.flags, "source-of-truth"),
+      review_after: str(parsed.flags, "review-after")
+    },
+    freshness: {
+      state: "unknown",
+      review_after: str(parsed.flags, "review-after"),
+      source_of_truth: str(parsed.flags, "source-of-truth")
+    }
+  }, runId);
+  if (parsed.flags["evidence-required"] !== undefined) node.evidence_required = true;
+  node.provenance = { created_by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", updated_by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", source: "agent_generated", human_approved: false };
+  await storage.appendLogEntry(node);
+  if (runId) await storage.appendLogEntry(attachRun({ awg: AWG_VERSION, kind: "event", id: runEventId(runId, "claim", at), type: "claim_created", target: node.id, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at }, runId) as AwgEvent);
+  if (parsed.flags.json) return printJson({ ok: true, claimId: node.id, node });
+  console.log(`Added claim ${node.id}`);
 }
 
 async function addLens(parsed: ParsedArgs): Promise<void> {
@@ -200,10 +244,10 @@ async function addEvidence(parsed: ParsedArgs): Promise<void> {
   if (id && !id.startsWith("n:")) throw new Error("--id for evidence must start with n:");
   const source = str(parsed.flags, "source", "manual") ?? "manual";
   const evidenceStatus = str(parsed.flags, "status", "unknown") ?? "unknown";
-  if (!["terminal", "test", "manual", "file", "url", "log", "other"].includes(source)) throw new Error("--source must be one of: terminal, test, manual, file, url, log, other");
-  if (!["passed", "failed", "unknown"].includes(evidenceStatus)) throw new Error("--status must be one of: passed, failed, unknown");
-  const rel = str(parsed.flags, "rel", "supports") ?? "supports";
-  if (!CORE_EDGE_RELS.includes(rel as never)) throw new Error(relationError(rel));
+  if (!["terminal", "test", "manual", "file", "url", "log", "doc", "system", "other"].includes(source)) throw new Error("--source must be one of: terminal, test, manual, file, url, log, doc, system, other");
+  if (!["passed", "failed", "unknown", "superseded"].includes(evidenceStatus)) throw new Error("--status must be one of: passed, failed, unknown, superseded");
+  const rel = str(parsed.flags, "rel") ?? (evidenceStatus === "failed" ? "contradicts" : "supports");
+  if (!["supports", "contradicts", "verified_by", "derived_from"].includes(rel)) throw new Error("--rel must be one of: supports, contradicts, verified_by, derived_from. Use `awg add edge` for non-proof relationships.");
   const evidenceNode: AwgNode = attachRun({
     awg: AWG_VERSION,
     kind: "node",
@@ -218,19 +262,33 @@ async function addEvidence(parsed: ParsedArgs): Promise<void> {
     updated_at: at,
     source,
     evidence_status: evidenceStatus,
+    observed_at: at,
     command: str(parsed.flags, "command"),
-    path: str(parsed.flags, "path")
+    path: str(parsed.flags, "path"),
+    url: str(parsed.flags, "url"),
+    expires_at: str(parsed.flags, "expires-at"),
+    review_after: str(parsed.flags, "review-after"),
+    reliability: str(parsed.flags, "reliability"),
+    excerpt: str(parsed.flags, "excerpt"),
+    redacted: parsed.flags.redacted !== undefined
   }, runId);
-  const edge: AwgEdge = attachRun({ awg: AWG_VERSION, kind: "edge", id: edgeId(evidenceNode.id, rel, target), from: evidenceNode.id, rel, to: target, created_at: at, reason: summary }, runId);
+  if (evidenceNode.reliability && !["low", "medium", "high"].includes(String(evidenceNode.reliability))) throw new Error("--reliability must be one of: low, medium, high");
+  const edgeFrom = rel === "verified_by" || rel === "derived_from" ? target : evidenceNode.id;
+  const edgeTo = rel === "verified_by" || rel === "derived_from" ? evidenceNode.id : target;
+  const edge: AwgEdge = attachRun({ awg: AWG_VERSION, kind: "edge", id: edgeId(edgeFrom, rel, edgeTo), from: edgeFrom, rel, to: edgeTo, created_at: at, reason: summary }, runId);
   const targetEvidence = Array.isArray(targetNode.evidence) ? targetNode.evidence : [];
-  const updatedTarget: AwgNode = { ...targetNode, evidence: [...targetEvidence, { id: evidenceNode.id, summary, source: evidenceNode.source, status: evidenceNode.evidence_status, at }], updated_at: at };
+  const fields = targetNode.fields && typeof targetNode.fields === "object" && !Array.isArray(targetNode.fields) ? targetNode.fields : {};
+  const verification_status = nextVerificationStatus(String(fields.verification_status ?? "unverified"), evidenceStatus);
+  const claimBearing = targetNode.type === "claim" || typeof fields.claim === "string" || typeof fields.claim_kind === "string";
+  const updatedTarget: AwgNode = { ...targetNode, evidence: [...targetEvidence, { id: evidenceNode.id, summary, source: evidenceNode.source, status: evidenceNode.evidence_status, at, url: evidenceNode.url, path: evidenceNode.path, expires_at: evidenceNode.expires_at, review_after: evidenceNode.review_after }], updated_at: at };
+  if (claimBearing) updatedTarget.fields = { ...fields, verification_status, verified_at: evidenceStatus === "passed" ? at : fields.verified_at, verified_by: evidenceNode.id };
   const eventId = `ev:${target.replace(/^n:/, "")}:evidence:${at.replace(/[^0-9]/g, "")}`;
   const event: AwgEvent = attachRun({ awg: AWG_VERSION, kind: "event", id: eventId, type: "evidence_added", target, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at, evidence: evidenceNode.id }, runId);
   await storage.appendLogEntry(evidenceNode);
   await storage.appendLogEntry(edge);
   await storage.appendLogEntry(updatedTarget);
   await storage.appendLogEntry(event);
-  if (parsed.flags.json) return printJson({ ok: true, target, evidenceNodeId: evidenceNode.id, edgeId: edge.id, eventId });
+  if (parsed.flags.json) return printJson({ ok: true, target, evidenceNodeId: evidenceNode.id, edgeId: edge.id, edgeIds: [edge.id], eventId, verificationStatus: verification_status });
   console.log(`Added evidence ${evidenceNode.id} -> ${target}`);
 }
 
@@ -285,4 +343,11 @@ function parseLensSections(value: string, flag: string): AwgLensSection[] {
     if (!section || typeof section !== "object" || Array.isArray(section)) throw new Error(`${flag} must contain section objects`);
   }
   return parsed as AwgLensSection[];
+}
+
+function nextVerificationStatus(current: string, evidenceStatus: string): string {
+  if (evidenceStatus === "failed") return "contradicted";
+  if (evidenceStatus === "passed") return current === "contradicted" ? current : "verified";
+  if (evidenceStatus === "unknown") return ["verified", "contradicted"].includes(current) ? current : "supported";
+  return current;
 }

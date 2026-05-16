@@ -2,6 +2,7 @@
 import { parseArgs } from "./args.js";
 import { addCommand } from "./commands/add.js";
 import { buildCommand } from "./commands/build.js";
+import { claimCommand, claimsCommand } from "./commands/claim.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
@@ -24,6 +25,7 @@ import { updateCommand } from "./commands/update.js";
 import { upgradeCommand } from "./commands/upgrade.js";
 import { validateCommand } from "./commands/validate.js";
 import { vaultCommand } from "./commands/vault.js";
+import { verifyCommand } from "./commands/verify.js";
 import { viewCommand } from "./commands/view.js";
 
 async function main(): Promise<void> {
@@ -43,6 +45,9 @@ async function main(): Promise<void> {
   if (command === "rels") return relsCommand(parsed);
   if (command === "quick") return quickCommand(parsed);
   if (command === "add") return addCommand(parsed);
+  if (command === "verify") return verifyCommand(parsed);
+  if (command === "claim") return claimCommand(parsed);
+  if (command === "claims") return claimsCommand(parsed);
   if (command === "update") return updateCommand(parsed);
   if (command === "search") return searchCommand(parsed);
   if (command === "run") return runCommand(parsed);
@@ -83,10 +88,14 @@ Commands:
   instructions list
   instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
   add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--evidence-required] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+  add claim --title <title> --claim <statement> [--kind <kind>] [--source-of-truth <ref>] [--review-after <date>] [--evidence-required] [--tag <tag>] [--run <run-id>|--no-run] [--json]
   add view --id v:<slug> --title <title> --summary <summary> --audience <human|agent|reviewer> [--block-json <json>] [--blocks-json <json|@file>] [--tag <tag>] [--run <run-id>|--no-run] [--json]
   add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
   add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
-  add evidence --target <id> --summary <summary> [--source <terminal|test|manual|file|url|log|other>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--rel <relation>] [--json] [--run <run-id>|--no-run]
+  add evidence --target <id> --summary <summary> [--source <terminal|test|manual|file|url|log|doc|system|other>] [--command <command>] [--path <path>] [--url <url>] [--status <passed|failed|unknown|superseded>] [--rel <supports|contradicts|verified_by|derived_from>] [--expires-at <date>] [--review-after <date>] [--reliability <low|medium|high>] [--excerpt <text>] [--redacted] [--json] [--run <run-id>|--no-run]
+  verify <node-id> --summary <summary> [--source <source>] [--command <command>] [--path <path>] [--url <url>] [--status <passed|failed|unknown>] [--rel <supports|contradicts>] [--expires-at <date>] [--review-after <date>] [--reliability <low|medium|high>] [--excerpt <text>] [--redacted] [--run <run-id>|--no-run] [--json]
+  claim status <node-id> [--json]
+  claims [--status <status>] [--kind <kind>] [--tag <tag>] [--limit <n>] [--json]
   quick note|task|risk|question|decision <summary> [--title <title>] [--body <body>] [--tag <tag>] [--target <node-id>] [--status <status>] [--run <run-id>|--no-run] [--json]
   rels [--json]
   update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]

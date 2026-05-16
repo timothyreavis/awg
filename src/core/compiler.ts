@@ -11,6 +11,7 @@ import { buildAuthoredViewOutputs, buildCurrentView, validateAuthoredViews } fro
 import { buildTopologyIndex } from "./topology.js";
 import { buildMaintenanceInbox } from "./maintenance.js";
 import { buildLensIndex, validateLenses } from "./lensConfigs.js";
+import { buildClaimIndex, buildEvidenceIndex, claimDiagnostics } from "./claims.js";
 import type { AwgEdge, AwgLens, AwgNode, AwgObject, AwgPolicy, AwgResponse, AwgView, BuildResult, CompiledGraph, Diagnostic } from "./types.js";
 import type { AwgStorage } from "../storage/AwgStorage.js";
 
@@ -94,6 +95,13 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   }
   const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, sortedViews, events as never, diagnostics, strict, config, operatingTemplates);
   const diagnosticsReport = { awg: AWG_VERSION, generated_at: generatedAt, summary: diag.summary, diagnostics: diag.diagnostics };
+  const asOf = Date.parse(generatedAt);
+  const evidenceIndex = buildEvidenceIndex(sortedNodes, sortedEdges, generatedAt, asOf);
+  const claimIndex = buildClaimIndex(sortedNodes, sortedEdges, evidenceIndex, generatedAt, asOf);
+  diagnosticsReport.diagnostics.push(...claimDiagnostics(claimIndex, evidenceIndex, sortedEdges, strict));
+  diagnosticsReport.summary.fatal_error_count = diagnosticsReport.diagnostics.filter((d) => d.severity === "fatal").length;
+  diagnosticsReport.summary.warning_count = diagnosticsReport.diagnostics.filter((d) => d.severity === "warning").length;
+  diagnosticsReport.summary.ok = diagnosticsReport.summary.fatal_error_count === 0;
   const graph: CompiledGraph = {
     awg: AWG_VERSION,
     generated_at: generatedAt,
@@ -109,7 +117,9 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     diagnostics: diagnosticsReport,
     operating_templates: operatingTemplates,
     anchor_index: anchorIndex,
-    topology
+    topology,
+    claim_index: claimIndex,
+    evidence_index: evidenceIndex
   };
   graph.lens_index = buildLensIndex(sortedLenses, generatedAt);
   graph.diagnostics.diagnostics.push(...validateLenses(sortedLenses, graph, strict ? "fatal" : "warning"));
@@ -118,8 +128,8 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
   graph.maintenance_inbox = buildMaintenanceInbox(graph);
   graph.run_summaries = buildRunSummaries(graph);
-  const resumeLens = buildResumeLens(sortedNodes, sortedResponses, diag.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10));
-  const currentView = buildCurrentView(sortedNodes, diag.summary, generatedAt);
+  const resumeLens = buildResumeLens(sortedNodes, sortedResponses, graph.diagnostics.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10));
+  const currentView = buildCurrentView(sortedNodes, graph.diagnostics.summary, generatedAt);
   graph.authored_views = buildAuthoredViewOutputs(sortedViews, diagnosticsReport.diagnostics, generatedAt);
 
   if (options.write !== false) {
@@ -212,6 +222,8 @@ async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): P
   if (graph.topology) await storage.writeCompiledArtifact("indexes/topology.json", graph.topology as object);
   if (graph.maintenance_inbox) await storage.writeCompiledArtifact("indexes/maintenance-inbox.json", graph.maintenance_inbox);
   if (graph.lens_index) await storage.writeCompiledArtifact("lenses/index.json", graph.lens_index);
+  if (graph.claim_index) await storage.writeCompiledArtifact("indexes/claims.json", graph.claim_index);
+  if (graph.evidence_index) await storage.writeCompiledArtifact("indexes/evidence.json", graph.evidence_index);
 }
 
 function emptySummary(nodes: number, edges: number): CompiledGraph["diagnostics"]["summary"] {

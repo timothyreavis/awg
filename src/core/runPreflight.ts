@@ -35,12 +35,17 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
     incomingByTarget.set(edge.to, incoming);
   }
   const hasNodeEvidence = (id: string): boolean => hasEvidenceReference(nodes.get(id), incomingByTarget.get(id) ?? [], nodes);
+  const touchedClaims = (graph.claim_index?.claims ?? []).filter((claim) => touched.includes(claim.id));
   const addNodeWarning = (code: string, message: string, nodeIds: string[], suggestedFix?: string): void => {
     if (nodeIds.length) warnings.push({ code, severity: "warning", message, nodeIds, suggestedFix });
   };
 
   addNodeWarning("AWG_RUN_COMPLETED_TASK_WITHOUT_EVIDENCE", "Task completed in this run has no evidence.", summary?.completedTasksMissingEvidence ?? [], "Run `awg add evidence --target <node-id> --summary \"...\"`.");
   addNodeWarning("AWG_RUN_EVIDENCE_REQUIRED_WITHOUT_EVIDENCE", "Touched node requires evidence but has none.", touched.filter((id) => Boolean(nodes.get(id)?.evidence_required) && !hasNodeEvidence(id)), "Run `awg add evidence --target <node-id> --summary \"...\"`.");
+  addNodeWarning("AWG_RUN_CLAIM_CONTRADICTION_UNRESOLVED", "Touched claim has unresolved contradictory evidence.", touchedClaims.filter((claim) => claim.verificationStatus === "contradicted").map((claim) => claim.id), "Run `awg claim status <node-id> --json` and resolve or supersede the contradiction.");
+  addNodeWarning("AWG_RUN_CLAIM_REQUIRED_EVIDENCE_MISSING", "Touched claim is missing required supporting evidence.", touchedClaims.filter((claim) => claim.verificationStatus === "unverified").map((claim) => claim.id), "Run `awg verify <node-id> --summary \"...\"`.");
+  addNodeWarning("AWG_RUN_CLAIM_STALE_OR_EXPIRED", "Touched claim is stale or expired.", touchedClaims.filter((claim) => claim.stale || claim.expired || ["stale", "expired"].includes(claim.verificationStatus)).map((claim) => claim.id), "Review and verify the claim or mark it needs_review.");
+  addNodeWarning("AWG_RUN_EVIDENCE_EXPIRED", "Touched evidence is expired.", (graph.evidence_index?.evidence ?? []).filter((evidence) => touched.includes(evidence.id) && evidence.expired).map((evidence) => evidence.id), "Add newer evidence or supersede the expired evidence.");
   addNodeWarning("AWG_RUN_ACTIVE_BLOCKER_TOUCHED", "Blocker touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "blocker" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id)), "Resolve, review, or run `awg reconcile intentionally-open <node-id> --reason \"...\"`.");
   addNodeWarning("AWG_RUN_ACTIVE_RISK_TOUCHED", "Risk touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "risk" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id)), "Review the risk or run `awg reconcile intentionally-open <node-id> --reason \"...\"`.");
   addNodeWarning("AWG_RUN_PROPOSED_DECISION_TOUCHED", "Decision touched during this run is still proposed.", summary?.proposedDecisionIds ?? [], "Update the decision status when implementation depends on it.");
@@ -100,6 +105,7 @@ export function qualityForRun(graph: CompiledGraph, run: AgentRun | undefined, p
     { id: "run_note_or_change_present", ok: Boolean((run?.notes.length ?? 0) > 0 || (summary?.touchedNodeIds.length ?? 0) > 0), weight: 10 },
     { id: "completed_tasks_have_evidence", ok: (summary?.completedTasksMissingEvidence.length ?? 0) === 0, weight: 20, count: summary?.completedTasksMissingEvidence.length ?? 0 },
     { id: "evidence_required_nodes_have_evidence", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_EVIDENCE_REQUIRED_WITHOUT_EVIDENCE"), weight: 15 },
+    { id: "claim_trust_issues_absent", ok: !pf.warnings.some((w) => w.code.startsWith("AWG_RUN_CLAIM_")), weight: 15 },
     { id: "new_orphans_reported_clean", ok: (summary?.orphanNodeIds.length ?? 0) === 0, weight: 10, count: summary?.orphanNodeIds.length ?? 0 },
     { id: "risks_blockers_reviewed_or_open", ok: !pf.warnings.some((w) => w.code === "AWG_RUN_ACTIVE_BLOCKER_TOUCHED" || w.code === "AWG_RUN_ACTIVE_RISK_TOUCHED"), weight: 10 },
     { id: "proposed_decisions_not_silent", ok: (summary?.proposedDecisionIds.length ?? 0) === 0, weight: 10, count: summary?.proposedDecisionIds.length ?? 0 },
