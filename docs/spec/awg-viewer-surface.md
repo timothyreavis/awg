@@ -10,7 +10,7 @@ The AWG viewer is a generated static surface for humans reviewing compiled proje
 - `#/nodes` is the searchable database-style browser for all nodes.
 - `#/node/<encoded-node-id>` is the canonical human inspection surface for a single node.
 - `#/health` is for trust, diagnostics, and graph hygiene.
-- `#/views` lists compiled/generated views and renders supported blocks with safe fallbacks.
+- `#/views` lists compiled/generated views and authored view manifests. `#/views/<encoded-view-id>` renders one view with safe fallbacks.
 - `#/settings` stores local UI preferences such as theme, density, and default graph depth.
 
 All routes use hash routing so `.awg/compiled/site/index.html` remains usable as static files.
@@ -28,7 +28,7 @@ The viewer is organized around reusable primitives rather than one-off pages:
 - details
 - actions
 
-The internal block renderer maps known block types to render functions. Unsupported blocks render a visible fallback and raw JSON. Agents may eventually generate view manifests that reference block types, but AWG does not execute arbitrary agent-provided HTML, CSS, JavaScript, or plugin code.
+The internal block renderer maps known block types to render functions. Unsupported blocks render a visible fallback and raw JSON. Agents may author `kind: "view"` manifests that reference the supported V2.0 view block set, but AWG does not execute arbitrary agent-provided HTML, CSS, JavaScript, or plugin code.
 
 There are two block scopes:
 
@@ -45,7 +45,7 @@ Node-authored MVP block types are:
 - `node-list`
 - `timeline`
 
-Additional internal view block types include:
+Authored V2.0 view manifests may use the node block set plus:
 
 - `current-effort`
 - `stats-grid`
@@ -56,21 +56,24 @@ Additional internal view block types include:
 - `evidence-list`
 - `run-summary`
 - `node-table`
+- `diagnostic-list`
+- `graph-neighborhood`
+
+Generated/internal-only view blocks may also include legacy review and fallback primitives:
+
 - `decision-review`
 - `risk-review`
 - `question-review`
-- `diagnostic-list`
 - `kanban-board`
-- `graph-neighborhood`
 - `raw-json`
 
-CLI-authored node blocks must include `schemaVersion: 1`, `type`, and `data`. Malformed structural blocks, unsupported block types, malformed block data, and malformed `sourceNodeIds` / `targetNodeIds` references fail before append. Historical malformed blocks and unsupported compiled-view blocks must not crash the viewer; they render a visible fallback.
+CLI-authored node and view blocks must include `schemaVersion: 1`, `type`, and `data`. Node blocks use the stricter node allowlist. View manifests use the authored V2.0 allowlist above. Malformed structural blocks, unsupported block types, malformed block data, and malformed `sourceNodeIds` / `targetNodeIds` references fail before append. Historical malformed blocks and unsupported compiled-view blocks must not crash the viewer; they render a visible fallback.
 
 Node `body` text is rendered with a safe outline renderer. It is not arbitrary Markdown or HTML. The renderer escapes HTML and only recognizes paragraphs, simple section-label headings, `#` headings, bullet lists, numbered lists, and inline code spans. Richer human presentation should use the supported typed block set instead of embedding markup in body text.
 
 ## Query Helpers
 
-Viewer blocks and routes share a deterministic node query subset:
+Node-backed viewer blocks and routes share a deterministic node query subset:
 
 - `type`
 - `types`
@@ -87,7 +90,16 @@ Viewer blocks and routes share a deterministic node query subset:
 - `limit`
 - `sortBy`
 
-This keeps overview blocks, Kanban grouping, node filtering, and future view manifests aligned.
+This keeps overview blocks, Kanban grouping, node filtering, and node-backed authored view manifests aligned.
+
+`diagnostic-list` uses a separate deterministic diagnostics query subset:
+
+- `severity`
+- `code`
+- `id`
+- `limit`
+
+Diagnostics queries filter only compiled diagnostics. They do not evaluate code, inspect files, or run repository scans.
 
 ## Theme Tokens
 

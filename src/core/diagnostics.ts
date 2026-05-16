@@ -4,12 +4,13 @@ import { hasEvidenceReference } from "./evidence.js";
 import { isTemplateNode, templateSummary } from "./operatingTemplates.js";
 import { buildRuns } from "./runs.js";
 import { runIdFromObject } from "./runAttribution.js";
-import type { AwgEdge, AwgEvent, AwgNode, AwgResponse, Diagnostic, DiagnosticsSummary, OperatingTemplateIndex } from "./types.js";
+import type { AwgEdge, AwgEvent, AwgNode, AwgResponse, AwgView, Diagnostic, DiagnosticsSummary, OperatingTemplateIndex } from "./types.js";
 
 export function buildDiagnostics(
   nodes: AwgNode[],
   edges: AwgEdge[],
   responses: AwgResponse[],
+  views: AwgView[],
   events: AwgEvent[],
   existing: Diagnostic[],
   strict: boolean,
@@ -52,7 +53,7 @@ export function buildDiagnostics(
   const recentRunWindowDays = numberConfig(runConfig.recentRunWindowDays, 7);
   const now = Date.now();
   const recentCutoff = now - recentRunWindowDays * 86_400_000;
-  const runActivity = buildRunActivity(nodes, edges, responses, nodeById);
+  const runActivity = buildRunActivity(nodes, edges, responses, views, nodeById);
   const runs = buildRuns({ events });
   for (const run of runs) {
     if (run.status === "in_progress") {
@@ -177,7 +178,7 @@ function actionableStatus(status: string): boolean {
   return ["active", "blocked", "in_progress", "needs_review", "proposed", "stale"].includes(status);
 }
 
-function buildRunActivity(nodes: AwgNode[], edges: AwgEdge[], responses: AwgResponse[], nodeById: Map<string, AwgNode>): Map<string, { hasEvidenceOrChanges: boolean }> {
+function buildRunActivity(nodes: AwgNode[], edges: AwgEdge[], responses: AwgResponse[], views: AwgView[], nodeById: Map<string, AwgNode>): Map<string, { hasEvidenceOrChanges: boolean }> {
   const activity = new Map<string, { hasEvidenceOrChanges: boolean }>();
   const mark = (runId: string | undefined): void => {
     if (!runId) return;
@@ -186,6 +187,7 @@ function buildRunActivity(nodes: AwgNode[], edges: AwgEdge[], responses: AwgResp
   for (const node of nodes) mark(runIdFromObject(node));
   for (const edge of edges) mark(runIdFromObject(edge));
   for (const response of responses) mark(runIdFromObject(response));
+  for (const view of views) mark(runIdFromObject(view));
   for (const edge of edges) {
     const runId = runIdFromObject(edge);
     if (runId && nodeById.get(edge.from)?.type === "evidence") mark(runId);

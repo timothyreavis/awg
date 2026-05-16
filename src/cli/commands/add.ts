@@ -1,15 +1,17 @@
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
 import { AWG_VERSION, CORE_EDGE_RELS, CORE_STATUSES } from "../../core/constants.js";
+import { assertCliViewBlocks } from "../../core/blocks.js";
+import { LENS_AUDIENCES, LENS_SCOPES, validateLens } from "../../core/lensConfigs.js";
 import { relationError } from "../../core/relations.js";
 import { buildAwg } from "../../core/compiler.js";
 import { runEventId } from "../../core/runs.js";
 import { attachRun, resolveWriteRunId } from "../../core/runAttribution.js";
 import { edgeId, nodeId, responseId } from "../../core/ids.js";
-import type { AwgEdge, AwgEvent, AwgNode, AwgResponse } from "../../core/types.js";
+import type { AwgEdge, AwgEvent, AwgLens, AwgLensSection, AwgNode, AwgPresentationBlock, AwgResponse, AwgView } from "../../core/types.js";
 import { nowIso } from "../../util/time.js";
 import { arr, str, type ParsedArgs } from "../args.js";
 import { printJson } from "../format.js";
-import { applyRichNodePatch, richNodePatch } from "../nodeContent.js";
+import { applyRichNodePatch, parseJsonInput, richNodePatch } from "../nodeContent.js";
 
 export async function addCommand(parsed: ParsedArgs): Promise<void> {
   const [, sub] = parsed.positionals;
@@ -17,7 +19,77 @@ export async function addCommand(parsed: ParsedArgs): Promise<void> {
   if (sub === "edge") return addEdge(parsed);
   if (sub === "response") return addResponse(parsed);
   if (sub === "evidence") return addEvidence(parsed);
-  throw new Error("Usage: awg add node|edge|response|evidence ...");
+  if (sub === "view") return addView(parsed);
+  if (sub === "lens") return addLens(parsed);
+  throw new Error("Usage: awg add node|edge|response|evidence|view|lens ...");
+}
+
+async function addLens(parsed: ParsedArgs): Promise<void> {
+  const id = required(parsed, "id");
+  const title = required(parsed, "title");
+  const purpose = required(parsed, "purpose");
+  const scope = str(parsed.flags, "scope", "vault") ?? "vault";
+  const audience = str(parsed.flags, "audience", "agent") ?? "agent";
+  if (!LENS_SCOPES.includes(scope as never)) throw new Error(`--scope must be one of: ${LENS_SCOPES.join(", ")}`);
+  if (!LENS_AUDIENCES.includes(audience as never)) throw new Error(`--audience must be one of: ${LENS_AUDIENCES.join(", ")}`);
+  const at = nowIso();
+  const storage = new FileAwgStorage();
+  const { graph } = await buildAwg(storage, { write: false });
+  const runId = resolveWriteRunId(graph, parsed.flags);
+  const lens: AwgLens = attachRun({
+    awg: AWG_VERSION,
+    kind: "lens",
+    id,
+    title,
+    purpose,
+    summary: str(parsed.flags, "summary"),
+    status: str(parsed.flags, "status", "needs_review") ?? "needs_review",
+    scope,
+    audience,
+    selector: parseObjectInput(parsed, "selector-json"),
+    sections: parseLensSections(required(parsed, "sections-json"), "--sections-json"),
+    budget: parseObjectInput(parsed, "budget-json"),
+    tags: arr(parsed.flags, "tag"),
+    created_at: at,
+    updated_at: at
+  }, runId);
+  const blocking = validateLens(lens, graph, "fatal").filter((diag) => diag.severity === "fatal");
+  if (blocking.length) throw new Error(blocking[0].message);
+  const by = str(parsed.flags, "by", "agent:codex") ?? "agent:codex";
+  await storage.appendLogEntry(lens);
+  if (runId) await storage.appendLogEntry(attachRun({ awg: AWG_VERSION, kind: "event", id: runEventId(runId, "lens", at), type: "lens_created", target: lens.id, by, at }, runId) as AwgEvent);
+  if (parsed.flags.json) return printJson({ ok: true, lensId: lens.id, lens });
+  console.log(`Added lens ${lens.id}`);
+}
+
+async function addView(parsed: ParsedArgs): Promise<void> {
+  const id = required(parsed, "id");
+  if (!/^v:.+/.test(id)) throw new Error("--id for view must start with v: and include a non-empty slug");
+  const title = required(parsed, "title");
+  const audience = str(parsed.flags, "audience", "human") ?? "human";
+  if (!["human", "agent", "reviewer"].includes(audience)) throw new Error("--audience must be one of: human, agent, reviewer");
+  const at = nowIso();
+  const storage = new FileAwgStorage();
+  const { graph } = await buildAwg(storage, { write: false });
+  const runId = resolveWriteRunId(graph, parsed.flags);
+  const blocks = parseViewBlocks(parsed);
+  const view: AwgView = attachRun({
+    awg: AWG_VERSION,
+    kind: "view",
+    id,
+    title,
+    summary: str(parsed.flags, "summary"),
+    audience,
+    blocks,
+    tags: arr(parsed.flags, "tag"),
+    created_at: at,
+    updated_at: at
+  }, runId);
+  const by = str(parsed.flags, "by", "agent:codex") ?? "agent:codex";
+  await storage.appendLogEntry(view);
+  if (runId) await storage.appendLogEntry(attachRun({ awg: AWG_VERSION, kind: "event", id: runEventId(runId, "view", at), type: "view_created", target: view.id, by, at }, runId) as AwgEvent);
+  if (parsed.flags.json) return printJson({ ok: true, viewId: view.id, view });
+  console.log(`Added view ${view.id}`);
 }
 
 async function addNode(parsed: ParsedArgs): Promise<void> {
@@ -177,4 +249,40 @@ function numberFlag(parsed: ParsedArgs, key: string, fallback?: number): number 
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0 || number > 1) throw new Error(`--${key} must be a number between 0 and 1`);
   return number;
+}
+
+function parseViewBlocks(parsed: ParsedArgs): AwgPresentationBlock[] {
+  const blocks = [
+    ...arr(parsed.flags, "block-json").flatMap((value) => parseViewBlockInput(value, "--block-json")),
+    ...(str(parsed.flags, "blocks-json") !== undefined ? parseViewBlockInput(required(parsed, "blocks-json"), "--blocks-json") : [])
+  ];
+  if (!blocks.length) throw new Error("View requires at least one --block-json or --blocks-json block");
+  assertCliViewBlocks(blocks, "--blocks-json");
+  return blocks;
+}
+
+function parseViewBlockInput(value: string, flag: string): AwgPresentationBlock[] {
+  const parsed = parseJsonInput(value, flag);
+  const blocks = Array.isArray(parsed) ? parsed : [parsed];
+  for (const block of blocks) {
+    if (!block || typeof block !== "object" || Array.isArray(block)) throw new Error(`${flag} must contain a block object or array of block objects`);
+  }
+  return blocks as AwgPresentationBlock[];
+}
+
+function parseObjectInput(parsed: ParsedArgs, key: string): Record<string, unknown> | undefined {
+  const value = str(parsed.flags, key);
+  if (value === undefined) return undefined;
+  const parsedValue = parseJsonInput(value, `--${key}`);
+  if (!parsedValue || typeof parsedValue !== "object" || Array.isArray(parsedValue)) throw new Error(`--${key} must be a JSON object`);
+  return parsedValue as Record<string, unknown>;
+}
+
+function parseLensSections(value: string, flag: string): AwgLensSection[] {
+  const parsed = parseJsonInput(value, flag);
+  if (!Array.isArray(parsed)) throw new Error(`${flag} must be a JSON array`);
+  for (const section of parsed) {
+    if (!section || typeof section !== "object" || Array.isArray(section)) throw new Error(`${flag} must contain section objects`);
+  }
+  return parsed as AwgLensSection[];
 }

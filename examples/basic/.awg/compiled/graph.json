@@ -4,6 +4,7 @@
     "byNodeId": {},
     "entries": []
   },
+  "authored_views": [],
   "awg": "0.1",
   "diagnostics": {
     "awg": "0.1",
@@ -41,6 +42,12 @@
   ],
   "events": [],
   "generated_at": "2026-05-11T00:00:00.000Z",
+  "lens_index": {
+    "awg": "0.1",
+    "generated_at": "2026-05-11T00:00:00.000Z",
+    "kind": "lens-index",
+    "lenses": []
+  },
   "lenses": [],
   "maintenance_inbox": {
     "awg": "0.1",

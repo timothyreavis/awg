@@ -134,6 +134,8 @@ function normalizeRunSummaries(value: unknown): RunSummary[] {
     touchedNodeIds: stringArray(item.touchedNodeIds),
     createdEdgeIds: stringArray(item.createdEdgeIds),
     responseIds: stringArray(item.responseIds),
+    viewIds: stringArray(item.viewIds),
+    lensIds: stringArray(item.lensIds),
     evidenceNodeIds: stringArray(item.evidenceNodeIds),
     evidenceTargetIds: stringArray(item.evidenceTargetIds),
     completedNodeIds: stringArray(item.completedNodeIds),

@@ -1,5 +1,6 @@
 import { AWG_VERSION } from "./constants.js";
-import type { AwgNode, CurrentViewOutput, DiagnosticsSummary } from "./types.js";
+import { validateViewBlocks } from "./blocks.js";
+import type { AuthoredViewOutput, AwgNode, AwgView, CurrentViewOutput, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export function buildCurrentView(nodes: AwgNode[], diagnostics: DiagnosticsSummary, generatedAt: string): CurrentViewOutput {
   const attention = nodes.filter((n) => ["blocked", "needs_review", "stale"].includes(n.status));
@@ -20,4 +21,31 @@ export function buildCurrentView(nodes: AwgNode[], diagnostics: DiagnosticsSumma
       { type: "diagnostics", title: "Diagnostics", summary: diagnostics }
     ]
   };
+}
+
+export function buildAuthoredViewOutputs(views: AwgView[], diagnostics: Diagnostic[], generatedAt: string): AuthoredViewOutput[] {
+  const diagnosticsByView = new Map<string, Diagnostic[]>();
+  for (const diagnostic of diagnostics) {
+    if (!diagnostic.id) continue;
+    const list = diagnosticsByView.get(diagnostic.id) ?? [];
+    list.push(diagnostic);
+    diagnosticsByView.set(diagnostic.id, list);
+  }
+  return views.map((view) => ({
+    awg: AWG_VERSION,
+    kind: "view-output",
+    id: view.id,
+    generated_at: generatedAt,
+    title: view.title,
+    summary: typeof view.summary === "string" ? view.summary : undefined,
+    audience: view.audience ?? "human",
+    tags: Array.isArray(view.tags) ? view.tags : undefined,
+    blocks: Array.isArray(view.blocks) ? view.blocks : [],
+    source: { kind: "view", id: view.id },
+    diagnostics: diagnosticsByView.get(view.id) ?? []
+  }));
+}
+
+export function validateAuthoredViews(views: AwgView[], severity: Diagnostic["severity"] = "warning"): Diagnostic[] {
+  return views.flatMap((view) => validateViewBlocks(view, severity));
 }

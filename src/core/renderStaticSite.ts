@@ -1,3 +1,4 @@
+import { VIEW_BLOCK_TYPES } from "./blocks.js";
 import type { AwgEdge, AwgNode, CurrentViewOutput, DiagnosticsReport, Diagnostic, CompiledGraph, ResumeLensOutput } from "./types.js";
 
 export interface ViewerQuery {
@@ -278,6 +279,7 @@ const blockRenderers = {
   "run-summary": renderRunSummaryBlock,
   "raw-json": renderRawJsonBlock
 };
+const authoredViewBlockTypes = new Set(${JSON.stringify([...VIEW_BLOCK_TYPES])});
 const nodeBlockRenderers = {
   brief: renderBriefBlock,
   callout: renderCalloutBlock,
@@ -316,7 +318,7 @@ function renderRoute() {
   else if (parsed.route === "maintenance") root.innerHTML = renderMaintenanceRoute(parsed.params);
   else if (parsed.route === "runs") root.innerHTML = renderRunsRoute();
   else if (parsed.route === "health") root.innerHTML = renderHealthRoute(parsed.params);
-  else if (parsed.route === "views") root.innerHTML = renderViewsRoute(parsed.params);
+  else if (parsed.route === "views") root.innerHTML = renderViewsRoute(parsed);
   else if (parsed.route === "node") root.innerHTML = renderNodeDetail(safeDecodeURIComponent(parsed.parts[1] || ""));
   else if (parsed.route === "settings") root.innerHTML = renderSettingsRoute();
   else root.innerHTML = renderOverview();
@@ -521,13 +523,17 @@ function deriveRuns() {
   return [...runs.values()].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")) || String(a.id).localeCompare(String(b.id)));
 }
 
-function renderViewsRoute() {
+function renderViewsRoute(parsed) {
   const generated = [
-    { id: "v:current", title: "Current View", blocks: view.blocks || [] },
+    { id: "v:current", title: "Current View", summary: "Generated current review surface.", blocks: view.blocks || [], generated: true },
     resumeLens ? { id: resumeLens.id, title: resumeLens.title || "Resume Lens", blocks: [{ type: "brief", title: "Summary", summary: resumeLens.summary }, { type: "node-list", title: "Important", items: resumeLens.important || [] }] } : null,
-    ...(graph.views || [])
+    ...(graph.authored_views || graph.views || []).map((item) => ({ ...item, authored: true }))
   ].filter(Boolean);
-  return '<div class="surface-grid">' + generated.map((item) => '<section class="panel"><h2>' + esc(item.title) + '</h2><p><code>' + esc(item.id) + '</code></p>' + ((item.blocks || []).length ? item.blocks.map(renderBlock).join("") : '<p class="muted">No renderable blocks.</p>') + '</section>').join("") + '</div>';
+  const selectedId = parsed.parts[1] ? safeDecodeURIComponent(parsed.parts[1]) : "";
+  const selected = selectedId ? generated.find((item) => item.id === selectedId) : undefined;
+  if (selectedId && !selected) return '<section class="panel"><h2>Missing view</h2><p>No authored view exists for <code>' + esc(selectedId) + '</code>.</p><p><a class="button" href="#/views">Browse views</a></p></section>';
+  if (selected) return '<article class="surface view-detail"><header class="node-hero"><div><div class="chip-row">' + badge(selected.audience || "human", "type") + '<code>' + esc(selected.id) + '</code></div><h2>' + esc(selected.title) + '</h2>' + (selected.summary ? '<p class="muted">' + esc(selected.summary) + '</p>' : "") + '</div><div class="node-hero-actions"><a class="button" href="#/views">All views</a></div></header><div class="node-sections">' + ((selected.blocks || []).length ? selected.blocks.map((block) => renderViewSurfaceBlock(selected, block)).join("") : '<p class="muted">No renderable blocks.</p>') + '</div></article>';
+  return '<div class="surface-grid">' + generated.map((item) => '<section class="panel"><div class="chip-row">' + badge(item.audience || "human", "type") + '<code>' + esc(item.id) + '</code></div><h2><a href="#/views/' + encodeURIComponent(item.id) + '">' + esc(item.title) + '</a></h2>' + (item.summary ? '<p>' + esc(item.summary) + '</p>' : "") + '<p class="muted">' + esc(String((item.blocks || []).length)) + ' blocks</p>' + ((item.blocks || []).slice(0, 2).map((block) => renderViewSurfaceBlock(item, block)).join("") || '<p class="muted">No renderable blocks.</p>') + '</section>').join("") + '</div>';
 }
 
 function renderSettingsRoute() {
@@ -578,7 +584,11 @@ function renderNodeRuns(id) {
 function renderBlock(block) {
   const renderer = Object.prototype.hasOwnProperty.call(blockRenderers, block?.type) ? blockRenderers[block.type] : undefined;
   if (typeof renderer !== "function") return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
-  return renderer(block);
+  try {
+    return renderer(block);
+  } catch (error) {
+    return '<section class="block unsupported"><h2>Malformed block</h2><p class="muted">' + esc(error instanceof Error ? error.message : String(error)) + '</p><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
+  }
 }
 
 function renderNodeAuthoredBlock(block) {
@@ -589,6 +599,15 @@ function renderNodeAuthoredBlock(block) {
   } catch (error) {
     return '<section class="block unsupported"><h2>Malformed block</h2><p class="muted">' + esc(error instanceof Error ? error.message : String(error)) + '</p><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
   }
+}
+
+function renderAuthoredViewBlock(block) {
+  if (!authoredViewBlockTypes.has(block?.type)) return '<section class="block unsupported"><h2>' + esc(unsupportedBlock(block)) + '</h2><pre>' + esc(rawJsonPreview(block)) + '</pre></section>';
+  return renderBlock(block);
+}
+
+function renderViewSurfaceBlock(viewItem, block) {
+  return viewItem?.authored ? renderAuthoredViewBlock(block) : renderBlock(block);
 }
 
 function renderBodyOutline(body) {
@@ -767,7 +786,7 @@ function renderNodeTableBlock(block) {
 }
 
 function renderDiagnosticListBlock(block) {
-  const items = Array.isArray(block.items) ? block.items : diagnostics.diagnostics || [];
+  const items = Array.isArray(block.items) ? block.items : Array.isArray(block.data?.items) ? block.data.items : Array.isArray(block.data) ? block.data : block.data?.query ? queryDiagnostics(block.data.query) : diagnostics.diagnostics || [];
   return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Diagnostics") + '</h2>' + (block.summary ? '<div class="metric-row">' + Object.entries(block.summary).slice(0, 4).map(([key, value]) => metric(key.replaceAll("_", " "), value, "#/health")).join("") + '</div>' : "") + renderDiagnostics(items) + '</section>';
 }
 
@@ -781,7 +800,8 @@ function renderKanbanBlock(block) {
 }
 
 function renderGraphBlock(block) {
-  const neighborhood = graphNeighborhood(block.focus || block.focusNodeId || byId.keys().next().value, { depth: block.depth || 1, limit: block.limit || 80, types: block.types, statuses: block.statuses, rels: block.rels });
+  const config = block.data && typeof block.data === "object" && !Array.isArray(block.data) ? { ...block.data, ...block } : block;
+  const neighborhood = graphNeighborhood(config.focus || config.focusNodeId || byId.keys().next().value, { depth: config.depth || 1, limit: config.limit || 80, types: config.types, statuses: config.statuses, rels: config.rels });
   if (!neighborhood.focus) return '<p class="muted">No graph focus available.</p>';
   const nodePositions = layoutGraph(neighborhood.nodes);
   const edgeLines = neighborhood.edges.map((edge) => {
@@ -935,6 +955,18 @@ function queryNodes(query) {
     return true;
   });
   result = sortNodes(result, query.sortBy || "importance");
+  return query.limit ? result.slice(0, Number(query.limit)) : result;
+}
+
+function queryDiagnostics(query) {
+  const source = diagnostics.diagnostics || [];
+  if (!query || typeof query !== "object" || Array.isArray(query)) return source;
+  let result = source.filter((diag) => {
+    if (query.severity && diag.severity !== query.severity) return false;
+    if (query.code && diag.code !== query.code) return false;
+    if (query.id && diag.id !== query.id) return false;
+    return true;
+  });
   return query.limit ? result.slice(0, Number(query.limit)) : result;
 }
 

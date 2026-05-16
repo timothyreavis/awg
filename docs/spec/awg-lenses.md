@@ -55,3 +55,20 @@ Budgeted handoff and lens output may omit empty sections. Non-empty sections kee
 V1.9 adds maintenance inbox context to retrieval. Resume lens output includes the top derived inbox items. Task lenses include inbox items related to matched or nearby nodes. Handoff includes a compact high-priority inbox section so the next agent can see stale, unsupported, duplicate-looking, unresolved, risky, or topology-related work before continuing. These sections are derived from compiled graph state and remain local, deterministic, budget-aware, and read-only.
 
 V1.9.1 adds `awg handoff --compact` for concise human/chat-ready text. It preserves existing `--json`, `--budget`, and handoff event behavior. V1.9.1 also exposes template authoring guidance in `awg template status` and a low-risk `awg template scaffold --title "..." [--scope vault|project]` command that creates a normal `process` node tagged `template:operating` with required structured fields for review.
+
+V2.1 adds configurable vault-local lenses. Built-in `resume`, `task`, and `handoff` remain stable defaults. A configurable lens is a canonical `kind: "lens"` record with an id like `lens:ops-review`, review/status metadata, deterministic selector hints, and ordered data-only sections. Agents use them for repeated workflow, role, queue, domain, or review-pass context shapes after the built-in task lens is not enough.
+
+Write paths:
+
+- `awg add lens --id lens:<slug> --title "..." --purpose "..." --scope vault --audience agent --sections-json <json|@file> [--selector-json ...] [--budget-json ...] [--tag ...] [--json]`
+- `awg update lens <lens-id> [--title ...] [--purpose ...] [--status active|proposed|needs_review|archived] [--sections-json ...] [--section-json ...] [--clear-sections] [--selector-json ...] [--budget-json ...] [--tag ...] [--json]`
+
+Read and execution paths:
+
+- `awg lens list [--goal "..."] [--json]`
+- `awg lens show <lens-id> [--json]`
+- `awg lens run <lens-id> [--goal "..."] [--budget <n>] [--json]`
+
+Lens execution is read-only. Supported section sources are `search`, `nodes`, `edges`, `runs`, `evidence`, `maintenanceInbox`, `diagnostics`, `templateContext`, `topology`, `anchors`, `view`, and `static`. Sections use bounded data and a safe query subset; there is no network access, repository crawling, shell execution, AI call, vector search, arbitrary JavaScript, or transform execution. The compiler preserves `graph.lenses` and writes `.awg/compiled/lenses/index.json`.
+
+Agents should create a vault-local lens only when a repeated context shape is emerging. New lenses should usually start as `needs_review` unless the vault operating template allows autonomous activation. Iterate existing lenses instead of creating near duplicates, keep outputs compact and drill-down oriented, and never duplicate the whole graph into a lens.

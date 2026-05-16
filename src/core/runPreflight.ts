@@ -60,7 +60,7 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   }
 
   if (!run.notes.length) warnings.push({ code: "AWG_RUN_NO_NOTES", severity: "warning", message: "Run has no notes.", suggestedFix: "Run `awg run note \"...\"` with meaningful progress or blockers." });
-  if (!touched.length && !(summary?.createdEdgeIds.length || summary?.responseIds.length || summary?.evidenceNodeIds.length)) warnings.push({ code: "AWG_RUN_NO_CHANGES", severity: "warning", message: "Run has no changed or touched graph objects.", suggestedFix: "Record durable work before finishing, or finish as partial/abandoned." });
+  if (!touched.length && !(summary?.createdEdgeIds.length || summary?.responseIds.length || summary?.evidenceNodeIds.length || summary?.viewIds.length || summary?.lensIds.length)) warnings.push({ code: "AWG_RUN_NO_CHANGES", severity: "warning", message: "Run has no changed or touched graph objects.", suggestedFix: "Record durable work before finishing, or finish as partial/abandoned." });
   if (!summary?.handoffGenerated) warnings.push({ code: "AWG_RUN_NO_HANDOFF", severity: "warning", message: "Run has no recorded handoff yet.", suggestedFix: "Use `awg run finish --auto-handoff` or `awg handoff`." });
 
   return { ok: warnings.length === 0, warnings: dedupeWarnings(warnings) };

@@ -129,6 +129,7 @@ Start of session:
 - Run \`awg inbox --limit 10\` to review deterministic maintenance items.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Use \`awg lens list --goal "<goal>"\` and \`awg lens run <lens-id> --goal "<goal>"\` only when a reviewed vault-local lens fits a repeated context shape.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
 During work:
@@ -140,7 +141,7 @@ During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
-- Use \`body\` for narrative detail, \`fields\` for structured operational data, \`blocks\` for safe presentation primitives, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
+- Use \`body\` for narrative detail, \`fields\` for structured operational data, \`blocks\` for safe presentation primitives, configurable \`lens\` records for repeated agent context shapes, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
@@ -187,6 +188,7 @@ Before starting work:
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Use \`awg lens list --goal "<goal>"\` before adding a configurable lens, and prefer updating near-duplicates.
 - Use \`awg node show <node-id> --json\` when you need full detail for a surfaced node.
 - Read \`.awg/AGENTS.md\`.
 
@@ -200,6 +202,7 @@ During work:
 - Run \`awg inbox --limit 10\` to see stale, duplicate, orphaned, unsupported, and unresolved maintenance items.
 - Use structured \`fields\`, safe \`blocks\`, \`freshness\`, and \`anchors\` when those make the knowledge easier to maintain or present.
 - Use \`awg lens task --goal "..."\` for scoped work context.
+- Create configurable lenses only for recurring context shapes; keep them compact, query-backed, and \`needs_review\` until accepted.
 - Prefer \`awg add node\`, \`awg add edge\`, \`awg add response\`, \`awg update node\`, and \`awg add evidence\` over manual JSONL edits.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Link knowledge by AWG node ID, not by file path.
@@ -277,7 +280,7 @@ function claudeTemplate(agentsFile = "AGENTS.md"): string {
 
 Follow the project instructions in \`${agentsFile}\`.
 
-This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context. Use \`awg node show <node-id> --json\` when a surfaced node needs full inspection.
+This project uses AWG as its durable project memory. Before starting work, run \`awg handoff\`, check \`awg vault topology --json\` before cross-project work, then \`awg run start --goal "<goal>"\`, and use \`awg search\` plus \`awg lens task --goal "<goal>"\` before adding durable context. Use reviewed configurable lenses only for repeated context shapes. Use \`awg node show <node-id> --json\` when a surfaced node needs full inspection.
 
 Read \`.awg/AGENTS.md\` for AWG-specific operating rules. Run \`awg template status --goal "<goal>" --json\` when scoping work. Prefer \`awg add node\`, \`awg add edge\`, and \`awg add response\` over manual JSONL edits. Use structured fields, safe blocks, freshness metadata, and anchors when helpful. Do not edit \`.awg/compiled/*\`.
 

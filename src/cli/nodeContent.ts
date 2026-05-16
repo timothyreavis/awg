@@ -161,7 +161,7 @@ function validateAnchorObject(value: unknown, path: string): AwgAnchor {
   return anchor as unknown as AwgAnchor;
 }
 
-function parseJsonInput(value: string, flag: string): unknown {
+export function parseJsonInput(value: string, flag: string): unknown {
   const body = value.startsWith("@") ? readFileSync(value.slice(1), "utf8") : value;
   try {
     return JSON.parse(body);

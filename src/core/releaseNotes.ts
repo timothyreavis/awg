@@ -10,15 +10,20 @@ export interface ReleaseNote {
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [{
-  version: "0.1.0-v1.9.1",
+  version: "0.1.0-v2.1",
   date: "2026-05-16",
   highlights: [
-    "Local deterministic release notes for agent update awareness.",
-    "Generated instructions now teach capture discernment: use AWG for durable knowledge, not transcript storage.",
-    "Quick capture commands create ordinary AWG nodes and optional relates_to edges with run attribution.",
-    "Relation discovery, evidence help parity, template authoring guidance, and compact handoff improve first-use ergonomics."
+    "Configurable vault-local lenses let agents define deterministic retrieval recipes without hard-coded domain packs.",
+    "Built-in resume, task, and handoff lenses remain stable defaults.",
+    "Lens list/show/run commands provide read-only, budget-aware execution over compiled AWG graph data.",
+    "Compiler diagnostics and a compiled lens index make lens configs reviewable and safe."
   ],
   newCommands: [
+    "awg add lens --id lens:<slug> --title \"...\" --purpose \"...\" --sections-json ... [--json]",
+    "awg update lens <lens-id> [--sections-json ...] [--section-json ...] [--json]",
+    "awg lens list [--goal \"...\"] [--json]",
+    "awg lens show <lens-id> [--json]",
+    "awg lens run <lens-id> [--goal \"...\"] [--budget <n>] [--json]",
     "awg release notes [--json]",
     "awg release current [--json]",
     "awg quick note|task|risk|question|decision ... [--json]",
@@ -28,6 +33,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [{
   ],
   agentActions: [
     "Run awg release current after install or upgrade to learn current local capabilities.",
+    "Use built-in awg lens task and awg handoff first; run a configured lens when a reviewed vault-local recipe fits the repeated context shape.",
+    "Create new lenses as needs_review unless the vault operating template allows autonomous activation.",
     "Use awg quick for small durable captures; use full awg add/update when structured detail matters.",
     "Run awg rels before adding unfamiliar edge relations.",
     "Attach evidence with --source, --command, --status, --target, and --summary when making verification claims."
@@ -35,7 +42,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [{
   adoption: [
     "Regenerate AGENTS/CLAUDE instructions with awg instructions install or awg upgrade --instructions when appropriate.",
     "Keep setup/install guidance on the stable local awg command path; defer package self-update until distribution is stable.",
-    "Use template scaffold as a starting point for vault-local operating templates, then edit the generated node."
+    "Use template scaffold as a starting point for vault-local operating templates, then edit the generated node.",
+    "Iterate existing lenses instead of creating near duplicates; keep lenses compact, query-backed, and drill-down oriented."
   ],
   docs: [
     "README.md",
@@ -46,7 +54,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [{
   ],
   nonGoals: [
     "No network update checks.",
-    "No hosted sync, daemon, MCP, vector search, plugin execution, transcript ingestion, external memory sync, or package self-update command."
+    "No hosted sync, daemon, MCP, vector search, AI calls, repository crawling, arbitrary transforms, plugin execution, transcript ingestion, external memory sync, or package self-update command."
   ]
 }];
 

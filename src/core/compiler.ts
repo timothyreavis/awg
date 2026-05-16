@@ -7,9 +7,10 @@ import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
 import { buildRunSummaries } from "./runs.js";
 import { parseAndValidate } from "./validation.js";
 import { renderStaticSite } from "./renderStaticSite.js";
-import { buildCurrentView } from "./views.js";
+import { buildAuthoredViewOutputs, buildCurrentView, validateAuthoredViews } from "./views.js";
 import { buildTopologyIndex } from "./topology.js";
 import { buildMaintenanceInbox } from "./maintenance.js";
+import { buildLensIndex, validateLenses } from "./lensConfigs.js";
 import type { AwgEdge, AwgLens, AwgNode, AwgObject, AwgPolicy, AwgResponse, AwgView, BuildResult, CompiledGraph, Diagnostic } from "./types.js";
 import type { AwgStorage } from "../storage/AwgStorage.js";
 
@@ -71,14 +72,18 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     if (object.kind === "policy") policies.set(object.id, object);
   }
 
-  const intentionalNodeUpserts = new Set(events.filter((event) => event.kind === "event" && ["node_updated", "evidence_added"].includes(String(event.type))).map((event) => `${String(event.target)}\0${String(event.at)}`));
+  const intentionalUpserts = new Set(events.filter((event) => event.kind === "event" && ["node_updated", "view_updated", "lens_updated", "evidence_added"].includes(String(event.type))).map((event) => `${String(event.target)}\0${String(event.at)}`));
   for (const duplicate of duplicateUpserts) {
-    if (duplicate.kind === "node" && duplicate.at && intentionalNodeUpserts.has(`${duplicate.id}\0${duplicate.at}`)) continue;
-    diagnostics.push({ severity: "warning", code: "duplicate_id_upsert", message: `ID ${duplicate.id} appeared more than once; last write wins. Use awg update node for intentional node updates.`, file: duplicate.file, line: duplicate.line, id: duplicate.id });
+    if ((duplicate.kind === "node" || duplicate.kind === "view" || duplicate.kind === "lens") && duplicate.at && intentionalUpserts.has(`${duplicate.id}\0${duplicate.at}`)) continue;
+    const command = duplicate.kind === "view" ? "awg update view" : duplicate.kind === "lens" ? "awg update lens" : "awg update node";
+    diagnostics.push({ severity: "warning", code: "duplicate_id_upsert", message: `ID ${duplicate.id} appeared more than once; last write wins. Use ${command} for intentional ${duplicate.kind} updates.`, file: duplicate.file, line: duplicate.line, id: duplicate.id });
   }
 
   const sortedNodes = [...nodes.values()].sort(byId);
   const sortedEdges = [...edges.values()].sort(byId);
+  const sortedViews = [...views.values()].sort(byId);
+  diagnostics.push(...validateAuthoredViews(sortedViews, strict ? "fatal" : "warning"));
+  const sortedLenses = [...lenses.values()].sort(byId);
   const sortedResponses = [...responses.values()].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   const operatingTemplates = buildOperatingTemplateIndex(sortedNodes);
   const anchorIndex = buildAnchorIndex(sortedNodes);
@@ -87,7 +92,7 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     topology = await buildTopologyIndex({ awg: AWG_VERSION, generated_at: generatedAt, source: { log_files: [], entry_count: 0 }, stats: {}, nodes: sortedNodes, edges: sortedEdges, events: events as never, views: [], lenses: [], responses: sortedResponses, policies: [], diagnostics: { awg: AWG_VERSION, generated_at: generatedAt, summary: emptySummary(sortedNodes.length, sortedEdges.length), diagnostics: [] } }, (storage as { root: string }).root);
     diagnostics.push(...topology.diagnostics);
   }
-  const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, events as never, diagnostics, strict, config, operatingTemplates);
+  const diag = buildDiagnostics(sortedNodes, sortedEdges, sortedResponses, sortedViews, events as never, diagnostics, strict, config, operatingTemplates);
   const diagnosticsReport = { awg: AWG_VERSION, generated_at: generatedAt, summary: diag.summary, diagnostics: diag.diagnostics };
   const graph: CompiledGraph = {
     awg: AWG_VERSION,
@@ -97,8 +102,8 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     nodes: sortedNodes,
     edges: sortedEdges,
     events: events as never,
-    views: [...views.values()].sort(byId),
-    lenses: [...lenses.values()].sort(byId),
+    views: sortedViews,
+    lenses: sortedLenses,
     responses: sortedResponses,
     policies: [...policies.values()].sort(byId),
     diagnostics: diagnosticsReport,
@@ -106,10 +111,16 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
     anchor_index: anchorIndex,
     topology
   };
-  graph.run_summaries = buildRunSummaries(graph);
+  graph.lens_index = buildLensIndex(sortedLenses, generatedAt);
+  graph.diagnostics.diagnostics.push(...validateLenses(sortedLenses, graph, strict ? "fatal" : "warning"));
+  graph.diagnostics.summary.fatal_error_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "fatal").length;
+  graph.diagnostics.summary.warning_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "warning").length;
+  graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
   graph.maintenance_inbox = buildMaintenanceInbox(graph);
+  graph.run_summaries = buildRunSummaries(graph);
   const resumeLens = buildResumeLens(sortedNodes, sortedResponses, diag.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10));
   const currentView = buildCurrentView(sortedNodes, diag.summary, generatedAt);
+  graph.authored_views = buildAuthoredViewOutputs(sortedViews, diagnosticsReport.diagnostics, generatedAt);
 
   if (options.write !== false) {
     if (diagnosticsReport.summary.fatal_error_count === 0) await writeCompiled(storage, graph, diagnosticsReport, resumeLens, currentView);
@@ -151,10 +162,29 @@ async function writeCompiled(storage: AwgStorage, graph: CompiledGraph, diagnost
   const site = renderStaticSite(graph, currentView as never, diagnostics, resumeLens as never);
   await storage.writeCompiledArtifact("lenses/resume.json", resumeLens as object);
   await storage.writeCompiledArtifact("views/current.json", currentView as object);
+  await writeAuthoredViewArtifacts(storage, graph);
   await storage.writeCompiledArtifact("reports/diagnostics.json", diagnostics);
   await storage.writeCompiledArtifact("site/index.html", site.html);
   await storage.writeCompiledArtifact("site/app.js", site.js);
   await storage.writeCompiledArtifact("site/style.css", site.css);
+}
+
+async function writeAuthoredViewArtifacts(storage: AwgStorage, graph: CompiledGraph): Promise<void> {
+  const outputs = graph.authored_views ?? [];
+  await storage.writeCompiledArtifact("views/index.json", {
+    awg: AWG_VERSION,
+    kind: "view-index",
+    generated_at: graph.generated_at,
+    views: [
+      { id: "v:current", title: "Current Review", generated: true },
+      ...outputs.map((view) => ({ id: view.id, title: view.title, summary: view.summary, audience: view.audience, tags: view.tags, diagnostics: view.diagnostics.length }))
+    ]
+  });
+  for (const output of outputs) await storage.writeCompiledArtifact(`views/${viewArtifactName(output.id)}.json`, output);
+}
+
+function viewArtifactName(id: string): string {
+  return Buffer.from(id, "utf8").toString("base64url");
 }
 
 async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): Promise<void> {
@@ -181,6 +211,7 @@ async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): P
   if (graph.anchor_index) await storage.writeCompiledArtifact("indexes/anchors.json", graph.anchor_index);
   if (graph.topology) await storage.writeCompiledArtifact("indexes/topology.json", graph.topology as object);
   if (graph.maintenance_inbox) await storage.writeCompiledArtifact("indexes/maintenance-inbox.json", graph.maintenance_inbox);
+  if (graph.lens_index) await storage.writeCompiledArtifact("lenses/index.json", graph.lens_index);
 }
 
 function emptySummary(nodes: number, edges: number): CompiledGraph["diagnostics"]["summary"] {

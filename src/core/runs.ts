@@ -1,4 +1,4 @@
-import type { AwgEvent, AwgNode, CompiledGraph, Diagnostic } from "./types.js";
+import type { AwgEvent, AwgLens, AwgNode, AwgView, CompiledGraph, Diagnostic } from "./types.js";
 import { hasEvidenceReference } from "./evidence.js";
 import { runIdFromObject } from "./runAttribution.js";
 
@@ -28,6 +28,8 @@ export interface RunSummary {
   touchedNodeIds: string[];
   createdEdgeIds: string[];
   responseIds: string[];
+  viewIds: string[];
+  lensIds: string[];
   evidenceNodeIds: string[];
   evidenceTargetIds: string[];
   completedNodeIds: string[];
@@ -89,7 +91,7 @@ export function buildRuns(graph: Pick<CompiledGraph, "events">): AgentRun[] {
   return [...runs.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
 }
 
-export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" | "events" | "responses" | "diagnostics">): RunSummary[] {
+export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" | "events" | "responses" | "views" | "lenses" | "diagnostics">): RunSummary[] {
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const summaries = new Map<string, MutableRunSummary>();
   const ensure = (runId: string): MutableRunSummary => {
@@ -102,6 +104,8 @@ export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" |
         touchedNodeIds: new Set(),
         createdEdgeIds: new Set(),
         responseIds: new Set(),
+        viewIds: new Set(),
+        lensIds: new Set(),
         evidenceNodeIds: new Set(),
         evidenceTargetIds: new Set(),
         completedNodeIds: new Set(),
@@ -142,6 +146,16 @@ export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" |
     summary.responseIds.add(response.id);
     if (typeof response.target === "string" && response.target.startsWith("n:")) summary.touchedNodeIds.add(response.target);
   }
+  for (const view of graph.views) {
+    const runId = runIdFromObject(view);
+    if (!runId) continue;
+    ensure(runId).viewIds.add(view.id);
+  }
+  for (const lens of graph.lenses) {
+    const runId = runIdFromObject(lens);
+    if (!runId) continue;
+    ensure(runId).lensIds.add(lens.id);
+  }
   for (const event of graph.events) {
     const runId = runIdFromObject(event);
     if (!runId) continue;
@@ -160,6 +174,10 @@ export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" |
       if (typeof event.to === "string") summary.touchedNodeIds.add(event.to);
     }
     if (event.type === "response_added" && typeof event.response === "string") summary.responseIds.add(event.response);
+    if (event.type === "view_created" && typeof event.target === "string") summary.viewIds.add(event.target);
+    if (event.type === "view_updated" && typeof event.target === "string") summary.viewIds.add(event.target);
+    if (event.type === "lens_created" && typeof event.target === "string") summary.lensIds.add(event.target);
+    if (event.type === "lens_updated" && typeof event.target === "string") summary.lensIds.add(event.target);
     if (event.type === "response_added" && typeof event.target === "string" && event.target.startsWith("n:")) summary.touchedNodeIds.add(event.target);
     if (event.type === "evidence_added") {
       if (typeof event.evidence === "string") summary.evidenceNodeIds.add(event.evidence);
@@ -199,6 +217,8 @@ interface MutableRunSummary {
   touchedNodeIds: Set<string>;
   createdEdgeIds: Set<string>;
   responseIds: Set<string>;
+  viewIds: Set<string>;
+  lensIds: Set<string>;
   evidenceNodeIds: Set<string>;
   evidenceTargetIds: Set<string>;
   completedNodeIds: Set<string>;
@@ -215,7 +235,8 @@ function finalizeRunSummary(summary: MutableRunSummary, nodes: AwgNode[], edges:
     incomingByTarget.set(edge.to, incoming);
   }
   const touched = [...summary.touchedNodeIds].filter((id) => nodeById.has(id)).sort();
-  const diag = diagnostics.filter((item) => item.id && summary.touchedNodeIds.has(item.id)).sort((a, b) => (a.id ?? "").localeCompare(b.id ?? "") || a.code.localeCompare(b.code));
+  const touchedDiagnostics = new Set([...summary.touchedNodeIds, ...summary.lensIds, ...summary.viewIds]);
+  const diag = diagnostics.filter((item) => item.id && touchedDiagnostics.has(item.id)).sort((a, b) => (a.id ?? "").localeCompare(b.id ?? "") || a.code.localeCompare(b.code));
   const nodeHasEvidence = (node: AwgNode | undefined) => Boolean(node && hasEvidenceReference(node, incomingByTarget.get(node.id) ?? [], nodeById));
   const active = (node: AwgNode | undefined) => Boolean(node && ["active", "blocked", "in_progress", "needs_review", "proposed", "stale"].includes(node.status));
   return {
@@ -225,6 +246,8 @@ function finalizeRunSummary(summary: MutableRunSummary, nodes: AwgNode[], edges:
     touchedNodeIds: touched,
     createdEdgeIds: [...summary.createdEdgeIds].sort(),
     responseIds: [...summary.responseIds].sort(),
+    viewIds: [...summary.viewIds].sort(),
+    lensIds: [...summary.lensIds].sort(),
     evidenceNodeIds: [...summary.evidenceNodeIds].filter((id) => nodeById.has(id)).sort(),
     evidenceTargetIds: [...summary.evidenceTargetIds].filter((id) => nodeById.has(id)).sort(),
     completedNodeIds: touched.filter((id) => ["completed", "resolved"].includes(nodeById.get(id)?.status ?? "")),

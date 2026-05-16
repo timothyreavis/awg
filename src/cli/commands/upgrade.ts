@@ -359,6 +359,7 @@ Start of session:
 - Run \`awg inbox --limit 10\` to review deterministic maintenance items.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Use \`awg lens list --goal "<goal>"\` and \`awg lens run <lens-id> --goal "<goal>"\` only when a reviewed vault-local lens fits a repeated context shape.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
 During work:
@@ -370,7 +371,7 @@ During work:
 - Update existing nodes instead of creating duplicates.
 - Attach durable knowledge as nodes, edges, responses, and evidence.
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
-- Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation primitives, \`freshness\` for currentness, and \`anchors\` for references.
+- Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation primitives, configurable \`lens\` records for repeated agent context shapes, \`freshness\` for currentness, and \`anchors\` for references.
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.

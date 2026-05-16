@@ -1,0 +1,12 @@
+{
+  "awg": "0.1",
+  "generated_at": "2026-05-11T00:00:00.000Z",
+  "kind": "view-index",
+  "views": [
+    {
+      "generated": true,
+      "id": "v:current",
+      "title": "Current Review"
+    }
+  ]
+}

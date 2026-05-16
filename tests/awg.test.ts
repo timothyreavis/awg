@@ -4,7 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { MVP_BLOCK_TYPES, validatePresentationBlock } from "../src/core/blocks.js";
+import { MVP_BLOCK_TYPES, VIEW_BLOCK_TYPES, validatePresentationBlock, validateViewBlock } from "../src/core/blocks.js";
 import { buildAwg } from "../src/core/compiler.js";
 import { buildNodeDetail } from "../src/core/nodeDetail.js";
 import { decodeNodeRouteId, graphNeighborhood, kanbanColumnsFor, nodeRoute, queryNodes, renderStaticSite, unsupportedBlockFallback } from "../src/core/renderStaticSite.js";
@@ -108,6 +108,20 @@ function node(overrides: Partial<AwgNode> & Pick<AwgNode, "id" | "type" | "title
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides
   };
+}
+
+function canonicalLogSnapshot(cwd: string): string {
+  const root = path.join(cwd, ".awg/log");
+  const files = walk(root).filter((file) => file.endsWith(".awg.jsonl")).sort();
+  return files.map((file) => `${path.relative(root, file)}\n${readFileSync(file, "utf8")}`).join("\n");
+}
+
+function walk(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const file = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(file) : [file];
+  });
 }
 
 test("init creates expected files", () => {
@@ -971,6 +985,183 @@ test("V1.7 presentation block contract accepts only safe authored MVP primitives
   ];
   for (const block of blocks) assert.deepEqual(validatePresentationBlock(block), []);
   assert.ok(validatePresentationBlock({ schemaVersion: 1, type: "table", data: { columns: [{ label: "Missing key" }], rows: [] } }).some((diag) => diag.code === "invalid_block_data"));
+});
+
+test("authored views compile, list, show, route, and validate safe query blocks", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["run", "start", "--goal", "View surface smoke", "--agent", "test"]);
+  run(cwd, ["add", "node", "--id", "n:view-task", "--type", "task", "--title", "View task", "--summary", "Appears in the view.", "--status", "active"]);
+  const view = JSON.parse(run(cwd, [
+    "add", "view",
+    "--id", "v:ops-review",
+    "--title", "Ops Review",
+    "--summary", "Active work and risks.",
+    "--audience", "human",
+    "--tag", "review",
+    "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"node-table\",\"title\":\"Active Work\",\"data\":{\"query\":{\"types\":[\"task\"],\"statuses\":[\"active\"],\"limit\":20,\"sortBy\":\"updated\"},\"columns\":[\"status\",\"title\",\"updated_at\"]}},{\"schemaVersion\":1,\"type\":\"callout\",\"title\":\"Safety\",\"data\":{\"text\":\"<script>alert(1)</script> renders as text.\"}}]",
+    "--json"
+  ]));
+  assert.equal(view.ok, true);
+  assert.ok(view.view.run.startsWith("run:"));
+  run(cwd, ["run", "finish", "--status", "completed", "--summary", "Created initial authored view.", "--auto-handoff", "--force"]);
+  const updateRun = JSON.parse(run(cwd, ["run", "start", "--goal", "Update authored view", "--agent", "test", "--json"]));
+  const updated = JSON.parse(run(cwd, ["update", "view", "v:ops-review", "--summary", "Updated surface.", "--block-json", "{\"schemaVersion\":1,\"type\":\"risk-list\",\"title\":\"Risks\",\"data\":{\"query\":{\"type\":\"risk\",\"limit\":5}}}", "--json"]));
+  assert.equal(updated.ok, true);
+  assert.equal(updated.view.run, updateRun.run.id);
+  assert.equal(updated.updatedKeys.includes("summary"), true);
+  run(cwd, ["run", "finish", "--status", "completed", "--summary", "Updated authored view.", "--auto-handoff", "--force"]);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(graph.views.length, 1);
+  assert.equal(graph.authored_views[0].id, "v:ops-review");
+  assert.equal(graph.authored_views[0].diagnostics.length, 0);
+  assert.ok(existsSync(path.join(cwd, ".awg/compiled/views/djpvcHMtcmV2aWV3.json")));
+  const compiledView = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/views/djpvcHMtcmV2aWV3.json"), "utf8"));
+  assert.equal(compiledView.kind, "view-output");
+  assert.equal(compiledView.blocks[0].type, "node-table");
+  assert.equal(compiledView.blocks[2].type, "risk-list");
+  assert.ok((graph.run_summaries as Array<{ viewIds?: string[] }>).some((summary) => summary.viewIds?.includes("v:ops-review")));
+  assert.ok(!graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "completed_run_without_evidence_or_changes" && diag.id === updateRun.run.id));
+  const listed = JSON.parse(run(cwd, ["view", "list", "--json"]));
+  assert.ok(listed.views.some((item: { id: string; diagnostics: number; audience: string }) => item.id === "v:ops-review" && item.diagnostics === 0 && item.audience === "human"));
+  const shown = JSON.parse(run(cwd, ["view", "show", "v:ops-review", "--json"]));
+  assert.equal(shown.view.id, "v:ops-review");
+  const app = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.ok(app.includes("graph.authored_views"));
+  assert.ok(app.includes("#/views/"));
+  const html = readFileSync(path.join(cwd, ".awg/compiled/site/index.html"), "utf8");
+  assert.ok(!html.includes("<script>alert(1)</script>"));
+  assert.ok(html.includes("\\u003cscript>alert(1)\\u003c/script>"));
+});
+
+test("authored view invalid blocks fail before append and warn in historical logs", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  assert.ok(runFail(cwd, ["add", "view", "--id", "v:", "--title", "Bad", "--summary", "Bad.", "--audience", "human", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"brief\",\"data\":\"Bad\"}]"]).includes("non-empty slug"));
+  assert.ok(runFail(cwd, ["add", "view", "--id", "v:bad", "--title", "Bad", "--summary", "Bad.", "--audience", "human", "--blocks-json", "[{\"schemaVersion\":1,\"type\":\"node-table\",\"data\":{\"query\":{\"regex\":\"nope\"}}}]"]).includes("Unsupported view query key"));
+  assert.ok((VIEW_BLOCK_TYPES as readonly string[]).includes("task-queue"));
+  assert.deepEqual(validateViewBlock({ schemaVersion: 1, type: "task-queue", data: { query: { type: "task", needsReview: true } } }), []);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, [
+    JSON.stringify({ awg: "0.1", kind: "view", id: "v:legacy", title: "Legacy View" }),
+    JSON.stringify({ awg: "0.1", kind: "view", id: "v:historic-bad", title: "Historic Bad", audience: "human", blocks: [{ schemaVersion: 1, type: "raw-json", data: { html: "<script>bad()</script>" } }] }),
+    JSON.stringify({ awg: "0.1", kind: "view", id: "v:a/b", title: "Slash", audience: "human", blocks: [{ schemaVersion: 1, type: "brief", data: "Slash" }] }),
+    JSON.stringify({ awg: "0.1", kind: "view", id: "v:a?b", title: "Question", audience: "human", blocks: [{ schemaVersion: 1, type: "brief", data: "Question" }] }),
+    JSON.stringify({ awg: "0.1", kind: "view", id: "v:a~2Fb", title: "Tilde", audience: "human", blocks: [{ schemaVersion: 1, type: "diagnostic-list", data: { query: { severity: "warning", limit: 1 } } }] })
+  ].join("\n") + "\n");
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.ok(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "unsupported_block_type" && diag.id === "v:historic-bad"));
+  assert.ok(graph.authored_views.some((view: { id: string; audience: string; blocks: unknown[] }) => view.id === "v:legacy" && view.audience === "human" && view.blocks.length === 0));
+  const artifactNames = readdirSync(path.join(cwd, ".awg/compiled/views"));
+  assert.ok(artifactNames.includes("djphL2I.json"));
+  assert.ok(artifactNames.includes("djphP2I.json"));
+  assert.ok(artifactNames.includes("djphfjJGYg.json"));
+  const app = readFileSync(path.join(cwd, ".awg/compiled/site/app.js"), "utf8");
+  assert.ok(app.includes("Unsupported block type"));
+  assert.ok(app.includes("authoredViewBlockTypes"));
+});
+
+test("configurable vault lenses add, update, list, show, run, and compile index", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const started = JSON.parse(run(cwd, ["run", "start", "--goal", "Lens config smoke", "--agent", "test", "--json"]));
+  run(cwd, ["add", "node", "--id", "n:lens-task", "--type", "task", "--title", "Lens task", "--summary", "Task selected by configurable lens.", "--status", "active", "--tag", "lens-smoke"]);
+  run(cwd, ["add", "node", "--id", "n:lens-evidence", "--type", "evidence", "--title", "Lens evidence", "--summary", "Evidence selected by configurable lens.", "--status", "active", "--tag", "lens-smoke"]);
+  const sections = JSON.stringify([
+    { id: "search", title: "Search", source: "search", query: { text: "$goal" }, limit: 10 },
+    { id: "nodes", source: "nodes", query: { tags: ["lens-smoke"] }, limit: 10 },
+    { id: "evidence", source: "evidence", query: { tags: ["lens-smoke"] }, limit: 10 },
+    { id: "runs", source: "runs", limit: 5 },
+    { id: "inbox", source: "maintenanceInbox", limit: 5 },
+    { id: "diagnostics", source: "diagnostics", limit: 5 },
+    { id: "template", source: "templateContext", limit: 1 },
+    { id: "topology", source: "topology", limit: 1 },
+    { id: "anchors", source: "anchors", limit: 5 },
+    { id: "static", source: "static", items: [{ id: "static-note", summary: "Static local guidance." }] }
+  ]);
+  const added = JSON.parse(run(cwd, [
+    "add", "lens",
+    "--id", "lens:ops-review",
+    "--title", "Ops Review Lens",
+    "--purpose", "Retrieve repeated ops review context.",
+    "--scope", "vault",
+    "--audience", "agent",
+    "--sections-json", sections,
+    "--selector-json", "{\"goalTerms\":[\"lens\"]}",
+    "--budget-json", "{\"default\":1200}",
+    "--tag", "lens-smoke",
+    "--json"
+  ]));
+  assert.equal(added.ok, true);
+  assert.equal(added.lens.run, started.run.id);
+  const updated = JSON.parse(run(cwd, ["update", "lens", "lens:ops-review", "--status", "active", "--section-json", "{\"id\":\"view\",\"source\":\"view\",\"limit\":5}", "--tag", "reviewed", "--json"]));
+  assert.equal(updated.ok, true);
+  assert.equal(updated.lens.status, "active");
+  assert.ok(updated.updatedKeys.includes("status"));
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(graph.lenses.length, 1);
+  assert.equal(graph.lens_index.lenses[0].id, "lens:ops-review");
+  assert.ok(existsSync(path.join(cwd, ".awg/compiled/lenses/index.json")));
+  assert.ok((graph.run_summaries as Array<{ lensIds?: string[] }>).some((summary) => summary.lensIds?.includes("lens:ops-review")));
+  const listed = JSON.parse(run(cwd, ["lens", "list", "--goal", "Lens task", "--json"]));
+  assert.ok(listed.lenses.some((lens: { id: string }) => lens.id === "lens:ops-review"));
+  const shown = JSON.parse(run(cwd, ["lens", "show", "lens:ops-review", "--json"]));
+  assert.equal(shown.lens.id, "lens:ops-review");
+  const before = canonicalLogSnapshot(cwd);
+  const output = JSON.parse(run(cwd, ["lens", "run", "lens:ops-review", "--goal", "Lens task", "--json"]));
+  assert.equal(output.kind, "lens-output");
+  assert.equal(output.budget, 1200);
+  assert.equal(output.lensId, "lens:ops-review");
+  assert.ok(output.sections.some((section: { section: string; items: unknown[] }) => section.section === "nodes" && JSON.stringify(section.items).includes("n:lens-task")));
+  assert.equal(JSON.stringify(output.sections).includes("Task selected by configurable lens."), true);
+  assert.equal(JSON.stringify(output.sections).includes("\"body\""), false);
+  assert.ok(output.sections.some((section: { source: string }) => section.source === "maintenanceInbox"));
+  assert.ok(output.sections.some((section: { source: string }) => section.source === "templateContext"));
+  assert.ok(output.sections.some((section: { source: string }) => section.source === "topology"));
+  assert.ok(output.sections.some((section: { source: string }) => section.source === "anchors"));
+  assert.ok(output.sections.some((section: { source: string }) => section.source === "view"));
+  const after = canonicalLogSnapshot(cwd);
+  assert.equal(after, before);
+  assert.equal(graph.diagnostics.diagnostics.some((diag: { code: string; id: string }) => diag.code === "duplicate_id_upsert" && diag.id === "lens:ops-review"), false);
+});
+
+test("configurable lens compatibility, run flags, and validation failures", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ awg: "0.1", kind: "lens", id: "lens:legacy", title: "Legacy Lens", include: ["nodes", { id: "legacy-active", source: "active_tasks" }] })}\n`);
+  run(cwd, ["build"]);
+  const graph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(graph.lenses[0].id, "lens:legacy");
+  assert.equal(graph.lens_index.lenses[0].sectionCount, 2);
+  assert.ok(run(cwd, ["lens", "show", "lens:legacy"]).includes("legacy-active: nodes"));
+  const legacyUpdated = JSON.parse(run(cwd, ["update", "lens", "lens:legacy", "--section-json", "{\"id\":\"extra\",\"source\":\"static\",\"items\":[{\"summary\":\"extra\"}]}", "--json"]));
+  assert.equal(legacyUpdated.lens.sections.length, 3);
+  run(cwd, ["build"]);
+  const legacyGraph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  assert.equal(legacyGraph.lens_index.lenses.find((lens: { id: string }) => lens.id === "lens:legacy").sectionCount, 3);
+  assert.ok(runFail(cwd, ["add", "lens", "--id", "bad", "--title", "Bad", "--purpose", "Bad.", "--sections-json", "[]"]).includes("Lens id must be"));
+  assert.ok(runFail(cwd, ["add", "lens", "--id", "lens:bad-status", "--title", "Bad", "--purpose", "Bad.", "--status", "done", "--sections-json", "[]"]).includes("status must be"));
+  assert.ok(runFail(cwd, ["add", "lens", "--id", "lens:bad-json", "--title", "Bad", "--purpose", "Bad.", "--sections-json", "{"]).includes("malformed JSON"));
+  assert.ok(runFail(cwd, ["add", "lens", "--id", "lens:bad-source", "--title", "Bad", "--purpose", "Bad.", "--sections-json", "[{\"id\":\"x\",\"source\":\"shell\"}]"]).includes("Unsupported lens section source"));
+  assert.ok(runFail(cwd, ["add", "lens", "--id", "lens:bad-query", "--title", "Bad", "--purpose", "Bad.", "--sections-json", "[{\"id\":\"x\",\"source\":\"nodes\",\"query\":{\"regex\":\"nope\"}}]"]).includes("Unsupported lens query keys"));
+  const activeRun = JSON.parse(run(cwd, ["run", "start", "--goal", "Lens run flag smoke", "--agent", "test", "--json"]));
+  const withRun = JSON.parse(run(cwd, ["add", "lens", "--id", "lens:with-run", "--title", "With Run", "--purpose", "Run attached.", "--sections-json", "[{\"id\":\"static\",\"source\":\"static\",\"items\":[{\"summary\":\"ok\"}]}]", "--json"]));
+  assert.equal(withRun.lens.run, activeRun.run.id);
+  const noRun = JSON.parse(run(cwd, ["add", "lens", "--id", "lens:no-run", "--title", "No Run", "--purpose", "Run suppressed.", "--sections-json", "[{\"id\":\"static\",\"source\":\"static\",\"items\":[{\"summary\":\"ok\"}]}]", "--no-run", "--json"]));
+  assert.equal(noRun.lens.run, undefined);
+  run(cwd, ["add", "lens", "--id", "lens:selector-a", "--title", "Selector A", "--purpose", "Selector warning.", "--status", "active", "--selector-json", "{\"goalTerms\":[\"same\"]}", "--sections-json", "[{\"id\":\"static\",\"source\":\"static\",\"items\":[{\"summary\":\"ok\"}]}]"]);
+  run(cwd, ["add", "lens", "--id", "lens:selector-b", "--title", "Selector B", "--purpose", "Selector warning.", "--status", "active", "--selector-json", "{\"goalTerms\":[\"same\"]}", "--sections-json", "[{\"id\":\"static\",\"source\":\"static\",\"items\":[{\"summary\":\"ok\"}]}]"]);
+  run(cwd, ["build"]);
+  const runGraph = JSON.parse(readFileSync(path.join(cwd, ".awg/compiled/graph.json"), "utf8"));
+  const summary = (runGraph.run_summaries as Array<{ runId: string; lensIds?: string[]; diagnostics?: Array<{ code: string }> }>).find((item) => item.runId === activeRun.run.id);
+  assert.ok(summary?.lensIds?.includes("lens:selector-a"));
+  assert.ok(summary?.diagnostics?.some((diag) => diag.code === "duplicate_active_lens_selector"));
 });
 
 test("template status is read only and emits deterministic json", async () => {

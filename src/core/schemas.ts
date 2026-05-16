@@ -105,13 +105,13 @@ export const schemas = {
   },
   view: {
     ...base,
-    required: ["awg", "kind", "id", "title", "audience", "blocks"],
+    required: ["awg", "kind", "id", "title"],
     properties: { ...base.properties, kind: { const: "view" }, id: { type: "string", pattern: "^v:.+" }, title: { type: "string" }, audience: { type: "string" }, blocks: { type: "array" } }
   },
   lens: {
     ...base,
-    required: ["awg", "kind", "id", "title", "purpose", "include"],
-    properties: { ...base.properties, kind: { const: "lens" }, id: { type: "string", pattern: "^lens:.+" }, title: { type: "string" }, purpose: { type: "string" }, include: { type: "array" } }
+    required: ["awg", "kind", "id", "title"],
+    properties: { ...base.properties, kind: { const: "lens" }, id: { type: "string", pattern: "^lens:.+" }, title: { type: "string" }, purpose: { type: "string" }, summary: { type: "string" }, status: { type: "string" }, scope: { type: "string" }, audience: { type: "string" }, selector: { type: "object" }, sections: { type: "array" }, budget: { type: "object" }, review: { type: "object" }, tags: { type: "array", items: { type: "string" } }, include: { type: "array" }, created_at: { type: "string" }, updated_at: { type: "string" } }
   },
   response: {
     ...base,

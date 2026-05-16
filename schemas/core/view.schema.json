@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "required": ["awg", "kind", "id", "title", "audience", "blocks"],
+  "required": ["awg", "kind", "id", "title"],
   "properties": {
     "awg": { "const": "0.1" },
     "kind": { "const": "view" },

@@ -1,13 +1,24 @@
 {
   "type": "object",
-  "required": ["awg", "kind", "id", "title", "purpose", "include"],
+  "required": ["awg", "kind", "id", "title"],
   "properties": {
     "awg": { "const": "0.1" },
     "kind": { "const": "lens" },
     "id": { "type": "string", "pattern": "^lens:.+" },
     "title": { "type": "string" },
     "purpose": { "type": "string" },
-    "include": { "type": "array" }
+    "summary": { "type": "string" },
+    "status": { "type": "string" },
+    "scope": { "type": "string" },
+    "audience": { "type": "string" },
+    "selector": { "type": "object" },
+    "sections": { "type": "array" },
+    "budget": { "type": "object" },
+    "review": { "type": "object" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "include": { "type": "array" },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
   },
   "additionalProperties": true
 }

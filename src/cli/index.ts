@@ -83,12 +83,14 @@ Commands:
   instructions list
   instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
   add node --type <type> --title <title> --summary <summary> [--status <status>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--evidence-required] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--block-json <json>] [--blocks-json <json>] [--freshness-json <json>] [--anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+  add view --id v:<slug> --title <title> --summary <summary> --audience <human|agent|reviewer> [--block-json <json>] [--blocks-json <json|@file>] [--tag <tag>] [--run <run-id>|--no-run] [--json]
   add edge --from <id> --rel <rel> --to <id> [--run <run-id>|--no-run]
   add response --type <type> --target <id> --summary <summary> [--run <run-id>|--no-run]
   add evidence --target <id> --summary <summary> [--source <terminal|test|manual|file|url|log|other>] [--command <command>] [--path <path>] [--status <passed|failed|unknown>] [--rel <relation>] [--json] [--run <run-id>|--no-run]
   quick note|task|risk|question|decision <summary> [--title <title>] [--body <body>] [--tag <tag>] [--target <node-id>] [--status <status>] [--run <run-id>|--no-run] [--json]
   rels [--json]
   update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+  update view <id> [--title <title>] [--summary <summary>] [--audience <human|agent|reviewer>] [--tag <tag>] [--block-json <json>] [--blocks-json <json|@file>] [--clear-blocks] [--run <run-id>|--no-run] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
   run start --goal <goal> [--agent <name>] [--force] [--json]
   run note <note> [--run <run-id>] [--json]
@@ -100,6 +102,9 @@ Commands:
   doctor [--fix-suggestions] [--json]
   lens resume [--budget <n>] [--json]
   lens task --goal <goal> [--budget <n>] [--json]
+  lens list [--goal <goal>] [--json]
+  lens show <lens-id> [--json]
+  lens run <lens-id> [--goal <goal>] [--budget <n>] [--json]
   node show <node-id> [--json]
   handoff [--budget <n>] [--compact] [--json] [--no-record]
   recent [--days <n>] [--json]
@@ -109,6 +114,8 @@ Commands:
   reconcile resolved-by <target> <resolver> [--reason <text>] [--json]
   reconcile intentionally-open <target> [--reason <text>] [--json]
   view current [--json] [--text]
+  view list [--json]
+  view show <view-id> [--json]
   open [--global] [--no-launch]`);
 }
 

@@ -64,6 +64,8 @@ export interface AwgPresentationBlock {
   [key: string]: unknown;
 }
 
+export type AwgViewAudience = "human" | "agent" | "reviewer" | string;
+
 export interface AwgAnchor {
   kind: "file" | "symbol" | "url" | "command" | "doc" | "external";
   path?: string;
@@ -161,8 +163,12 @@ export interface AwgView extends AwgBase {
   kind: "view";
   id: string;
   title: string;
-  audience: string;
-  blocks: unknown[];
+  audience?: AwgViewAudience;
+  summary?: string;
+  blocks?: AwgPresentationBlock[];
+  tags?: string[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AwgLens extends AwgBase {
@@ -170,7 +176,36 @@ export interface AwgLens extends AwgBase {
   id: string;
   title: string;
   purpose: string;
-  include: unknown[];
+  summary?: string;
+  status?: "active" | "proposed" | "needs_review" | "archived" | string;
+  scope?: "vault" | "project" | "workflow" | string;
+  audience?: "agent" | "human" | "reviewer" | string;
+  selector?: Record<string, unknown>;
+  sections?: AwgLensSection[];
+  budget?: Record<string, unknown>;
+  review?: Record<string, unknown>;
+  tags?: string[];
+  include?: unknown[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AwgLensSection {
+  id?: string;
+  title?: string;
+  source: string;
+  query?: Record<string, unknown>;
+  nodeIds?: string[];
+  edgeIds?: string[];
+  runIds?: string[];
+  viewId?: string;
+  text?: string;
+  items?: unknown[];
+  limit?: number;
+  priority?: number;
+  includeBody?: boolean;
+  required?: boolean;
+  [key: string]: unknown;
 }
 
 export interface AwgResponse extends AwgBase {
@@ -303,6 +338,44 @@ export interface CompiledGraph {
   anchor_index?: AnchorIndex;
   topology?: unknown;
   maintenance_inbox?: MaintenanceInbox;
+  authored_views?: AuthoredViewOutput[];
+  lens_index?: LensIndex;
+}
+
+export interface LensIndexEntry {
+  id: string;
+  title: string;
+  purpose?: string;
+  summary?: string;
+  status: string;
+  scope: string;
+  audience: string;
+  tags: string[];
+  selector?: Record<string, unknown>;
+  sectionCount: number;
+  needsReview: boolean;
+  updated_at?: string;
+}
+
+export interface LensIndex {
+  awg: string;
+  kind: "lens-index";
+  generated_at: string;
+  lenses: LensIndexEntry[];
+}
+
+export interface AuthoredViewOutput {
+  awg: string;
+  kind: "view-output";
+  id: string;
+  generated_at: string;
+  title: string;
+  summary?: string;
+  audience: string;
+  tags?: string[];
+  blocks: AwgPresentationBlock[];
+  source: { kind: "view"; id: string };
+  diagnostics: Diagnostic[];
 }
 
 export interface ResumeLensOutput {
