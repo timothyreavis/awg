@@ -22,7 +22,7 @@ export async function runCommand(parsed: ParsedArgs): Promise<void> {
 
 async function startRun(parsed: ParsedArgs): Promise<void> {
   const storage = new FileAwgStorage();
-  const { graph } = await buildAwg(storage, { write: false });
+  const { graph } = await buildAwg(storage, { write: false, coordinationAsOf: nowIso() });
   const runs = buildRuns(graph);
   const current = activeRun(runs);
   if (current && !parsed.flags.force) throw new Error(`Active run already exists: ${current.id}. Finish it first or pass --force.`);
@@ -103,12 +103,12 @@ async function finishRun(parsed: ParsedArgs): Promise<void> {
   await storage.appendLogEntry(event);
   let handoff: ReturnType<typeof buildHandoff> | undefined;
   if (parsed.flags["auto-handoff"]) {
-    const rebuilt = await buildAwg(storage, { write: false });
+    const rebuilt = await buildAwg(storage, { write: false, coordinationAsOf: nowIso() });
     handoff = buildHandoff(rebuilt.graph);
     const handoffAt = nowIso();
     const handoffEvent: AwgEvent = { awg: AWG_VERSION, kind: "event", id: runEventId(run.id, "handoff", handoffAt), type: "handoff_generated", target: run.id, run: run.id, runId: run.id, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at: handoffAt, budget: handoff.budget, quality: handoff.quality };
     await storage.appendLogEntry(handoffEvent);
-    const rebuiltWithHandoff = await buildAwg(storage, { write: false });
+    const rebuiltWithHandoff = await buildAwg(storage, { write: false, coordinationAsOf: nowIso() });
     handoff = buildHandoff(rebuiltWithHandoff.graph);
   }
   const outputPreflight = handoff?.preflight ?? preflight;
@@ -119,23 +119,24 @@ async function finishRun(parsed: ParsedArgs): Promise<void> {
 }
 
 async function statusRun(parsed: ParsedArgs): Promise<void> {
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   const current = activeRun(buildRuns(graph));
-  if (parsed.flags.json) return printJson({ ok: true, activeRun: current ?? null, runSummaries: graph.run_summaries ?? [] });
+  const coordinationClaims = current ? (graph.coordination_index?.claims ?? []).filter((claim) => claim.runId === current.id) : [];
+  if (parsed.flags.json) return printJson({ ok: true, activeRun: current ?? null, coordinationClaims, runSummaries: graph.run_summaries ?? [] });
   if (!current) return console.log("No active run.");
   printRun(current);
 }
 
 async function listRuns(parsed: ParsedArgs): Promise<void> {
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   const runs = buildRuns(graph).slice(0, 20);
-  if (parsed.flags.json) return printJson({ ok: true, runs: runs.map((run) => ({ ...run, attribution: (graph.run_summaries as Array<{ runId: string }> | undefined)?.find((summary) => summary.runId === run.id) })) });
+  if (parsed.flags.json) return printJson({ ok: true, runs: runs.map((run) => ({ ...run, coordination: claimSummary(graph, run.id), attribution: (graph.run_summaries as Array<{ runId: string }> | undefined)?.find((summary) => summary.runId === run.id) })) });
   if (!runs.length) return console.log("No runs.");
   for (const run of runs) printRun(run);
 }
 
 async function resolveRun(storage: FileAwgStorage, explicit?: string): Promise<{ graph: Awaited<ReturnType<typeof buildAwg>>["graph"]; run: AgentRun }> {
-  const { graph } = await buildAwg(storage, { write: false });
+  const { graph } = await buildAwg(storage, { write: false, coordinationAsOf: nowIso() });
   const runs = buildRuns(graph);
   const run = explicit ? runs.find((item) => item.id === explicit) : activeRun(runs);
   if (!run) throw new Error(explicit ? `Run not found: ${explicit}` : "No active run. Start one with awg run start --goal \"...\".");
@@ -146,6 +147,16 @@ function printRun(run: AgentRun): void {
   console.log(`${run.id} ${run.status} ${run.goal}`);
   if (run.summary) console.log(`  summary: ${run.summary}`);
   if (run.notes.length) console.log(`  notes: ${run.notes.length}`);
+}
+
+function claimSummary(graph: Awaited<ReturnType<typeof buildAwg>>["graph"], runId: string): Record<string, number> {
+  const claims = (graph.coordination_index?.claims ?? []).filter((claim) => claim.runId === runId);
+  return {
+    total: claims.length,
+    active: claims.filter((claim) => claim.status === "active").length,
+    stale: claims.filter((claim) => claim.status === "stale").length,
+    collisions: claims.filter((claim) => claim.collisionIds.length).length
+  };
 }
 
 function printPreflight(runId: string, preflight: ReturnType<typeof preflightRun>): void {

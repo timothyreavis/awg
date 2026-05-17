@@ -4,6 +4,7 @@ import { addCommand } from "./commands/add.js";
 import { buildCommand } from "./commands/build.js";
 import { claimCommand, claimsCommand } from "./commands/claim.js";
 import { doctorCommand } from "./commands/doctor.js";
+import { coordCommand } from "./commands/coord.js";
 import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
 import { inboxCommand } from "./commands/inbox.js";
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
   if (command === "rels") return relsCommand(parsed);
   if (command === "quick") return quickCommand(parsed);
   if (command === "queue") return queueCommand(parsed);
+  if (command === "coord") return coordCommand(parsed);
   if (command === "add") return addCommand(parsed);
   if (command === "verify") return verifyCommand(parsed);
   if (command === "claim") return claimCommand(parsed);
@@ -100,8 +102,13 @@ Commands:
   claims [--status <status>] [--kind <kind>] [--tag <tag>] [--limit <n>] [--json]
   quick note|task|risk|question|decision <summary> [--title <title>] [--body <body>] [--tag <tag>] [--target <node-id>] [--status <status>] [--run <run-id>|--no-run] [--json]
   queue list [--queue <id>] [--limit <n>] [--autonomous] [--human-review] [--json]
-  queue next [--goal <goal>] [--queue <id>] [--limit <n>] [--autonomous] [--include-human-review] [--json]
+  queue next [--goal <goal>] [--queue <id>] [--limit <n>] [--autonomous] [--include-human-review] [--include-claimed] [--mine] [--json]
   queue show <work-queue-item-id> [--json]
+  coord status [--json]
+  coord claim <target> [--mode exclusive|shared|watch] [--summary <text>] [--reason <text>] [--ttl-hours <n>] [--run <run-id>|--no-run] [--json]
+  coord release <coordination-id> --status completed|released|abandoned|blocked [--summary <text>] [--run <run-id>|--no-run] [--json]
+  coord check [--target <id>] [--queue-item <id>] [--json]
+  coord handoff <coordination-id> [--to-agent <name>] [--to-role <role>] --summary <text> [--run <run-id>|--no-run] [--json]
   rels [--json]
   update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
   update view <id> [--title <title>] [--summary <summary>] [--audience <human|agent|reviewer>] [--tag <tag>] [--block-json <json>] [--blocks-json <json|@file>] [--clear-blocks] [--run <run-id>|--no-run] [--json]

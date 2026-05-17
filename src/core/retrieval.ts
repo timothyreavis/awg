@@ -65,6 +65,8 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const runs = buildRuns(graph);
   const current = activeRun(runs);
   const relatedRuns = runs.filter((run) => runMatchesGoal(run, goal) || runSummaryFor(graph, run.id)?.touchedNodeIds.some((id) => relevantIds.has(id))).slice(0, 5);
+  const coordinationClaims = (graph.coordination_index?.claims ?? []).filter((claim) => claim.targetIds.some((id) => relevantIds.has(id)) || claim.nodeIds.some((id) => relevantIds.has(id)) || relatedRuns.some((run) => claim.runId === run.id)).slice(0, 10);
+  const coordinationCollisions = (graph.coordination_index?.collisions ?? []).filter((collision) => collision.claimIds.some((id) => coordinationClaims.some((claim) => claim.id === id))).slice(0, 10);
   const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, goal, [...relevantIds, ...(current ? runSummaryFor(graph, current.id)?.touchedNodeIds ?? [] : [])]);
   const decisions = relevantNodes.filter((item) => item.type === "decision").sort(byPriority);
   const risks = relevantNodes.filter((item) => item.type === "risk" || item.type === "blocker").sort(byPriority);
@@ -84,6 +86,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
     { section: "maintenanceInbox", items: maintenanceInbox },
     { section: "workQueues", items: workQueueItems },
+    { section: "coordination", items: [...coordinationClaims, ...coordinationCollisions] },
     { section: "claimTrustIssues", items: claimIssues },
     { section: "diagnostics", items: diagnostics },
     { section: "anchors", items: relatedAnchorEntries(graph, relevantIds).slice(0, 10) },
@@ -112,6 +115,15 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const topQueueItems = filterWorkQueueItems(graph.work_queue_index, { limit: 12, includeHumanReview: true });
   const handoffFollowup = filterWorkQueueItems(graph.work_queue_index, { queue: "handoff_followup", limit: 8, includeHumanReview: true });
   const claimTrustIssues = (graph.claim_index?.claims ?? []).filter((claim) => ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus) || claim.nodeStatus === "needs_review").slice(0, 12);
+  const currentTouchedIds = new Set(runSummary?.touchedNodeIds ?? []);
+  const coordinationClaims = (graph.coordination_index?.claims ?? []).filter((claim) =>
+    claim.status === "stale" ||
+    claim.runId === current?.id ||
+    claim.nodeIds.some((id) => currentTouchedIds.has(id)) ||
+    (!current && claim.status === "active")
+  ).slice(0, 12);
+  const coordinationCollisions = (graph.coordination_index?.collisions ?? []).filter((collision) => collision.claimIds.some((id) => coordinationClaims.some((claim) => claim.id === id))).slice(0, 12);
+  const coordinationHandoffs = (graph.coordination_index?.handoffs ?? []).filter((handoff) => !current || handoff.runId === current.id || coordinationClaims.some((claim) => claim.id === handoff.coordinationId)).slice(0, 8);
   const sections = budgetSections<unknown>([
     { section: current?.status === "in_progress" ? "activeRun" : "mostRecentRun", items: current ? [current] : [] },
     { section: "graphHealth", items: [graph.diagnostics.summary] },
@@ -123,6 +135,7 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "handoffQuality", items: [quality] },
     { section: "recommendedNextActions", items: recommendations },
     { section: "workQueues", items: topQueueItems },
+    { section: "coordination", items: [...coordinationCollisions, ...coordinationClaims, ...coordinationHandoffs] },
     { section: "handoffFollowup", items: handoffFollowup },
     { section: "maintenanceInbox", items: maintenanceInbox },
     { section: "claimTrustIssues", items: claimTrustIssues },

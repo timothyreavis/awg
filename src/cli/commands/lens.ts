@@ -3,6 +3,7 @@ import { buildAwg } from "../../core/compiler.js";
 import { charBudget } from "../../core/budget.js";
 import { normalizeLensSections, runConfiguredLens } from "../../core/lensConfigs.js";
 import { buildTaskLens } from "../../core/retrieval.js";
+import { nowIso } from "../../util/time.js";
 import { num, str, type ParsedArgs } from "../args.js";
 import { printJson } from "../format.js";
 
@@ -43,7 +44,7 @@ export async function lensCommand(parsed: ParsedArgs): Promise<void> {
 
 async function listLenses(parsed: ParsedArgs): Promise<void> {
   const goal = str(parsed.flags, "goal");
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   let lenses = graph.lens_index?.lenses ?? graph.lenses.map((lens) => ({ id: lens.id, title: lens.title, purpose: lens.purpose, summary: lens.summary, status: lens.status ?? "needs_review", scope: lens.scope ?? "vault", audience: lens.audience ?? "agent", tags: lens.tags ?? [], selector: lens.selector, sectionCount: Array.isArray(lens.sections) ? lens.sections.length : Array.isArray(lens.include) ? lens.include.length : 0, needsReview: lens.status === "needs_review", updated_at: lens.updated_at }));
   if (goal) lenses = lenses.filter((lens) => lensMatchesGoal(lens, goal));
   if (parsed.flags.json) return printJson({ ok: true, goal, lenses });
@@ -53,7 +54,7 @@ async function listLenses(parsed: ParsedArgs): Promise<void> {
 async function showLens(parsed: ParsedArgs): Promise<void> {
   const lensId = parsed.positionals[2];
   if (!lensId) throw new Error("Usage: awg lens show <lens-id> [--json]");
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   const lens = graph.lenses.find((item) => item.id === lensId);
   if (!lens) throw new Error(`Lens not found: ${lensId}`);
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id === lensId);
@@ -66,7 +67,7 @@ async function showLens(parsed: ParsedArgs): Promise<void> {
 async function runLens(parsed: ParsedArgs): Promise<void> {
   const lensId = parsed.positionals[2];
   if (!lensId) throw new Error("Usage: awg lens run <lens-id> [--goal <goal>] [--budget <n>] [--json]");
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   const lens = graph.lenses.find((item) => item.id === lensId);
   if (!lens) throw new Error(`Lens not found: ${lensId}`);
   const output = runConfiguredLens(graph, lens, str(parsed.flags, "goal"), effectiveBudget(parsed, lens.budget));
@@ -82,7 +83,7 @@ async function runLens(parsed: ParsedArgs): Promise<void> {
 async function taskLens(parsed: ParsedArgs): Promise<void> {
   const goal = str(parsed.flags, "goal");
   if (!goal) throw new Error("Usage: awg lens task --goal <goal> [--budget <n>] [--json]");
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   const output = buildTaskLens(graph, goal, charBudget(num(parsed.flags, "budget", 0) || undefined));
   if (parsed.flags.json) return printJson(output);
   console.log(`task lens: ${goal}`);

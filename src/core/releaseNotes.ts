@@ -10,6 +10,48 @@ export interface ReleaseNote {
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [{
+  version: "0.1.0-v2.4",
+  date: "2026-05-17",
+  highlights: [
+    "AWG now derives advisory local-first coordination state from append-only work claim, release, handoff, and collision events.",
+    "Coordination data is compiled into graph.coordination_index and .awg/compiled/indexes/coordination.json.",
+    "Queues, runs, handoff, lenses, doctor, and the static viewer surface active claims, stale claims, collisions, and handoffs.",
+    "Coordination remains advisory visibility, not locking or real-time collaboration infrastructure."
+  ],
+  newCommands: [
+    "awg coord status [--json]",
+    "awg coord claim <target> [--mode exclusive|shared|watch] [--summary <text>] [--reason <text>] [--ttl-hours <n>] [--json]",
+    "awg coord release <coordination-id> --status completed|released|abandoned|blocked [--summary <text>] [--json]",
+    "awg coord check [--target <id>] [--queue-item <id>] [--json]",
+    "awg coord handoff <coordination-id> [--to-agent <name>] [--to-role <role>] --summary <text> [--json]",
+    "awg queue next [--include-claimed] [--mine]"
+  ],
+  agentActions: [
+    "Run awg coord status --json before taking non-trivial undirected work.",
+    "Run awg coord check --target <id> --json before touching claimed nodes.",
+    "Use awg coord claim for non-trivial implementation work where another agent could collide.",
+    "Use shared or watch mode for review, research, or monitoring lanes.",
+    "Release coordination claims before finishing a run, or leave a coordination handoff when passing work on."
+  ],
+  adoption: [
+    "Regenerate AGENTS/CLAUDE instructions with awg instructions install or awg upgrade --instructions when appropriate.",
+    "Use configurable lens source coordination for repeated coordination review recipes.",
+    "Treat human direction as authoritative; claims are warnings and handoff context, not permission gates."
+  ],
+  docs: [
+    "README.md",
+    "docs/spec/awg-multi-agent-coordination.md",
+    "docs/spec/awg-work-queues.md",
+    "docs/spec/awg-lenses.md",
+    "docs/spec/awg-diagnostics.md",
+    "docs/spec/awg-viewer-surface.md"
+  ],
+  nonGoals: [
+    "No hard locks.",
+    "No daemon, server, websocket, hosted sync, multi-user auth, network calls, scheduler, LLM call, external task sync, or cross-vault write.",
+    "No use of V2.2 semantic claim nodes as coordination work claims."
+  ]
+}, {
   version: "0.1.0-v2.3",
   date: "2026-05-16",
   highlights: [

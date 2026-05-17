@@ -55,8 +55,9 @@ export interface RunNote {
 
 export function buildRuns(graph: Pick<CompiledGraph, "events">): AgentRun[] {
   const runs = new Map<string, AgentRun>();
-  const events = graph.events.slice().sort((a, b) => a.at.localeCompare(b.at) || String(a.id ?? "").localeCompare(String(b.id ?? "")));
+  const events = graph.events.slice().sort((a, b) => eventTime(a).localeCompare(eventTime(b)) || String(a.id ?? "").localeCompare(String(b.id ?? "")));
   for (const event of events) {
+    const at = eventTime(event);
     if (event.type === "run_started") {
       const runId = String(event.target);
       runs.set(runId, {
@@ -64,8 +65,8 @@ export function buildRuns(graph: Pick<CompiledGraph, "events">): AgentRun[] {
         goal: String(event.goal ?? ""),
         agent: typeof event.agent === "string" ? event.agent : undefined,
         status: "in_progress",
-        started_at: event.at,
-        updated_at: event.at,
+        started_at: at,
+        updated_at: at,
         notes: [],
         evidence: [],
         changed_nodes: [],
@@ -76,23 +77,27 @@ export function buildRuns(graph: Pick<CompiledGraph, "events">): AgentRun[] {
     const runId = runIdFromObject(event) ?? String(event.target);
     const run = runs.get(runId);
     if (!run) continue;
-    run.updated_at = event.at > run.updated_at ? event.at : run.updated_at;
+    run.updated_at = at > run.updated_at ? at : run.updated_at;
     if (event.type === "run_note") {
-      run.notes.push({ id: event.id, at: event.at, by: event.by, summary: String(event.summary ?? "") });
+      run.notes.push({ id: event.id, at, by: event.by, summary: String(event.summary ?? "") });
     }
     if (event.type === "run_finished") {
       const status = String(event.status);
       run.status = RUN_STATUSES.includes(status as RunStatus) ? status as RunStatus : "partial";
-      run.finished_at = event.at;
+      run.finished_at = at;
       run.summary = typeof event.summary === "string" ? event.summary : undefined;
       run.forced = Boolean(event.forced);
       run.preflight = event.preflight;
     }
     if (event.type === "evidence_added" && typeof event.evidence === "string") run.evidence.push(event.evidence);
     if (event.type === "node_updated" && typeof event.target === "string") run.changed_nodes.push(event.target);
-    if (event.type === "handoff_generated") run.handoffs.push(event.id ?? event.at);
+    if (event.type === "handoff_generated") run.handoffs.push(event.id ?? at);
   }
   return [...runs.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
+}
+
+function eventTime(event: AwgEvent): string {
+  return typeof event.at === "string" ? event.at : typeof event.created_at === "string" ? event.created_at : "1970-01-01T00:00:00.000Z";
 }
 
 export function buildRunSummaries(graph: Pick<CompiledGraph, "nodes" | "edges" | "events" | "responses" | "views" | "lenses" | "diagnostics">): RunSummary[] {

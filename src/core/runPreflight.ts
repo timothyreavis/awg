@@ -59,6 +59,12 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   addNodeWarning("AWG_RUN_SENSITIVE_VALUE_TOUCHED", "Touched node appears to contain a secret-like value.", idsForDiagnostics(summary, "sensitive_value_detected"), "Redact the value and keep only a safe reference.");
   const unresolvedCrossVault = touched.filter((id) => hasUnhandledCrossVaultImpact(nodes.get(id), run.id, graph.nodes));
   addNodeWarning("AWG_RUN_CROSS_VAULT_IMPACT_UNHANDLED", "Touched node has open cross-vault impact with no same-run handoff task.", unresolvedCrossVault, "Update the target vault explicitly, or create a task with fields.kind=cross_vault_handoff and fields.targetVaultId.");
+  const runClaims = (graph.coordination_index?.claims ?? []).filter((claim) => claim.runId === run.id && (claim.status === "active" || claim.status === "stale"));
+  addNodeWarning("AWG_RUN_COORDINATION_UNRELEASED_CLAIM", "Run has unreleased coordination claims.", runClaims.map((claim) => claim.id), "Run `awg coord release <coordination-id> --status completed --summary \"...\"`.");
+  addNodeWarning("AWG_RUN_COORDINATION_COLLISION_UNRESOLVED", "Run has unresolved coordination collisions.", runClaims.filter((claim) => claim.collisionIds.length).map((claim) => claim.id), "Run `awg coord status --json` and release, hand off, or document the overlap.");
+  addNodeWarning("AWG_RUN_COORDINATION_STALE_CLAIM", "Run has stale coordination claims.", runClaims.filter((claim) => claim.status === "stale").map((claim) => claim.id), "Run `awg coord release <coordination-id> --status abandoned --summary \"...\"`.");
+  const otherRunClaims = (graph.coordination_index?.claims ?? []).filter((claim) => claim.status === "active" && claim.runId !== run.id && claim.mode === "exclusive" && claim.nodeIds.some((id) => touched.includes(id)));
+  addNodeWarning("AWG_RUN_COORDINATION_OTHER_RUN_CLAIM_TOUCHED", "Touched node is claimed by another active run.", otherRunClaims.flatMap((claim) => claim.nodeIds.filter((id) => touched.includes(id))), "Run `awg coord check --target <node-id> --json`.");
   if (touched.length) {
     for (const item of filterInboxItems(graph.maintenance_inbox, { nodeIds: touched, limit: 8 }).filter((item) => item.priority >= 70)) {
       warnings.push({ code: "AWG_RUN_INBOX_ITEM_TOUCHED", severity: "warning", message: item.message, nodeIds: item.nodeIds, suggestedFix: item.suggestedCommands[0] ?? "Run `awg inbox --json`." });

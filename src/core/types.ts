@@ -420,6 +420,7 @@ export interface WorkQueueItem {
   severity: WorkQueueSeverity;
   priority: number;
   sourceKind: WorkQueueSourceKind;
+  sourceCode?: string;
   sourceIds: string[];
   nodeIds: string[];
   edgeIds: string[];
@@ -435,10 +436,92 @@ export interface WorkQueueItem {
   needsHumanReview: boolean;
   blocked: boolean;
   blockedByNodeIds: string[];
+  coordination?: WorkQueueCoordinationState;
   reviewAfter?: string;
   updatedAt: string;
   createdAt: string;
   [key: string]: unknown;
+}
+
+export type CoordinationMode = "exclusive" | "shared" | "watch";
+export type CoordinationClaimStatus = "active" | "released" | "completed" | "abandoned" | "blocked" | "stale";
+
+export interface WorkQueueCoordinationState {
+  activeClaimIds: string[];
+  staleClaimIds: string[];
+  collisionIds: string[];
+  handoffIds: string[];
+  claimedByOtherActiveRun: boolean;
+  claimedByCurrentRun: boolean;
+}
+
+export interface CoordinationClaimRecord {
+  id: string;
+  status: CoordinationClaimStatus;
+  mode: CoordinationMode;
+  agent?: string;
+  runId?: string;
+  targetKind: string;
+  targetIds: string[];
+  queueItemId?: string;
+  nodeIds: string[];
+  runIds: string[];
+  claimIds: string[];
+  evidenceIds: string[];
+  vaultIds: string[];
+  relationshipIds: string[];
+  summary?: string;
+  reason?: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt?: string;
+  releasedAt?: string;
+  releaseStatus?: string;
+  handoffIds: string[];
+  collisionIds: string[];
+  suggestedCommands: string[];
+}
+
+export interface CoordinationCollisionRecord {
+  id: string;
+  claimIds: string[];
+  nodeIds: string[];
+  queueItemIds: string[];
+  runIds: string[];
+  agents: string[];
+  severity: "warning";
+  message: string;
+  acknowledged: boolean;
+  acknowledgedByRunId?: string;
+  suggestedCommands: string[];
+}
+
+export interface CoordinationHandoffRecord {
+  id: string;
+  coordinationId: string;
+  runId?: string;
+  toAgent?: string;
+  toRole?: string;
+  summary: string;
+  targetIds: string[];
+  at: string;
+}
+
+export interface CoordinationIndex {
+  awg: string;
+  kind: "coordination-index";
+  generated_at: string;
+  claims: CoordinationClaimRecord[];
+  collisions: CoordinationCollisionRecord[];
+  handoffs: CoordinationHandoffRecord[];
+  summary: {
+    activeClaims: number;
+    staleClaims: number;
+    collisions: number;
+    handoffs: number;
+    claimedQueueItems: number;
+    claimedNodes: number;
+  };
 }
 
 export interface WorkQueueIndex {
@@ -488,6 +571,7 @@ export interface CompiledGraph {
   claim_index?: ClaimIndex;
   evidence_index?: EvidenceIndex;
   work_queue_index?: WorkQueueIndex;
+  coordination_index?: CoordinationIndex;
 }
 
 export interface LensIndexEntry {

@@ -11,6 +11,7 @@ The AWG viewer is a generated static surface for humans reviewing compiled proje
 - `#/node/<encoded-node-id>` is the canonical human inspection surface for a single node.
 - `#/health` is for trust, diagnostics, and graph hygiene.
 - `#/queues` is the V2.3 read-only work queue surface for next, autonomous-safe, human-review, blocked, evidence-needed, maintenance, stale-review, risk-review, and handoff-followup items.
+- `#/coordination` is the V2.4 read-only coordination surface for active work claims, stale claims, collisions, coordination handoffs, claimed queue items, and suggested next commands.
 - `#/views` lists compiled/generated views and authored view manifests. `#/views/<encoded-view-id>` renders one view with safe fallbacks.
 - `#/settings` stores local UI preferences such as theme, density, and default graph depth.
 

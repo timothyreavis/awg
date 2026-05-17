@@ -141,7 +141,8 @@ test("init creates expected files", () => {
   assert.ok(agents.includes("--auto-handoff"));
   assert.ok(agents.includes("awg node show <node-id> --json"));
   assert.ok(agents.includes("awg queue next --json"));
-  assert.ok(agents.includes("do not claim, reserve, lock, assign"));
+  assert.ok(agents.includes("awg coord status --json"));
+  assert.ok(agents.includes("never treat coordination as a hard lock"));
   assert.ok(claude.includes("Follow the project instructions in `AGENTS.md`"));
   assert.ok(claude.includes("awg doctor --fix-suggestions --json"));
   assert.ok(claude.includes("--auto-handoff"));
@@ -1392,6 +1393,141 @@ test("release notes, relations, evidence help, and generated instructions expose
   assert.ok(agents.includes("awg release current"));
   assert.ok(agents.includes("Capture the consequence, not the conversation"));
   assert.ok(agents.includes("awg quick note|task|risk|question|decision"));
+});
+
+test("coordination claims derive collisions and steer queue/run/lens surfaces", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  run(cwd, ["add", "node", "--id", "n:coord-a", "--type", "task", "--title", "Coord A", "--summary", "First coordination task.", "--status", "active", "--no-run"]);
+  run(cwd, ["add", "node", "--id", "n:coord-b", "--type", "task", "--title", "Coord B", "--summary", "Second coordination task.", "--status", "active", "--no-run"]);
+  run(cwd, ["add", "node", "--id", "n:coord-c", "--type", "task", "--title", "Coord C", "--summary", "Unattributed coordination task.", "--status", "active", "--no-run"]);
+  run(cwd, ["add", "node", "--id", "n:coord-unrelated", "--type", "task", "--title", "Coord Unrelated", "--summary", "Unrelated coordination task.", "--status", "active", "--no-run"]);
+  const runA = JSON.parse(run(cwd, ["run", "start", "--goal", "Run A", "--agent", "codex-a", "--json"]));
+  const claimA = JSON.parse(run(cwd, ["coord", "claim", "n:coord-a", "--summary", "Working A", "--json"]));
+  assert.equal(claimA.claim.status, "active");
+  const statusA = JSON.parse(run(cwd, ["coord", "status", "--json"]));
+  assert.equal(statusA.coordination.summary.activeClaims, 1);
+  const missingRelease = JSON.parse(runFail(cwd, ["coord", "release", "coord:notfound", "--status", "released", "--json"]));
+  assert.equal(missingRelease.ok, false);
+  assert.equal(missingRelease.code, "AWG_COORDINATION_CLAIM_NOT_FOUND");
+  const runB = JSON.parse(run(cwd, ["run", "start", "--goal", "Run B", "--agent", "codex-b", "--force", "--json"]));
+  assert.notEqual(runA.runId, runB.runId);
+  const next = JSON.parse(run(cwd, ["queue", "next", "--json"]));
+  assert.equal(JSON.stringify(next.items).includes("n:coord-a"), false);
+  const included = JSON.parse(run(cwd, ["queue", "next", "--include-claimed", "--json"]));
+  assert.equal(JSON.stringify(included.items).includes("n:coord-a"), true);
+  const unattributed = JSON.parse(run(cwd, ["coord", "claim", "n:coord-c", "--no-run", "--summary", "Unattributed exclusive", "--json"]));
+  assert.ok(unattributed.warnings.some((warning: { code: string }) => warning.code === "AWG_COORDINATION_UNATTRIBUTED_CLAIM"));
+  const nextAfterUnattributed = JSON.parse(run(cwd, ["queue", "next", "--json"]));
+  assert.equal(JSON.stringify(nextAfterUnattributed.items).includes("n:coord-c"), true);
+  const check = JSON.parse(run(cwd, ["coord", "check", "--target", "n:coord-a", "--json"]));
+  assert.equal(check.available, false);
+  assert.ok(check.warnings.some((warning: { code: string }) => warning.code === "AWG_COORDINATION_ACTIVE_CLAIM"));
+  run(cwd, ["coord", "claim", "n:coord-b", "--mode", "shared", "--summary", "Shared one", "--json"]);
+  run(cwd, ["coord", "claim", "n:coord-b", "--mode", "shared", "--summary", "Shared two", "--json"]);
+  assert.equal(JSON.parse(run(cwd, ["coord", "status", "--json"])).coordination.summary.collisions, 0);
+  const mine = JSON.parse(run(cwd, ["queue", "next", "--mine", "--json"]));
+  assert.equal(JSON.stringify(mine.items).includes("n:coord-b"), true);
+  run(cwd, ["coord", "claim", "n:coord-a", "--mode", "exclusive", "--summary", "Overlap", "--json"]);
+  const collided = JSON.parse(run(cwd, ["coord", "status", "--json"]));
+  assert.equal(collided.coordination.summary.collisions, 1);
+  const collisionQueues = JSON.parse(run(cwd, ["queue", "list", "--json"]));
+  assert.ok(collisionQueues.items.some((item: { sourceCode?: string; queue: string }) => item.sourceCode === "coordination_collision" && item.queue === "human_review"));
+  assert.ok(collisionQueues.items.some((item: { sourceCode?: string; queue: string }) => item.sourceCode === "coordination_collision" && item.queue === "risk_review"));
+  const queueItem = JSON.parse(run(cwd, ["queue", "next", "--include-claimed", "--json"])).items.find((item: { nodeIds: string[] }) => item.nodeIds.includes("n:coord-a"));
+  const shown = JSON.parse(run(cwd, ["queue", "show", queueItem.id, "--json"]));
+  assert.ok(shown.coordinationClaims.length >= 1);
+  run(cwd, ["coord", "claim", queueItem.id, "--mode", "exclusive", "--summary", "Queue item overlap", "--json"]);
+  const queueClaimCheck = JSON.parse(run(cwd, ["coord", "check", "--target", "n:coord-a", "--json"]));
+  assert.equal(queueClaimCheck.available, false);
+  assert.ok(queueClaimCheck.claims.some((claim: { targetIds: string[] }) => claim.targetIds.includes(queueItem.id)));
+  const lens = JSON.parse(run(cwd, ["lens", "task", "--goal", "Coord A", "--json"]));
+  assert.ok(lens.sections.some((section: { section: string; items: unknown[] }) => section.section === "coordination" && section.items.length));
+  const handoff = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
+  assert.ok(handoff.sections.some((section: { section: string; items: unknown[] }) => section.section === "coordination" && section.items.length));
+  const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+  assert.ok(doctor.diagnostics.some((diag: { code: string }) => diag.code === "AWG_COORDINATION_ACTIVE_COLLISION"));
+  assert.ok(doctor.fixSuggestions.some((suggestion: { code: string }) => suggestion.code === "AWG_COORDINATION_REVIEW_COLLISION"));
+  const queueJsonMissing = JSON.parse(runFail(cwd, ["queue", "show", "wq:notfound", "--json"]));
+  assert.equal(queueJsonMissing.ok, false);
+  assert.equal(queueJsonMissing.code, "AWG_QUEUE_ITEM_NOT_FOUND");
+  const handoffMissing = JSON.parse(runFail(cwd, ["coord", "handoff", "coord:notfound", "--summary", "No claim", "--json"]));
+  assert.equal(handoffMissing.ok, false);
+  assert.equal(handoffMissing.code, "AWG_COORDINATION_CLAIM_NOT_FOUND");
+  run(cwd, ["coord", "release", claimA.coordinationId, "--status", "released", "--summary", "Done", "--json"]);
+  const released = JSON.parse(run(cwd, ["coord", "status", "--json"]));
+  assert.ok(released.coordination.claims.some((claim: { id: string; status: string }) => claim.id === claimA.coordinationId && claim.status === "released"));
+});
+
+test("coordination accepts documented created_at events and avoids finished-run warning for ttl-only stale active claims", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const logDir = path.join(cwd, ".awg/log/2026/05");
+  mkdirSync(logDir, { recursive: true });
+  const log = path.join(logDir, "2026-05-17.awg.jsonl");
+  writeFileSync(log, [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:created-at-target", type: "task", title: "Created At Target", summary: "Target for created_at coordination.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-05-17T00:00:00.000Z", updated_at: "2026-05-17T00:00:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:run-active:start", type: "run_started", target: "run:active-created-at", by: "agent:codex", at: "2026-05-17T00:00:00.000Z", goal: "Active created_at run" }),
+    JSON.stringify({ awg: "0.1", kind: "event", type: "coordination.claimed", coordinationId: "coord:createdat0001", runId: "run:active-created-at", agent: "codex", targetKind: "node", targetIds: ["n:created-at-target"], mode: "exclusive", summary: "Created_at claim", expires_at: "2026-05-17T00:30:00.000Z", created_at: "2026-05-17T00:10:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:advance-time", type: "run_note", target: "run:active-created-at", run: "run:active-created-at", by: "agent:codex", at: "2026-05-17T01:00:00.000Z", summary: "Advance graph time." })
+  ].join("\n") + "\n");
+  const graph = JSON.parse(run(cwd, ["build", "--json"]));
+  assert.equal(graph.fatal_error_count, 0);
+  const status = JSON.parse(run(cwd, ["coord", "status", "--json"]));
+  assert.ok(status.coordination.claims.some((claim: { id: string; status: string }) => claim.id === "coord:createdat0001" && claim.status === "stale"));
+  const doctor = JSON.parse(run(cwd, ["doctor", "--json"]));
+  assert.ok(doctor.diagnostics.some((diag: { code: string; id?: string }) => diag.code === "AWG_COORDINATION_STALE_CLAIM" && diag.id === "coord:createdat0001"));
+  assert.equal(doctor.diagnostics.some((diag: { code: string; id?: string }) => diag.code === "AWG_COORDINATION_FINISHED_RUN_UNRELEASED_CLAIM" && diag.id === "coord:createdat0001"), false);
+  const queue = JSON.parse(run(cwd, ["queue", "list", "--json"]));
+  assert.ok(queue.items.some((item: { sourceCode?: string; queue: string }) => item.sourceCode === "coordination_stale_claim" && item.queue === "handoff_followup"));
+  assert.ok(queue.items.some((item: { sourceCode?: string; queue: string }) => item.sourceCode === "coordination_stale_claim" && item.queue === "maintenance"));
+});
+
+test("coordination ttl expires on live read even without later log writes", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const logDir = path.join(cwd, ".awg/log/2000/01");
+  mkdirSync(logDir, { recursive: true });
+  writeFileSync(path.join(logDir, "2000-01-01.awg.jsonl"), [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:quiet-ttl-target", type: "task", title: "Quiet TTL Target", summary: "Target for quiet TTL expiry.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2000-01-01T00:00:00.000Z", updated_at: "2000-01-01T00:00:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:quiet-ttl-claim", type: "coordination.claimed", coordinationId: "coord:quietttl0001", runId: "run:quiet-ttl", agent: "codex", targetKind: "node", targetIds: ["n:quiet-ttl-target"], mode: "exclusive", summary: "Quiet TTL claim", expires_at: "2000-01-01T01:00:00.000Z", at: "2000-01-01T00:00:00.000Z" })
+  ].join("\n") + "\n");
+  const status = JSON.parse(run(cwd, ["coord", "status", "--json"]));
+  assert.ok(status.coordination.claims.some((claim: { id: string; status: string }) => claim.id === "coord:quietttl0001" && claim.status === "stale"));
+  const next = JSON.parse(run(cwd, ["queue", "next", "--json"]));
+  assert.equal(JSON.stringify(next.items).includes("n:quiet-ttl-target"), true);
+});
+
+test("coordination diagnoses raw handoffs that reference missing claims", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const logDir = path.join(cwd, ".awg/log/2026/05");
+  mkdirSync(logDir, { recursive: true });
+  writeFileSync(path.join(logDir, "2026-05-19.awg.jsonl"), [
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:orphan-coord-handoff", type: "coordination.handoff", target: "coord:notfound", coordinationId: "coord:notfound", by: "agent:codex", at: "2026-05-19T00:00:00.000Z", summary: "Orphan handoff" })
+  ].join("\n") + "\n");
+  const doctor = JSON.parse(run(cwd, ["doctor", "--json"]));
+  assert.ok(doctor.diagnostics.some((diag: { code: string; id?: string }) => diag.code === "AWG_COORDINATION_HANDOFF_MISSING_CLAIM" && diag.id === "ev:orphan-coord-handoff"));
+});
+
+test("coordination handoff scopes active claims to the current run", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const logDir = path.join(cwd, ".awg/log/2026/05");
+  mkdirSync(logDir, { recursive: true });
+  const log = path.join(logDir, "2026-05-18.awg.jsonl");
+  writeFileSync(log, [
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:current-run-task", type: "task", title: "Current Run Task", summary: "Current.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-05-18T00:00:00.000Z", updated_at: "2026-05-18T00:00:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "node", id: "n:other-run-task", type: "task", title: "Other Run Task", summary: "Other.", status: "active", importance: 0.5, confidence: 0.8, created_at: "2026-05-18T00:00:00.000Z", updated_at: "2026-05-18T00:00:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:run-a:start", type: "run_started", target: "run:a-current", by: "agent:codex", at: "2026-05-18T00:01:00.000Z", goal: "Current run" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:run-z:start", type: "run_started", target: "run:z-other", by: "agent:codex", at: "2026-05-18T00:02:00.000Z", goal: "Other run" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:coord-current", type: "coordination.claimed", coordinationId: "coord:current0001", runId: "run:a-current", agent: "codex", targetKind: "node", targetIds: ["n:current-run-task"], mode: "exclusive", summary: "Current claim", at: "2026-05-18T00:03:00.000Z" }),
+    JSON.stringify({ awg: "0.1", kind: "event", id: "ev:coord-other", type: "coordination.claimed", coordinationId: "coord:other0001", runId: "run:z-other", agent: "codex", targetKind: "node", targetIds: ["n:other-run-task"], mode: "exclusive", summary: "Other claim", at: "2026-05-18T00:04:00.000Z" })
+  ].join("\n") + "\n");
+  const handoff = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
+  const coordination = JSON.stringify(handoff.sections.find((section: { section: string }) => section.section === "coordination")?.items ?? []);
+  assert.ok(["run:a-current", "run:z-other"].includes(handoff.run.id));
+  assert.notEqual(coordination.includes("Current claim"), coordination.includes("Other claim"));
 });
 
 test("quick capture commands create normal nodes, optional edges, and run attribution", () => {

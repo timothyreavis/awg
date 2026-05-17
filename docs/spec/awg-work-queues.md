@@ -227,7 +227,7 @@ When uncertain, set `autonomousSafe: false` and `needsHumanReview: true`.
 V2.3 must add:
 
 - `awg queue list [--queue <queue-id>] [--limit <n>] [--autonomous] [--human-review] [--json]`
-- `awg queue next [--goal "<goal>"] [--queue <queue-id>] [--limit <n>] [--autonomous] [--include-human-review] [--json]`
+- `awg queue next [--goal "<goal>"] [--queue <queue-id>] [--limit <n>] [--autonomous] [--include-human-review] [--include-claimed] [--mine] [--json]`
 - `awg queue show <work-queue-item-id> [--json]`
 
 `awg queue list` returns grouped queue output. In JSON:
@@ -242,7 +242,7 @@ V2.3 must add:
 }
 ```
 
-`awg queue next` returns a flattened ranked list. By default it excludes `needsHumanReview: true` items; use `--include-human-review` to include them. `--goal` filters by deterministic text matching over item title, summary, reasons, queue id, node ids, source ids, and related node title/summary. It must not call embeddings or semantic search.
+`awg queue next` returns a flattened ranked list. By default it excludes `needsHumanReview: true` items and V2.4 other-run active exclusive coordination claims; use `--include-human-review` or `--include-claimed` to include them, and `--mine` to focus on work claimed by the current run. `--goal` filters by deterministic text matching over item title, summary, reasons, queue id, node ids, source ids, and related node title/summary. It must not call embeddings or semantic search.
 
 `awg queue show` returns:
 
@@ -255,7 +255,10 @@ V2.3 must add:
   "inboxItems": [],
   "diagnostics": [],
   "claims": [],
-  "evidence": []
+  "evidence": [],
+  "coordinationClaims": [],
+  "coordinationCollisions": [],
+  "coordinationHandoffs": []
 }
 ```
 
@@ -329,13 +332,13 @@ It should link to node detail, run detail where available, inbox item detail whe
 
 Generated instructions should teach agents:
 
-- Run `awg queue next --json` after `handoff`, `template status`, and task lens when selecting next work.
+- Run `awg queue next --json` and `awg coord status --json` after `handoff`, `template status`, and task lens when selecting next work.
 - Prefer autonomous-safe queue items only when the user has not directed a specific task.
 - Do not treat queue priority as permission to override the human's explicit request.
-- Use `queue show` before acting when an item has multiple related nodes or evidence requirements.
+- Use `queue show` and `coord check` before acting when an item is claimed, has multiple related nodes, or has evidence requirements.
 - Record evidence after completing queue work.
 - Rebuild and rerun queue commands after substantial graph updates.
-- Do not claim or reserve work in V2.3; V2.4 will handle multi-agent coordination.
+- Use V2.4 coordination as advisory work intent only; do not treat claims as hard locks, assignment, or permission.
 
 ## Tests Required
 

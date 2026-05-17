@@ -1,10 +1,11 @@
 import { buildAwg } from "../../core/compiler.js";
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
+import { nowIso } from "../../util/time.js";
 import type { ParsedArgs } from "../args.js";
 
 export async function doctorCommand(parsed: ParsedArgs): Promise<void> {
   const nonMutatingJsonSuggestions = Boolean(parsed.flags["fix-suggestions"] && parsed.flags.json);
-  const result = await buildAwg(new FileAwgStorage(), { write: !nonMutatingJsonSuggestions });
+  const result = await buildAwg(new FileAwgStorage(), { write: !nonMutatingJsonSuggestions, coordinationAsOf: nowIso() });
   if (result.diagnostics.summary.fatal_error_count > 0) process.exitCode = 1;
   const inboxSuggestions = result.graph.maintenance_inbox?.items.filter((item) => item.suggestedCommands.length).map((item) => ({
     code: item.code,
@@ -59,5 +60,12 @@ function suggestFix(diag: { code: string; id?: string; fixSuggestion?: unknown }
   if (diag.code === "topology_related_vault_not_built") return { code: "AWG_TOPOLOGY_BUILD_RELATED_VAULT", edgeIds: [id], suggestedCommands: ["Run `awg build` inside the related vault, then rerun `awg vault topology --json`."] };
   if (diag.code === "topology_related_vault_compiled_artifact_unsafe" || diag.code === "topology_related_vault_compiled_artifact_invalid") return { code: "AWG_TOPOLOGY_REBUILD_RELATED_VAULT", edgeIds: [id], suggestedCommands: ["Inspect the related vault .awg/compiled artifacts, remove unsafe symlinks if present, then run `awg build` inside that vault."] };
   if (diag.code === "invalid_cross_vault_refs") return { code: "AWG_TOPOLOGY_REVIEW_CROSS_VAULT_REFS", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };
+  if (diag.code.startsWith("AWG_COORDINATION_")) {
+    const inspect = "awg coord status --json";
+    if (diag.code === "AWG_COORDINATION_ACTIVE_COLLISION") return { code: "AWG_COORDINATION_REVIEW_COLLISION", suggestedCommands: [inspect] };
+    if (diag.code === "AWG_COORDINATION_STALE_CLAIM") return { code: "AWG_COORDINATION_RELEASE_STALE_CLAIM", suggestedCommands: [`awg coord release ${id} --status abandoned --summary "..."`, inspect] };
+    if (diag.code === "AWG_COORDINATION_FINISHED_RUN_UNRELEASED_CLAIM") return { code: "AWG_COORDINATION_RELEASE_FINISHED_RUN_CLAIM", suggestedCommands: [`awg coord release ${id} --status released --summary "..."`, inspect] };
+    if (diag.code === "AWG_COORDINATION_MISSING_TARGET" || diag.code === "AWG_COORDINATION_HANDOFF_MISSING_TARGET" || diag.code === "AWG_COORDINATION_INVALID_EVENT") return { code: "AWG_COORDINATION_INSPECT", suggestedCommands: [inspect] };
+  }
   return undefined;
 }

@@ -100,8 +100,12 @@ export const schemas = {
   },
   event: {
     ...base,
-    required: ["awg", "kind", "type", "target", "by", "at"],
-    properties: { ...base.properties, kind: { const: "event" }, type: { type: "string" }, target: { type: "string" }, by: { type: "string" }, at: { type: "string" } }
+    required: ["awg", "kind", "type"],
+    properties: { ...base.properties, kind: { const: "event" }, type: { type: "string" }, target: { type: "string" }, by: { type: "string" }, at: { type: "string" }, created_at: { type: "string" } },
+    anyOf: [
+      { required: ["at"] },
+      { required: ["created_at"] }
+    ]
   },
   view: {
     ...base,

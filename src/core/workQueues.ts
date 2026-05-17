@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { AWG_VERSION } from "./constants.js";
 import { hasEvidenceReference } from "./evidence.js";
-import { buildRuns, type AgentRun } from "./runs.js";
+import { activeRun, buildRuns, type AgentRun } from "./runs.js";
 import type { AwgEdge, AwgNode, ClaimIndexRecord, CompiledGraph, Diagnostic, EvidenceIndexRecord, MaintenanceInboxItem, WorkQueueId, WorkQueueIndex, WorkQueueItem, WorkQueueSeverity, WorkQueueSourceKind } from "./types.js";
 
 export const BUILT_IN_WORK_QUEUES: Array<{ id: WorkQueueId; title: string; description: string }> = [
@@ -54,6 +54,7 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
       severity: input.severity ?? "warning",
       priority,
       sourceKind: input.sourceKind,
+      sourceCode: input.sourceCode,
       sourceIds,
       nodeIds: sorted(input.nodeIds ?? []),
       edgeIds: sorted(input.edgeIds ?? []),
@@ -111,6 +112,7 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
   for (const claim of graph.claim_index?.claims ?? []) addClaimItems(add, claim);
   for (const evidence of graph.evidence_index?.evidence ?? []) addEvidenceItems(add, evidence);
   for (const run of buildRuns(graph)) addRunItems(add, run, graph);
+  addCoordinationItems(add, graph);
   addTopologyItems(add, graph);
 
   const sortedItems = dedupeItems(items).sort(compareWorkQueueItems);
@@ -142,12 +144,15 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
   };
 }
 
-export function filterWorkQueueItems(index: WorkQueueIndex | undefined, options: { queue?: string; limit?: number; autonomous?: boolean; humanReview?: boolean; includeHumanReview?: boolean; goal?: string; graph?: CompiledGraph } = {}): WorkQueueItem[] {
+export function filterWorkQueueItems(index: WorkQueueIndex | undefined, options: { queue?: string; limit?: number; autonomous?: boolean; humanReview?: boolean; includeHumanReview?: boolean; includeClaimed?: boolean; mine?: boolean; goal?: string; graph?: CompiledGraph } = {}): WorkQueueItem[] {
   let items = index?.items ?? [];
+  const currentRunId = options.graph ? activeRun(buildRuns(options.graph))?.id : undefined;
   if (options.queue) items = items.filter((item) => item.queue === options.queue);
   if (options.autonomous) items = items.filter((item) => item.autonomousSafe);
   if (options.humanReview) items = items.filter((item) => item.needsHumanReview);
   if (options.includeHumanReview === false) items = items.filter((item) => !item.needsHumanReview);
+  if (options.mine) items = items.filter((item) => Boolean(item.coordination?.claimedByCurrentRun));
+  else if (!options.includeClaimed) items = items.filter((item) => !item.coordination?.claimedByOtherActiveRun);
   if (options.goal) items = items.filter((item) => itemMatchesGoal(item, options.goal ?? "", options.graph));
   return items.slice(0, Math.max(0, options.limit ?? items.length));
 }
@@ -271,6 +276,57 @@ function addRunItems(add: (queue: WorkQueueId, input: QueueInput) => void, run: 
   if (run.status === "completed" && !run.evidence.length && !run.changed_nodes.length) {
     add("handoff_followup", runInput(run, 74, "warning", "Completed run has no evidence or changed nodes", ["run finished completed without durable changes"]));
     add("maintenance", runInput(run, 74, "warning", "Completed run has no evidence or changed nodes", ["run finished completed without durable changes"]));
+  }
+}
+
+function addCoordinationItems(add: (queue: WorkQueueId, input: QueueInput) => void, graph: CompiledGraph): void {
+  for (const claim of graph.coordination_index?.claims ?? []) {
+    if (claim.status !== "stale") continue;
+    const input: QueueInput = {
+      title: `Stale coordination claim: ${claim.summary ?? claim.id}`,
+      summary: claim.reason ?? claim.summary ?? claim.id,
+      severity: "warning",
+      priority: 82,
+      sourceKind: "run",
+      sourceCode: "coordination_stale_claim",
+      sourceIds: [claim.id],
+      nodeIds: claim.nodeIds,
+      runIds: claim.runIds,
+      claimIds: claim.claimIds,
+      evidenceIds: claim.evidenceIds,
+      vaultIds: claim.vaultIds,
+      relationshipIds: claim.relationshipIds,
+      reasons: ["coordination claim is stale or owned by a finished run"],
+      suggestedCommands: [`awg coord release ${claim.id} --status abandoned --summary "..."`, "awg coord status --json"],
+      autonomousSafe: false,
+      needsHumanReview: true
+    };
+    add("handoff_followup", input);
+    add("maintenance", input);
+  }
+  for (const collision of graph.coordination_index?.collisions ?? []) {
+    const claims = (graph.coordination_index?.claims ?? []).filter((claim) => collision.claimIds.includes(claim.id));
+    const input: QueueInput = {
+      title: collision.message,
+      summary: collision.message,
+      severity: "warning",
+      priority: 90,
+      sourceKind: "run",
+      sourceCode: "coordination_collision",
+      sourceIds: [collision.id, ...collision.claimIds],
+      nodeIds: sorted([...collision.nodeIds, ...claims.flatMap((claim) => claim.nodeIds)]),
+      runIds: collision.runIds,
+      claimIds: claims.flatMap((claim) => claim.claimIds),
+      evidenceIds: claims.flatMap((claim) => claim.evidenceIds),
+      vaultIds: claims.flatMap((claim) => claim.vaultIds),
+      relationshipIds: claims.flatMap((claim) => claim.relationshipIds),
+      reasons: ["active coordination claims overlap"],
+      suggestedCommands: collision.suggestedCommands,
+      autonomousSafe: false,
+      needsHumanReview: true
+    };
+    add("human_review", input);
+    add("risk_review", input);
   }
 }
 

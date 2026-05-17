@@ -233,9 +233,11 @@ const byId = new Map(graph.nodes.map((node) => [node.id, node]));
 const diagnosticsByNode = groupDiagnostics(diagnostics.diagnostics || []);
 const topology = graph.topology || data.topology || { directNeighbors: [], relationships: [], diagnostics: [] };
 const workQueues = graph.work_queue_index || { queues: [], items: [], summary: { total: 0, byQueue: {}, bySeverity: {}, autonomousSafe: 0, needsHumanReview: 0, blocked: 0, highPriority: 0 } };
+const coordination = graph.coordination_index || { claims: [], collisions: [], handoffs: [], summary: { activeClaims: 0, staleClaims: 0, collisions: 0, handoffs: 0, claimedQueueItems: 0, claimedNodes: 0 } };
 const routes = [
   ["overview", "Overview"],
   ["queues", "Queues"],
+  ["coordination", "Coordination"],
   ["topology", "Topology"],
   ["maintenance", "Maintenance"],
   ["graph", "Graph"],
@@ -314,6 +316,7 @@ function renderRoute() {
   routeTitle.textContent = title;
   if (parsed.route === "overview") root.innerHTML = renderOverview();
   else if (parsed.route === "queues") root.innerHTML = renderQueuesRoute(parsed.params);
+  else if (parsed.route === "coordination") root.innerHTML = renderCoordinationRoute();
   else if (parsed.route === "graph") root.innerHTML = renderGraphRoute(parsed.params);
   else if (parsed.route === "kanban") root.innerHTML = renderKanbanRoute(parsed.params);
   else if (parsed.route === "nodes") root.innerHTML = renderNodesRoute(parsed.params);
@@ -352,6 +355,7 @@ function renderTopSummary() {
   const healthLabel = (s.fatal_error_count || 0) > 0 ? "Errors" : (s.warning_count || 0) > 0 ? "Warnings" : "Health";
   return [
     metric("Queue Items", (workQueues.summary || {}).total || 0, "#/queues"),
+    metric("Claims", (coordination.summary || {}).activeClaims || 0, "#/coordination"),
     metric("Needs Attention", needsAttention, needsAttention ? "#/nodes?needsAttention=true" : "#/health"),
     metric("Active Work", activeWork, "#/kanban"),
     metric("Open Decisions", openDecisions, "#/nodes?type=decision&open=true"),
@@ -385,10 +389,32 @@ function renderQueueItemCard(item) {
   const inbox = (item.inboxItemIds || []).slice(0, 6).map((id) => '<a class="badge type" href="#/maintenance">' + esc(id) + '</a>').join(" ");
   const claims = (item.claimIds || []).slice(0, 6).map((id) => byId.has(id) ? nodeLink(id) : '<code>' + esc(id) + '</code>').join(" ");
   const evidence = (item.evidenceIds || []).slice(0, 6).map((id) => byId.has(id) ? nodeLink(id) : '<code>' + esc(id) + '</code>').join(" ");
-  const links = [nodes && '<h3>Nodes</h3><div class="chip-row">' + nodes + '</div>', runs && '<h3>Runs</h3><div class="chip-row">' + runs + '</div>', inbox && '<h3>Inbox</h3><div class="chip-row">' + inbox + '</div>', claims && '<h3>Claims</h3><div class="chip-row">' + claims + '</div>', evidence && '<h3>Evidence</h3><div class="chip-row">' + evidence + '</div>'].filter(Boolean).join("");
+  const coordinationLinks = item.coordination && (item.coordination.activeClaimIds || []).length ? '<h3>Coordination</h3><div class="chip-row">' + item.coordination.activeClaimIds.slice(0, 6).map((id) => '<a class="badge status" href="#/coordination">' + esc(id) + '</a>').join(" ") + '</div>' : "";
+  const links = [nodes && '<h3>Nodes</h3><div class="chip-row">' + nodes + '</div>', runs && '<h3>Runs</h3><div class="chip-row">' + runs + '</div>', inbox && '<h3>Inbox</h3><div class="chip-row">' + inbox + '</div>', claims && '<h3>Claims</h3><div class="chip-row">' + claims + '</div>', evidence && '<h3>Evidence</h3><div class="chip-row">' + evidence + '</div>', coordinationLinks].filter(Boolean).join("");
   const commands = (item.suggestedCommands || []).length ? '<h3>Suggested commands</h3><ul>' + item.suggestedCommands.slice(0, 3).map((command) => '<li><code>' + esc(command) + '</code></li>').join("") + '</ul>' : "";
   const reasons = (item.reasons || []).length ? '<h3>Reasons</h3><ul>' + item.reasons.slice(0, 4).map((reason) => '<li>' + esc(reason) + '</li>').join("") + '</ul>' : "";
   return '<article class="node-card severity-' + esc(item.severity || "info") + '"><div class="chip-row">' + badge(item.queue || "queue", "type") + badge(item.severity || "info", "severity") + (item.autonomousSafe ? badge("autonomous", "status") : "") + (item.needsHumanReview ? badge("human review", "status") : "") + '<code>' + esc(item.id || "") + '</code></div><h2>' + esc(item.title || item.summary || "Queue item") + '</h2><p>' + esc(item.summary || "") + '</p><p class="muted">priority ' + esc(String(item.priority || 0)) + '</p>' + links + reasons + commands + '</article>';
+}
+
+function renderCoordinationRoute() {
+  const stats = [
+    metric("Active Claims", (coordination.summary || {}).activeClaims || 0, "#/coordination"),
+    metric("Stale Claims", (coordination.summary || {}).staleClaims || 0, "#/coordination"),
+    metric("Collisions", (coordination.summary || {}).collisions || 0, "#/coordination"),
+    metric("Handoffs", (coordination.summary || {}).handoffs || 0, "#/coordination"),
+    metric("Claimed Nodes", (coordination.summary || {}).claimedNodes || 0, "#/coordination")
+  ].join("");
+  const claims = (coordination.claims || []).length ? '<section class="panel span-2"><h2>Claims</h2><div class="card-list">' + coordination.claims.map(renderCoordinationClaim).join("") + '</div></section>' : '<section class="panel"><h2>No coordination claims</h2><p class="muted">Claims are advisory and append-only.</p></section>';
+  const collisions = (coordination.collisions || []).length ? '<section class="panel"><h2>Collisions</h2>' + coordination.collisions.map((item) => '<article class="node-card severity-warning"><div class="chip-row">' + badge(item.severity || "warning", "severity") + '<code>' + esc(item.id) + '</code></div><p>' + esc(item.message || "") + '</p><div class="chip-row">' + (item.claimIds || []).map((id) => '<span class="badge status">' + esc(id) + '</span>').join("") + '</div></article>').join("") + '</section>' : "";
+  const handoffs = (coordination.handoffs || []).length ? '<section class="panel"><h2>Handoffs</h2>' + coordination.handoffs.map((item) => '<article class="node-card"><div class="chip-row"><code>' + esc(item.id) + '</code>' + badge(item.toRole || item.toAgent || "handoff", "type") + '</div><p>' + esc(item.summary || "") + '</p></article>').join("") + '</section>' : "";
+  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body surface-grid">' + claims + collisions + handoffs + '</div></section>';
+}
+
+function renderCoordinationClaim(claim) {
+  const targets = (claim.nodeIds || claim.targetIds || []).slice(0, 8).map((id) => byId.has(id) ? nodeLink(id) : '<code>' + esc(id) + '</code>').join(" ");
+  const collisions = (claim.collisionIds || []).length ? '<p class="muted">collisions: ' + claim.collisionIds.map((id) => '<code>' + esc(id) + '</code>').join(" ") + '</p>' : "";
+  const commands = (claim.suggestedCommands || []).length ? '<h3>Suggested commands</h3><ul>' + claim.suggestedCommands.slice(0, 3).map((command) => '<li><code>' + esc(command) + '</code></li>').join("") + '</ul>' : "";
+  return '<article class="node-card"><div class="chip-row">' + badge(claim.status || "active", "status") + badge(claim.mode || "exclusive", "type") + '<code>' + esc(claim.id || "") + '</code></div><h2>' + esc(claim.summary || claim.id || "Coordination claim") + '</h2><p>' + esc(claim.reason || "") + '</p>' + (targets ? '<h3>Targets</h3><div class="chip-row">' + targets + '</div>' : "") + (claim.runId ? '<p class="muted">run: <code>' + esc(claim.runId) + '</code></p>' : "") + collisions + commands + '</article>';
 }
 
 function renderOverview() {
@@ -583,7 +609,9 @@ function renderNodeDetail(id) {
   const nodeDiagnostics = diagnosticsByNode.get(id) || [];
   const evidenceCount = Array.isArray(node.evidence) ? node.evidence.length : 0;
   const nodeEvents = (graph.events || []).filter((event) => event.target === id);
+  const nodeCoordination = (coordination.claims || []).filter((claim) => (claim.nodeIds || []).includes(id) || (claim.targetIds || []).includes(id));
   const sections = [
+    nodeCoordination.length ? nodeSection("Coordination", nodeCoordination.map(renderCoordinationClaim).join("")) : "",
     Array.isArray(node.fields?.crossVaultRefs) ? nodeSection("Cross-Vault References", renderKeyValueTable({ crossVaultRefs: node.fields.crossVaultRefs })) : "",
     nodeDiagnostics.length ? nodeSection("Health", renderDiagnostics(nodeDiagnostics)) : "",
     Array.isArray(node.blocks) && node.blocks.length ? nodeSection("Structured View", node.blocks.map(renderNodeAuthoredBlock).join("")) : "",

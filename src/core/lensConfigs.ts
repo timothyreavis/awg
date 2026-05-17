@@ -10,7 +10,7 @@ import type { AwgEdge, AwgLens, AwgLensSection, AwgNode, CompiledGraph, Diagnost
 export const LENS_STATUSES = ["active", "proposed", "needs_review", "archived"] as const;
 export const LENS_SCOPES = ["vault", "project", "workflow"] as const;
 export const LENS_AUDIENCES = ["agent", "human", "reviewer"] as const;
-export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "workQueues", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
+export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "workQueues", "coordination", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
 
 const SOURCE_SET = new Set<string>(LENS_SECTION_SOURCES);
 const MAX_SECTION_DATA_BYTES = 50_000;
@@ -145,6 +145,8 @@ function executeSection(graph: CompiledGraph, lens: AwgLens, section: AwgLensSec
         if (query?.runIds && !item.runIds.some((id) => stringArray(query.runIds).includes(id))) return false;
         return true;
       }).slice(0, limit);
+    case "coordination":
+      return filterCoordination(graph, query).slice(0, limit);
     case "diagnostics":
       return graph.diagnostics.diagnostics.filter((diag) => matchesRecord(diag as unknown as Record<string, unknown>, query)).slice(0, limit);
     case "templateContext":
@@ -178,8 +180,25 @@ function validateSection(lensId: string, section: AwgLensSection, index: number,
 }
 
 function invalidQueryKeys(query: Record<string, unknown>): string[] {
-  const allowed = new Set(["text", "q", "id", "ids", "type", "types", "status", "statuses", "tag", "tags", "rel", "from", "to", "severity", "code", "kind", "limit", "sortBy", "verificationStatus", "claimKind", "sourceOfTruth", "needsAttention", "nodeIds", "queue", "queues", "autonomousSafe", "needsHumanReview", "blocked", "minPriority", "runIds", "goal"]);
+  const allowed = new Set(["text", "q", "id", "ids", "type", "types", "status", "statuses", "tag", "tags", "rel", "from", "to", "severity", "code", "kind", "limit", "sortBy", "verificationStatus", "claimKind", "sourceOfTruth", "needsAttention", "nodeIds", "targetId", "targetIds", "queue", "queues", "queueItemId", "autonomousSafe", "needsHumanReview", "blocked", "minPriority", "runIds", "runId", "agent", "mode", "hasCollision", "stale", "goal"]);
   return Object.keys(query).filter((key) => !allowed.has(key));
+}
+
+function filterCoordination(graph: CompiledGraph, query: Record<string, unknown> | undefined): unknown[] {
+  const claims = graph.coordination_index?.claims ?? [];
+  return claims.filter((claim) => {
+    if (query?.status && claim.status !== String(query.status)) return false;
+    if (query?.mode && claim.mode !== String(query.mode)) return false;
+    if (query?.agent && claim.agent !== String(query.agent)) return false;
+    if (query?.runId && claim.runId !== String(query.runId)) return false;
+    if (query?.queueItemId && claim.queueItemId !== String(query.queueItemId)) return false;
+    const targetIds = [...stringArray(query?.targetIds), ...stringArray(query?.nodeIds)];
+    if (typeof query?.targetId === "string") targetIds.push(query.targetId);
+    if (targetIds.length && !targetIds.some((id) => claim.targetIds.includes(id) || claim.nodeIds.includes(id))) return false;
+    if (query?.hasCollision !== undefined && Boolean(claim.collisionIds.length) !== (query.hasCollision === true || query.hasCollision === "true")) return false;
+    if (query?.stale !== undefined && (claim.status === "stale") !== (query.stale === true || query.stale === "true")) return false;
+    return true;
+  });
 }
 
 function filterClaims(graph: CompiledGraph, query: Record<string, unknown> | undefined, section: AwgLensSection): unknown[] {

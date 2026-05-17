@@ -2,13 +2,14 @@ import { buildAwg } from "../../core/compiler.js";
 import { BUILT_IN_WORK_QUEUES, filterWorkQueueItems } from "../../core/workQueues.js";
 import type { WorkQueueItem } from "../../core/types.js";
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
+import { nowIso } from "../../util/time.js";
 import { str, type ParsedArgs } from "../args.js";
 import { printJson } from "../format.js";
 
 export async function queueCommand(parsed: ParsedArgs): Promise<void> {
   const [, sub] = parsed.positionals;
   if (!sub || !["list", "next", "show"].includes(sub)) throw new Error("Usage: awg queue list|next|show ...");
-  const { graph } = await buildAwg(new FileAwgStorage(), { write: false });
+  const { graph } = await buildAwg(new FileAwgStorage(), { write: false, coordinationAsOf: nowIso() });
   const index = graph.work_queue_index;
   if (sub === "show") return showQueueItem(parsed, graph);
   const queue = str(parsed.flags, "queue");
@@ -16,7 +17,7 @@ export async function queueCommand(parsed: ParsedArgs): Promise<void> {
   const limit = numberFlag(parsed, "limit", sub === "next" ? 10 : parsed.flags.json ? undefined : 20);
   if (parsed.flags.autonomous && parsed.flags["human-review"]) throw new Error("--autonomous and --human-review cannot be used together");
   if (sub === "list") {
-    const items = filterWorkQueueItems(index, { queue, limit, autonomous: Boolean(parsed.flags.autonomous), humanReview: Boolean(parsed.flags["human-review"]) });
+    const items = filterWorkQueueItems(index, { queue, limit, autonomous: Boolean(parsed.flags.autonomous), humanReview: Boolean(parsed.flags["human-review"]), includeClaimed: true });
     const queues = (index?.queues ?? []).filter((candidate) => !queue || candidate.id === queue);
     if (parsed.flags.json) return printJson({ ok: true, generated_at: index?.generated_at ?? graph.generated_at, summary: index?.summary ?? emptySummary(), queues, items });
     if (!items.length) return console.log("Work queues are empty for this filter.");
@@ -29,7 +30,7 @@ export async function queueCommand(parsed: ParsedArgs): Promise<void> {
     return;
   }
   if (parsed.flags["human-review"]) throw new Error("awg queue next does not support --human-review; use --include-human-review");
-  const items = filterWorkQueueItems(index, { queue, limit, autonomous: Boolean(parsed.flags.autonomous), includeHumanReview: Boolean(parsed.flags["include-human-review"]), goal: str(parsed.flags, "goal"), graph });
+  const items = filterWorkQueueItems(index, { queue, limit, autonomous: Boolean(parsed.flags.autonomous), includeHumanReview: Boolean(parsed.flags["include-human-review"]), includeClaimed: Boolean(parsed.flags["include-claimed"]), mine: Boolean(parsed.flags.mine), goal: str(parsed.flags, "goal"), graph });
   if (parsed.flags.json) return printJson({ ok: true, generated_at: index?.generated_at ?? graph.generated_at, goal: str(parsed.flags, "goal"), items });
   if (!items.length) return console.log("No next work queue items match this filter.");
   for (const item of items) printItem(item, true);
@@ -39,14 +40,24 @@ function showQueueItem(parsed: ParsedArgs, graph: Awaited<ReturnType<typeof buil
   const id = parsed.positionals[2];
   if (!id) throw new Error("Usage: awg queue show <work-queue-item-id> [--json]");
   const item = graph.work_queue_index?.items.find((candidate) => candidate.id === id);
-  if (!item) throw new Error(`Work queue item not found: ${id}`);
+  if (!item) {
+    if (parsed.flags.json) {
+      printJson({ ok: false, code: "AWG_QUEUE_ITEM_NOT_FOUND", itemId: id });
+      process.exitCode = 1;
+      return;
+    }
+    throw new Error(`Work queue item not found: ${id}`);
+  }
   const nodes = graph.nodes.filter((node) => item.nodeIds.includes(node.id));
   const runs = (graph.run_summaries ?? []).filter((run) => item.runIds.includes(String((run as { runId?: string }).runId)));
   const inboxItems = (graph.maintenance_inbox?.items ?? []).filter((candidate) => item.inboxItemIds.includes(candidate.id));
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && (item.nodeIds.includes(diag.id) || item.edgeIds.includes(diag.id) || item.runIds.includes(diag.id)));
   const claims = (graph.claim_index?.claims ?? []).filter((claim) => item.claimIds.includes(claim.id) || item.nodeIds.includes(claim.id));
   const evidence = (graph.evidence_index?.evidence ?? []).filter((candidate) => item.evidenceIds.includes(candidate.id) || item.nodeIds.includes(candidate.id));
-  if (parsed.flags.json) return printJson({ ok: true, item, nodes, runs, inboxItems, diagnostics, claims, evidence });
+  const coordinationClaims = (graph.coordination_index?.claims ?? []).filter((claim) => item.coordination?.activeClaimIds.includes(claim.id) || item.coordination?.staleClaimIds.includes(claim.id));
+  const coordinationCollisions = (graph.coordination_index?.collisions ?? []).filter((collision) => item.coordination?.collisionIds.includes(collision.id));
+  const coordinationHandoffs = (graph.coordination_index?.handoffs ?? []).filter((handoff) => item.coordination?.handoffIds.includes(handoff.id));
+  if (parsed.flags.json) return printJson({ ok: true, item, nodes, runs, inboxItems, diagnostics, claims, evidence, coordinationClaims, coordinationCollisions, coordinationHandoffs });
   printItem(item, true);
   for (const command of item.suggestedCommands) console.log(`  suggestion: ${command}`);
 }
@@ -56,6 +67,7 @@ function printItem(item: WorkQueueItem, verbose: boolean): void {
   if (verbose) console.log(`  ${item.summary}`);
   if (item.nodeIds.length) console.log(`  nodes: ${item.nodeIds.join(", ")}`);
   if (item.runIds.length) console.log(`  runs: ${item.runIds.join(", ")}`);
+  if (item.coordination?.activeClaimIds.length) console.log(`  coordination: ${item.coordination.activeClaimIds.join(", ")}`);
   if (verbose && item.reasons.length) console.log(`  reasons: ${item.reasons.join("; ")}`);
 }
 

@@ -129,7 +129,7 @@ Start of session:
 - Run \`awg inbox --limit 10\` to review deterministic maintenance items.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
-- Run \`awg queue next --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
+- Run \`awg queue next --json\` and \`awg coord status --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` and \`awg coord check --target <id> --json\` before acting on claimed or multi-node work.
 - Use \`awg lens list --goal "<goal>"\` and \`awg lens run <lens-id> --goal "<goal>"\` only when a reviewed vault-local lens fits a repeated context shape.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
 
@@ -148,7 +148,7 @@ During work:
 - Link related nodes by AWG node ID, not by file path.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
-- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
+- Rebuild and rerun queue commands after substantial graph updates. Use \`awg coord claim\` for non-trivial advisory work intent, release claims before finishing, and never treat coordination as a hard lock or permission system.
 - Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
@@ -193,7 +193,7 @@ Before starting work:
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg template status --goal "<goal>" --json\` to understand local operating rules.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
-- Run \`awg queue next --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
+- Run \`awg queue next --json\` and \`awg coord status --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` and \`awg coord check --target <id> --json\` before acting on claimed or multi-node work.
 - Use \`awg lens list --goal "<goal>"\` before adding a configurable lens, and prefer updating near-duplicates.
 - Use \`awg node show <node-id> --json\` when you need full detail for a surfaced node.
 - Read \`.awg/AGENTS.md\`.
@@ -214,7 +214,7 @@ During work:
 - Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
 - Link knowledge by AWG node ID, not by file path.
 - Do not edit \`.awg/compiled/*\`.
-- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
+- Rebuild and rerun queue commands after substantial graph updates. Use \`awg coord claim\` for non-trivial advisory work intent, release claims before finishing, and never treat coordination as a hard lock or permission system.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before stopping:

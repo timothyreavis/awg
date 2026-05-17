@@ -4,6 +4,9 @@
     "at": {
       "type": "string"
     },
+    "created_at": {
+      "type": "string"
+    },
     "awg": {
       "const": "0.1"
     },
@@ -23,10 +26,19 @@
   "required": [
     "awg",
     "kind",
-    "type",
-    "target",
-    "by",
-    "at"
+    "type"
+  ],
+  "anyOf": [
+    {
+      "required": [
+        "at"
+      ]
+    },
+    {
+      "required": [
+        "created_at"
+      ]
+    }
   ],
   "type": "object"
 }

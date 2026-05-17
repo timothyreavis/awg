@@ -1,0 +1,16 @@
+{
+  "awg": "0.1",
+  "claims": [],
+  "collisions": [],
+  "generated_at": "2026-05-11T00:00:00.000Z",
+  "handoffs": [],
+  "kind": "coordination-index",
+  "summary": {
+    "activeClaims": 0,
+    "claimedNodes": 0,
+    "claimedQueueItems": 0,
+    "collisions": 0,
+    "handoffs": 0,
+    "staleClaims": 0
+  }
+}
