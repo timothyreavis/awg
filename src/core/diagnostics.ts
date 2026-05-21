@@ -85,6 +85,12 @@ export function buildDiagnostics(
     for (const warning of operatingTemplates.warnings.filter((item) => item.code === "AWG_TEMPLATE_NEEDS_REVIEW")) {
       for (const id of warning.nodeIds ?? []) diagnostics.push({ severity: severity("template_needs_review"), code: "template_needs_review", message: warning.message, id });
     }
+    for (const warning of operatingTemplates.warnings.filter((item) => item.code === "AWG_TEMPLATE_MISTAGGED_ARTIFACT")) {
+      for (const id of warning.nodeIds ?? []) diagnostics.push({ severity: severity("template_mistagged_artifact"), code: "template_mistagged_artifact", message: warning.message, id });
+    }
+    for (const missing of operatingTemplates.missingRecommendedFields ?? []) {
+      diagnostics.push({ severity: "info", code: "template_missing_recommended_field", message: `Operating template ${missing.templateId} is missing recommended adaptive field ${missing.section}.`, id: missing.templateId, fixSuggestion: { templateId: missing.templateId, section: missing.section } });
+    }
   }
 
   const aliases = new Map<string, string>();
@@ -112,6 +118,19 @@ export function buildDiagnostics(
       if (prior && prior !== node.id) diagnostics.push({ severity: severity("duplicate_alias"), code: "duplicate_alias", message: `Duplicate-looking title/alias "${alias}" also used by ${prior}`, id: node.id });
       aliases.set(normalized, node.id);
     }
+  }
+
+  for (const edge of edges) {
+    if (scanForSecret({ reason: edge.reason }, 0)) diagnostics.push({ severity: severity("sensitive_value_detected"), code: "sensitive_value_detected", message: `Edge appears to contain a secret-like value; replace with a redacted reference: ${edge.id}`, id: edge.id });
+  }
+  for (const response of responses) {
+    if (scanForSecret({ summary: response.summary }, 0)) diagnostics.push({ severity: severity("sensitive_value_detected"), code: "sensitive_value_detected", message: `Response appears to contain a secret-like value; replace with a redacted reference: ${response.id}`, id: response.id });
+  }
+  for (const view of views) {
+    if (scanForSecret({ summary: view.summary, blocks: view.blocks }, 0)) diagnostics.push({ severity: severity("sensitive_value_detected"), code: "sensitive_value_detected", message: `View appears to contain a secret-like value; replace with a redacted reference: ${view.id}`, id: view.id });
+  }
+  for (const event of events) {
+    if (scanForSecret(event, 0)) diagnostics.push({ severity: severity("sensitive_value_detected"), code: "sensitive_value_detected", message: `Event appears to contain a secret-like value; replace with a redacted reference: ${event.id ?? event.target}`, id: event.id ?? event.target });
   }
 
   for (const diag of validateTemplateFieldRules(nodes, strict, operatingTemplates)) diagnostics.push(diag);
@@ -328,7 +347,7 @@ function readPath(value: unknown, parts: string[]): unknown {
 }
 
 function containsSensitiveValue(node: AwgNode): boolean {
-  return scanForSecret(node.fields, 0) || scanForSecret(node.body, 0) || scanForSecret(node.blocks, 0);
+  return scanForSecret({ title: node.title, summary: node.summary, fields: node.fields, body: node.body, blocks: node.blocks }, 0);
 }
 
 function scanForSecret(value: unknown, depth: number): boolean {

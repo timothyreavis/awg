@@ -150,10 +150,12 @@ awg unregister [--path <path>]
 awg vault list [--missing] [--json]
 awg vault info [--json]
 awg vault prune [--dry-run] [--yes] [--json]
+awg vault readiness [--goal <goal>] [--client-pilot] [--json]
 awg instructions list
 awg instructions install <codex|claude-code|antigravity|all> [--dry-run] [--force]
+awg template guide [--goal <goal>] [--json]
 awg template status [--goal <goal>] [--json]
-awg template scaffold --title <title> [--scope vault|project] [--json]
+awg template scaffold --title <title> [--goal <goal>] [--scope vault|project] [--json]
 awg release notes [--json]
 awg release current [--json]
 awg search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
@@ -239,9 +241,13 @@ Node-authored presentation blocks are data, not markup. The V1.7 write path acce
 
 Node `body` is rendered by the static viewer with a safe outline renderer, not arbitrary Markdown or HTML. It preserves paragraphs and recognizes simple section labels, `#` headings, bullet lists, numbered lists, and inline code spans while escaping HTML. Use `blocks` when the content needs a stronger presentation primitive such as a table, checklist, timeline, metric row, callout, or node list.
 
-`awg template status` is a read-only discovery surface for vault-local operating templates stored as AWG knowledge. Prefer regular core node types such as `process`, `standard`, or `policy` tagged `template`, `operating-template`, or `template:operating`; the legacy/custom `template` node type is only recognized for compatibility. The compiler derives `.awg/compiled/indexes/operating-templates.json` and exposes the same index on `graph.operating_templates`. The command reports active templates, selected template, scopes, missing required sections (`purpose`, `taxonomy`, `freshness_rules`, `agent_rules`), conflicts, warnings, suggested inspection commands, and required structured fields (`scope`, `purpose`, `taxonomy`, `freshness_rules`, `agent_rules`, `review_state`, `human_approved`).
+`awg template guide` is a read-only adaptive authoring checklist. It teaches agents to create scenario-specific vault-local operating rules from explicit project context rather than looking for preset domain packs.
 
-`awg template scaffold --title "..." [--scope vault|project]` creates a normal `process` node tagged `template:operating` with the required structured fields. It starts as `needs_review` so a human or future agent can refine and approve it. It is not a template marketplace or domain pack installer.
+`awg template status` is a read-only discovery surface for vault-local operating templates stored as AWG knowledge. Prefer regular core node types such as `process`, `standard`, or `policy` tagged `template:operating`; `template` and `operating-template` remain compatibility aliases, and the legacy/custom `template` node type is only recognized for compatibility. Artifact, implementation-spec, and roadmap nodes must not become selected operating policy even if they are mis-tagged. The compiler derives `.awg/compiled/indexes/operating-templates.json` and exposes the same index on `graph.operating_templates`. The command reports reviewed active templates, pending/candidate templates, selected template, field contract, missing required/recommended/client-pilot fields, placeholder fields, pilot readiness impact, conflicts, warnings, and suggested inspection commands.
+
+`awg template scaffold --title "..." [--goal "..."] [--scope vault|project]` creates a normal `process` node tagged `template:operating` with generic adaptive fields. It starts as `needs_review` and `human_approved:false`, cannot self-approve, warns on duplicates or an existing approved template, and is not a template marketplace or domain pack installer.
+
+`awg vault readiness [--client-pilot]` is a deterministic, read-only report for internal pilot use. It exits successfully with `ready:false` for normal unmet readiness and requires reviewed human-approved operating rules, capture/non-capture policy, evidence/freshness/sensitivity/approval rules, backup/export/retention rules, and no fatal or secret-like diagnostics for client-pilot mode.
 
 An agent run is one focused work session. `awg run start --goal "<goal>"` appends a run-start event, `awg run note "..."` records meaningful progress or blockers, and `awg run finish --status completed|partial|blocked|failed --summary "..."` records the final outcome. Durable write commands attach to the active run by default; use `--run <run-id>` for an explicit active run and `--no-run` to suppress attribution. The compiler derives created, updated, touched, evidenced, completed, unresolved, diagnostic, and handoff state for each run from canonical log metadata. `awg run status` reports the active run and `awg run list --json` includes derived attribution summaries. Run history is canonical AWG event data, not hidden mutable state.
 
@@ -273,7 +279,7 @@ Handoff quality scoring is deterministic and explainable. Checks have fixed weig
 
 `--budget <n>` uses an approximate deterministic character budget. Section structure is preserved, high-priority items are emitted first, and omitted counts are included when lower-priority items are truncated. JSON mode always remains valid JSON.
 
-Agent-facing commands support stable `--json` output for parsing: `release notes`, `release current`, `quick note/task/risk/question/decision`, `rels`, `queue list`, `queue next`, `queue show`, `coord status`, `coord claim`, `coord release`, `coord check`, `coord handoff`, `add node`, `add claim`, `add edge`, `add response`, `add evidence`, `verify`, `claim status`, `claims`, `add lens`, `update node`, `update lens`, `node show`, `template status`, `template scaffold`, `run start`, `run note`, `run finish`, `run status`, `run list`, `search`, `lens resume`, `lens task`, `lens list`, `lens show`, `lens run`, `handoff`, `recent`, `vault list`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
+Agent-facing commands support stable `--json` output for parsing: `release notes`, `release current`, `quick note/task/risk/question/decision`, `rels`, `queue list`, `queue next`, `queue show`, `coord status`, `coord claim`, `coord release`, `coord check`, `coord handoff`, `add node`, `add claim`, `add edge`, `add response`, `add evidence`, `verify`, `claim status`, `claims`, `add lens`, `update node`, `update lens`, `node show`, `template guide`, `template status`, `template scaffold`, `run start`, `run note`, `run finish`, `run status`, `run list`, `search`, `lens resume`, `lens task`, `lens list`, `lens show`, `lens run`, `handoff`, `recent`, `vault list`, `vault readiness`, `vault prune`, `upgrade`, `doctor`, `build`, and `validate`.
 
 Use `awg update node <node-id>` to keep durable state current. It appends a new node snapshot and a node update event; it does not mutate compiled artifacts and it does not create missing nodes by default.
 
@@ -286,6 +292,7 @@ Implementation-grade roadmap specs live under `docs/spec/` when a slice needs mo
 - `docs/spec/awg-claims-evidence.md` for V2.2 claim, evidence, verification, diagnostics, inbox, preflight, handoff, lens, and agent-guidance behavior.
 - `docs/spec/awg-work-queues.md` for V2.3 derived agent work queues, queue CLI, queue indexes, lens/handoff integration, and viewer expectations.
 - `docs/spec/awg-multi-agent-coordination.md` for V2.4 local-first advisory coordination, work claims, collision diagnostics, queue/run/handoff integration, and viewer expectations.
+- `docs/spec/awg-adaptive-vault-onboarding.md` for V2.4.1 adaptive operating-template authoring, vault readiness checks, and internal client/project pilot readiness without fixed domain template packs.
 
 `awg doctor` includes agent-loop warnings for stale active runs, active runs without recent notes, completed runs without evidence or changed nodes, finished runs without handoff records, completed tasks without evidence, unverified/contradicted/stale/expired claims, expired or underspecified evidence, proof relation direction mismatches, orphan nodes, duplicate-looking titles/aliases, invalid or unsupported blocks, oversized block data, active blockers linked to completed work, active risks with completed mitigation that still need review, freshness/status conflicts, missing current verification, operating-template conflicts or missing sections, template-required field gaps, and secret-like values in durable rich content. These are warnings unless the underlying graph state is malformed. `awg doctor --fix-suggestions --json` adds conservative structured suggestions with command-like repairs; it does not mutate canonical logs.
 

@@ -357,6 +357,7 @@ Start of session:
 - Run \`awg run start --goal "<goal>"\`.
 - Use \`awg search <query>\` before creating durable nodes.
 - Run \`awg inbox --limit 10\` to review deterministic maintenance items.
+- Run \`awg template guide --goal "<goal>" --json\` before creating or materially revising local operating rules.
 - Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
 - Use \`awg lens task --goal "<goal>"\` for scoped context.
 - Use \`awg lens list --goal "<goal>"\` and \`awg lens run <lens-id> --goal "<goal>"\` only when a reviewed vault-local lens fits a repeated context shape.
@@ -364,6 +365,10 @@ Start of session:
 
 During work:
 - Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
+- Do not search for a built-in domain pack first. Create scenario-specific vault-local operating templates when one is missing or clearly inadequate.
+- Use \`awg template scaffold --title "Operating template" --goal "<goal>" --scope vault --json\` as a generic candidate only; fill it from explicit project context and keep it \`needs_review\` until human approval.
+- Do not rewrite approved templates casually. Propose changes with a needs-review amendment/task or reset review metadata when materially changing policy.
+- For client/high-stakes vaults, run \`awg vault readiness --client-pilot --json\`; treat AWG as internal agent memory unless a later phase marks a surface client-safe.
 - Search first, then update the canonical node or create the smallest useful node.
 - Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, claims, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
 - During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.

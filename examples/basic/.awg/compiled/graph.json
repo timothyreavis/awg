@@ -143,15 +143,922 @@
   "operating_templates": {
     "activeTemplateId": null,
     "activeTemplates": [],
+    "authoringGuidance": {
+      "fieldContract": [
+        {
+          "aliases": [],
+          "description": "What belongs in this vault and what belongs elsewhere.",
+          "name": "scope",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [],
+          "description": "What this vault is for and what future work it should support.",
+          "name": "purpose",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [],
+          "description": "Object describing preferred node types, statuses, tags, edge relations, and field conventions.",
+          "name": "taxonomy",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [
+            "freshnessRules"
+          ],
+          "description": "What decays, when to review it, and how to mark historical information.",
+          "name": "freshness_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [
+            "agentRules"
+          ],
+          "description": "Capture thresholds, evidence standards, source-of-truth boundaries, and agent behavior rules.",
+          "name": "agent_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [
+            "reviewState"
+          ],
+          "description": "Template review state. Use needs_review until human review is complete.",
+          "name": "review_state",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [
+            "humanApproved"
+          ],
+          "description": "Boolean human approval marker for settled operating policy.",
+          "name": "human_approved",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": true
+        },
+        {
+          "aliases": [],
+          "description": "Kinds of agents or humans that use this vault.",
+          "name": "actors",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "capturePolicy"
+          ],
+          "description": "Future-affecting knowledge agents should capture.",
+          "name": "capture_policy",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "nonCapturePolicy"
+          ],
+          "description": "Knowledge that should stay in chat, files, external systems, or not be stored.",
+          "name": "non_capture_policy",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "evidenceRules"
+          ],
+          "description": "What needs proof before being treated as complete or true.",
+          "name": "evidence_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "sensitivityRules"
+          ],
+          "description": "Private, client-sensitive, financial, credential-like, and redaction handling rules.",
+          "name": "sensitivity_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false,
+          "sensitive": true
+        },
+        {
+          "aliases": [
+            "approvalRules"
+          ],
+          "description": "What requires human approval before being accepted, completed, published, or client-visible.",
+          "name": "approval_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "queueRules"
+          ],
+          "description": "Which queue items are safe for autonomous work and which require review.",
+          "name": "queue_rules",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "coordinationRules"
+          ],
+          "description": "When to claim work, use shared/watch claims, release claims, or hand off.",
+          "name": "coordination_rules",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "lensRules"
+          ],
+          "description": "Which built-in or configurable lenses agents should use for repeated work.",
+          "name": "lens_rules",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "viewRules"
+          ],
+          "description": "Which human surfaces matter for this vault.",
+          "name": "view_rules",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "crossVaultRules"
+          ],
+          "description": "How to handle related projects or parent/child vaults.",
+          "name": "cross_vault_rules",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "maintenanceRules"
+          ],
+          "description": "How agents handle stale nodes, duplicates, orphan nodes, questions, risks, and blockers.",
+          "name": "maintenance_rules",
+          "notApplicableAllowed": true,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": false,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "backupRules"
+          ],
+          "description": "How the project-local .awg vault is versioned, backed up, or exported before high-stakes use.",
+          "name": "backup_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "retentionRules"
+          ],
+          "description": "What should be retained, archived, or avoided in durable memory.",
+          "name": "retention_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        },
+        {
+          "aliases": [
+            "exportRules"
+          ],
+          "description": "How to produce safe handoffs or exports without leaking private material.",
+          "name": "export_rules",
+          "notApplicableAllowed": false,
+          "placeholderValues": [
+            "Describe",
+            "TODO",
+            "TBD",
+            "...",
+            "not configured",
+            "fill this in"
+          ],
+          "recommended": true,
+          "requiredForClientPilot": true,
+          "requiredForTemplate": false
+        }
+      ],
+      "goal": null,
+      "ok": true,
+      "questions": [
+        {
+          "field": "purpose",
+          "id": "purpose",
+          "prompt": "What future work should this vault help agents perform?",
+          "why": "Purpose keeps capture scoped."
+        },
+        {
+          "field": "capture_policy",
+          "id": "capture",
+          "prompt": "Which decisions, facts, risks, and evidence will affect future work?",
+          "why": "Agents need clear capture thresholds."
+        },
+        {
+          "field": "non_capture_policy",
+          "id": "non_capture",
+          "prompt": "What should stay out of AWG or remain in source-of-truth systems?",
+          "why": "Non-capture rules prevent transcript and private-data creep."
+        },
+        {
+          "field": "sensitivity_rules",
+          "id": "sensitivity",
+          "prompt": "How should agents handle PII, private client context, finances, contracts, credentials, source-of-truth systems, redaction, and never-capture categories?",
+          "why": "Client-pilot use needs explicit sensitive-data handling."
+        },
+        {
+          "field": "approval_rules",
+          "id": "approval",
+          "prompt": "What requires human approval before being marked accepted, completed, published, or client-visible?",
+          "why": "Approval boundaries keep agents from self-authorizing."
+        }
+      ],
+      "sections": [
+        {
+          "id": "method",
+          "items": [
+            "Inspect existing AWG state and explicit user-provided context.",
+            "Create or update one vault-local operating template.",
+            "Keep new templates needs_review until human approval.",
+            "Capture summarized rules and source-of-truth boundaries, not raw transcripts or private excerpts."
+          ],
+          "title": "Authoring Method"
+        },
+        {
+          "id": "review",
+          "items": [
+            "Scaffolds are candidates, not settled policy.",
+            "Client-pilot readiness requires reviewed and human_approved template fields.",
+            "Doctor suggestions must not self-approve operating templates."
+          ],
+          "title": "Review Expectations"
+        }
+      ],
+      "suggestedCommands": [
+        "awg template scaffold --title 'Operating template' --goal '<goal>' --scope vault --json",
+        "awg template status --goal '<goal>' --json",
+        "awg vault readiness --goal '<goal>' --client-pilot --json"
+      ],
+      "warnings": [
+        {
+          "code": "AWG_TEMPLATE_NO_DOMAIN_PACKS",
+          "message": "Create scenario-specific vault-local rules; do not search for a built-in domain pack.",
+          "severity": "info"
+        }
+      ]
+    },
+    "candidateTemplates": [],
     "conflicts": [],
+    "fieldContract": [
+      {
+        "aliases": [],
+        "description": "What belongs in this vault and what belongs elsewhere.",
+        "name": "scope",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [],
+        "description": "What this vault is for and what future work it should support.",
+        "name": "purpose",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [],
+        "description": "Object describing preferred node types, statuses, tags, edge relations, and field conventions.",
+        "name": "taxonomy",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [
+          "freshnessRules"
+        ],
+        "description": "What decays, when to review it, and how to mark historical information.",
+        "name": "freshness_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [
+          "agentRules"
+        ],
+        "description": "Capture thresholds, evidence standards, source-of-truth boundaries, and agent behavior rules.",
+        "name": "agent_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [
+          "reviewState"
+        ],
+        "description": "Template review state. Use needs_review until human review is complete.",
+        "name": "review_state",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [
+          "humanApproved"
+        ],
+        "description": "Boolean human approval marker for settled operating policy.",
+        "name": "human_approved",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": true
+      },
+      {
+        "aliases": [],
+        "description": "Kinds of agents or humans that use this vault.",
+        "name": "actors",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "capturePolicy"
+        ],
+        "description": "Future-affecting knowledge agents should capture.",
+        "name": "capture_policy",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "nonCapturePolicy"
+        ],
+        "description": "Knowledge that should stay in chat, files, external systems, or not be stored.",
+        "name": "non_capture_policy",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "evidenceRules"
+        ],
+        "description": "What needs proof before being treated as complete or true.",
+        "name": "evidence_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "sensitivityRules"
+        ],
+        "description": "Private, client-sensitive, financial, credential-like, and redaction handling rules.",
+        "name": "sensitivity_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false,
+        "sensitive": true
+      },
+      {
+        "aliases": [
+          "approvalRules"
+        ],
+        "description": "What requires human approval before being accepted, completed, published, or client-visible.",
+        "name": "approval_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "queueRules"
+        ],
+        "description": "Which queue items are safe for autonomous work and which require review.",
+        "name": "queue_rules",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "coordinationRules"
+        ],
+        "description": "When to claim work, use shared/watch claims, release claims, or hand off.",
+        "name": "coordination_rules",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "lensRules"
+        ],
+        "description": "Which built-in or configurable lenses agents should use for repeated work.",
+        "name": "lens_rules",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "viewRules"
+        ],
+        "description": "Which human surfaces matter for this vault.",
+        "name": "view_rules",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "crossVaultRules"
+        ],
+        "description": "How to handle related projects or parent/child vaults.",
+        "name": "cross_vault_rules",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "maintenanceRules"
+        ],
+        "description": "How agents handle stale nodes, duplicates, orphan nodes, questions, risks, and blockers.",
+        "name": "maintenance_rules",
+        "notApplicableAllowed": true,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": false,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "backupRules"
+        ],
+        "description": "How the project-local .awg vault is versioned, backed up, or exported before high-stakes use.",
+        "name": "backup_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "retentionRules"
+        ],
+        "description": "What should be retained, archived, or avoided in durable memory.",
+        "name": "retention_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      },
+      {
+        "aliases": [
+          "exportRules"
+        ],
+        "description": "How to produce safe handoffs or exports without leaking private material.",
+        "name": "export_rules",
+        "notApplicableAllowed": false,
+        "placeholderValues": [
+          "Describe",
+          "TODO",
+          "TBD",
+          "...",
+          "not configured",
+          "fill this in"
+        ],
+        "recommended": true,
+        "requiredForClientPilot": true,
+        "requiredForTemplate": false
+      }
+    ],
+    "missingRecommendedFields": [],
     "missingSections": [],
+    "notApplicableFields": [],
     "ok": false,
+    "pendingTemplates": [],
+    "pilotReadinessImpact": {
+      "blockingReasons": [
+        "No reviewed human-approved operating template."
+      ],
+      "ready": false
+    },
+    "placeholderFields": [],
     "rootsByScope": {},
     "selectedTemplate": null,
     "suggestedCommands": [
+      "awg template guide --json",
       "awg template status --json",
-      "awg search operating-template",
-      "awg lens task --goal \"template governance\""
+      "awg search template:operating",
+      "awg vault readiness --client-pilot --json"
     ],
     "warnings": [
       {
@@ -159,7 +1066,8 @@
         "message": "No active operating template is available for this vault.",
         "severity": "warning",
         "suggestedCommands": [
-          "awg add node --type process --title \"Operating template\" --summary \"...\" --status active --tag operating-template"
+          "awg template guide --json",
+          "awg template scaffold --title \"Operating template\" --scope vault --json"
         ]
       }
     ]

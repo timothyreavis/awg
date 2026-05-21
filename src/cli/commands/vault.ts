@@ -1,11 +1,14 @@
 import path from "node:path";
 import { buildAwg } from "../../core/compiler.js";
+import { buildOperatingTemplateIndex } from "../../core/operatingTemplates.js";
 import { buildTopologyIndex } from "../../core/topology.js";
+import { buildVaultReadiness } from "../../core/vaultReadiness.js";
 import { FileAwgStorage } from "../../storage/FileAwgStorage.js";
 import { currentVaultPath, linkVaults, pruneMissingVaults, readRegistry, unlinkVaultRelationship, vaultHealth, vaultRegistryState } from "../../global/registry.js";
 import type { ParsedArgs } from "../args.js";
 import { num, str } from "../args.js";
 import { printJson } from "../format.js";
+import { nowIso } from "../../util/time.js";
 
 export async function vaultCommand(parsed: ParsedArgs): Promise<void> {
   const [, subcommand] = parsed.positionals;
@@ -15,7 +18,8 @@ export async function vaultCommand(parsed: ParsedArgs): Promise<void> {
   if (subcommand === "link") return linkVault(parsed);
   if (subcommand === "unlink") return unlinkVault(parsed);
   if (subcommand === "topology") return topologyVault(parsed);
-  throw new Error("Usage: awg vault list [--missing] [--json] | awg vault info [--json] | awg vault prune [--dry-run] [--yes] [--json] | awg vault link --to <vault> --rel <rel> [--from <vault|current>] [--json] | awg vault unlink --relationship <id> [--json] | awg vault topology [--json]");
+  if (subcommand === "readiness") return readinessVault(parsed);
+  throw new Error("Usage: awg vault list [--missing] [--json] | awg vault info [--json] | awg vault readiness [--goal <goal>] [--client-pilot] [--json] | awg vault prune [--dry-run] [--yes] [--json] | awg vault link --to <vault> --rel <rel> [--from <vault|current>] [--json] | awg vault unlink --relationship <id> [--json] | awg vault topology [--json]");
 }
 
 async function listVaults(parsed: ParsedArgs): Promise<void> {
@@ -113,6 +117,22 @@ async function topologyVault(parsed: ParsedArgs): Promise<void> {
     for (const neighbor of topology.directNeighbors) console.log(`- ${neighbor.name}\t${neighbor.whySurfaced.join(", ")}\t${neighbor.stale ? "stale/missing" : "ok"}`);
   } catch (error) {
     return stableError(parsed, codeForError(error), error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function readinessVault(parsed: ParsedArgs): Promise<void> {
+  const storage = new FileAwgStorage();
+  const goal = str(parsed.flags, "goal");
+  const asOf = nowIso();
+  const { graph } = await buildAwg(storage, { write: false, coordinationAsOf: asOf });
+  if (goal) graph.operating_templates = buildOperatingTemplateIndex(graph.nodes, goal);
+  const report = buildVaultReadiness(graph, storage.root, { goal, clientPilot: Boolean(parsed.flags["client-pilot"]), asOf });
+  if (parsed.flags.json) return printJson(report);
+  console.log(`AWG vault readiness: ${report.status} (${report.mode})`);
+  for (const check of report.checks) console.log(`${check.ok ? "ok" : "fail"}\t${check.severity}\t${check.id}\t${check.message}`);
+  if (report.suggestedNextActions.length) {
+    console.log("next:");
+    for (const command of report.suggestedNextActions) console.log(`- ${command}`);
   }
 }
 

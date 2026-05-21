@@ -73,8 +73,9 @@ function help(): void {
 
 Commands:
   setup [--yes] [--no-instructions] [--instructions <packs>] [--register-current|--no-register-current]
+  template guide [--goal <goal>] [--json]
   template status [--goal <goal>] [--json]
-  template scaffold --title <title> [--scope vault|project] [--json]
+  template scaffold --title <title> [--goal <goal>] [--scope vault|project] [--json]
   release notes [--json]
   release current [--json]
   upgrade [--all] [--dry-run] [--force] [--instructions <packs|all>] [--json]
@@ -86,6 +87,7 @@ Commands:
   vault list [--missing] [--json]
   vault info [--json]
   vault prune [--dry-run] [--yes] [--json]
+  vault readiness [--goal <goal>] [--client-pilot] [--json]
   vault link --to <vault> --rel <rel> [--from <vault|current>] [--summary <text>] [--confidence <0..1>] [--visibility summary|private|full] [--json]
   vault unlink --relationship <relationship-id> [--json]
   vault topology [--depth <n>] [--json]

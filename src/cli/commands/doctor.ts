@@ -33,7 +33,7 @@ export async function doctorCommand(parsed: ParsedArgs): Promise<void> {
 function suggestFix(diag: { code: string; id?: string; fixSuggestion?: unknown }): { code: string; nodeIds?: string[]; edgeIds?: string[]; suggestedCommands: string[] } | undefined {
   const id = diag.id;
   const meta = diag.fixSuggestion && typeof diag.fixSuggestion === "object" && !Array.isArray(diag.fixSuggestion) ? diag.fixSuggestion as Record<string, unknown> : {};
-  if (diag.code === "template_no_active_template") return { code: "AWG_HEALTH_CREATE_OPERATING_TEMPLATE", suggestedCommands: ["awg add node --type process --title \"Operating template\" --summary \"Vault-local agent operating rules.\" --status active --tag operating-template --fields-json '{\"scope\":\"vault\",\"purpose\":\"...\",\"taxonomy\":{},\"freshness_rules\":\"...\",\"agent_rules\":\"...\",\"review_state\":\"reviewed\"}'"] };
+  if (diag.code === "template_no_active_template") return { code: "AWG_HEALTH_CREATE_OPERATING_TEMPLATE", suggestedCommands: ["awg template guide --json", "awg template scaffold --title \"Operating template\" --scope vault --json"] };
   if (!id) return undefined;
   if (diag.code === "completed_task_without_evidence") return { code: "AWG_HEALTH_COMPLETED_WITHOUT_EVIDENCE", nodeIds: [id], suggestedCommands: [`awg add evidence --target ${id} --summary "..." --source terminal`] };
   if (diag.code === "orphan_node") return { code: "AWG_HEALTH_ORPHAN_NODE", nodeIds: [id], suggestedCommands: [`awg add edge --from ${id} --rel relates_to --to <related-node-id>`] };
@@ -49,7 +49,8 @@ function suggestFix(diag: { code: string; id?: string; fixSuggestion?: unknown }
     const section = typeof meta.section === "string" && meta.section ? meta.section : "<section>";
     return { code: "AWG_HEALTH_COMPLETE_OPERATING_TEMPLATE", nodeIds: [id], suggestedCommands: [`awg update node ${id} --field ${section}=...`] };
   }
-  if (diag.code === "template_needs_review") return { code: "AWG_HEALTH_REVIEW_OPERATING_TEMPLATE", nodeIds: [id], suggestedCommands: [`awg update node ${id} --field review_state=reviewed --field human_approved=true`] };
+  if (diag.code === "template_needs_review") return { code: "AWG_HEALTH_REVIEW_OPERATING_TEMPLATE", nodeIds: [id], suggestedCommands: [`awg node show ${id} --json`, "Ask a human to review the operating template before approval."] };
+  if (diag.code === "template_mistagged_artifact") return { code: "AWG_HEALTH_REMOVE_TEMPLATE_TAG", nodeIds: [id], suggestedCommands: [`awg update node ${id} --unset-tag template:operating --unset-tag operating-template --unset-tag template`] };
   if (diag.code === "template_conflict") return { code: "AWG_HEALTH_RESOLVE_TEMPLATE_CONFLICT", nodeIds: [id], suggestedCommands: ["Review active operating templates and mark only one matching root active for the same scope/selector."] };
   if (diag.code === "sensitive_value_detected") return { code: "AWG_HEALTH_REDACT_SENSITIVE_VALUE", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };
   if (diag.code === "active_risk_with_completed_mitigation") return { code: "AWG_HEALTH_REVIEW_ACTIVE_RISK", nodeIds: [id], suggestedCommands: [`awg update node ${id} --status needs_review`] };

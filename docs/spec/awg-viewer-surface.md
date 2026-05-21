@@ -15,6 +15,8 @@ The AWG viewer is a generated static surface for humans reviewing compiled proje
 - `#/views` lists compiled/generated views and authored view manifests. `#/views/<encoded-view-id>` renders one view with safe fallbacks.
 - `#/settings` stores local UI preferences such as theme, density, and default graph depth.
 
+V2.4.1 may add a small read-only onboarding/readiness panel to `#/overview` or `#/settings`. It should show selected operating template, review state, missing required/recommended adaptive fields, pilot readiness result, and suggested commands. It must not become a setup wizard, browser-side write surface, or client-facing UI.
+
 All routes use hash routing so `.awg/compiled/site/index.html` remains usable as static files.
 
 ## Viewer Primitives

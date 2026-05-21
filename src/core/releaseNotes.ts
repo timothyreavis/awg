@@ -10,6 +10,45 @@ export interface ReleaseNote {
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [{
+  version: "0.1.0-v2.4.1",
+  date: "2026-05-18",
+  highlights: [
+    "AWG now teaches adaptive vault-local operating-template authoring instead of shipping fixed domain packs.",
+    "Template status separates reviewed active templates from needs-review candidates and excludes mis-tagged artifacts from operating policy.",
+    "Vault readiness reports deterministic standard and client-pilot readiness without mutating logs or compiled artifacts.",
+    "Client-pilot readiness checks human approval, capture/non-capture policy, evidence/freshness/sensitivity/approval rules, backup/export/retention rules, and secret-like diagnostics."
+  ],
+  newCommands: [
+    "awg template guide [--goal <goal>] [--json]",
+    "awg template scaffold --title <title> [--goal <goal>] [--scope vault|project] [--json]",
+    "awg vault readiness [--goal <goal>] [--client-pilot] [--json]",
+    "awg update node <id> --unset-tag <tag>"
+  ],
+  agentActions: [
+    "Run awg template guide --json before creating or revising a vault-local operating template.",
+    "Use awg template scaffold as a generic candidate only; fill it from explicit project context and keep it needs_review until human approval.",
+    "Run awg vault readiness --client-pilot --json before relying on AWG as primary memory for client or high-stakes internal pilot work.",
+    "Remove accidental template tags from artifact/spec/roadmap nodes with --unset-tag instead of append-only workarounds."
+  ],
+  adoption: [
+    "Regenerate AGENTS/CLAUDE instructions with awg instructions install or awg upgrade --instructions when appropriate.",
+    "Create scenario-specific local operating rules; do not look for a built-in domain pack.",
+    "Treat AWG as internal agent memory unless a later phase marks a surface client-safe."
+  ],
+  docs: [
+    "README.md",
+    "docs/spec/awg-adaptive-vault-onboarding.md",
+    "docs/spec/awg-core.md",
+    "docs/spec/awg-diagnostics.md",
+    "docs/spec/awg-lenses.md",
+    "docs/spec/awg-viewer-surface.md"
+  ],
+  nonGoals: [
+    "No fixed domain template pack library.",
+    "No AI/LLM template generation, broad private file scanning, or transcript ingestion.",
+    "No hosted sync, daemon, MCP, server, package self-update, plugin marketplace, permissions system, external task sync, vector search, or client-facing portal/UI."
+  ]
+}, {
   version: "0.1.0-v2.4",
   date: "2026-05-17",
   highlights: [

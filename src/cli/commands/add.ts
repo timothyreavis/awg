@@ -167,6 +167,7 @@ async function addNode(parsed: ParsedArgs): Promise<void> {
   }, runId);
   const source = str(parsed.flags, "source");
   const createdBy = str(parsed.flags, "created-by", "agent:codex");
+  guardTemplateSelfApprovalOnCreate(node, createdBy ?? "agent:codex");
   if (source) node.source = source;
   if (parsed.flags["evidence-required"] !== undefined) node.evidence_required = true;
   node.provenance = { created_by: createdBy, updated_by: createdBy, source: source ?? "agent_generated", human_approved: false };
@@ -174,6 +175,23 @@ async function addNode(parsed: ParsedArgs): Promise<void> {
   if (runId) await storage.appendLogEntry(attachRun({ awg: AWG_VERSION, kind: "event", id: runEventId(runId, "node", at), type: "node_created", target: node.id, by: createdBy, at }, runId) as AwgEvent);
   if (parsed.flags.json) return printJson({ ok: true, nodeId: node.id, node, updated: applied.updatedKeys, warnings: applied.warnings });
   console.log(`Added node ${node.id}`);
+}
+
+function guardTemplateSelfApprovalOnCreate(node: AwgNode, createdBy: string): void {
+  if (!isTemplateLikeNode(node)) return;
+  const fields = node.fields && typeof node.fields === "object" && !Array.isArray(node.fields) ? node.fields : {};
+  const createsApprovedTemplate = fields.human_approved === true
+    || fields.humanApproved === true
+    || fields.review_state === "reviewed"
+    || fields.reviewState === "reviewed";
+  if (!createsApprovedTemplate) return;
+  if (/^(human|user|owner):/.test(createdBy)) return;
+  throw new Error("Operating template approval requires --created-by human:<name>, user:<name>, or owner:<name>; agents cannot self-approve templates.");
+}
+
+function isTemplateLikeNode(node: AwgNode): boolean {
+  const tags = node.tags ?? [];
+  return node.type === "template" || tags.some((tag) => ["template", "operating-template", "template:operating"].includes(tag));
 }
 
 async function addEdge(parsed: ParsedArgs): Promise<void> {

@@ -1,6 +1,7 @@
 import { AWG_VERSION, CORE_STATUSES } from "../../core/constants.js";
 import { assertCliViewBlocks } from "../../core/blocks.js";
 import { buildAwg } from "../../core/compiler.js";
+import { isTemplateNode } from "../../core/operatingTemplates.js";
 import { LENS_STATUSES, normalizeLensSections, validateLens } from "../../core/lensConfigs.js";
 import { attachRun, resolveWriteRunId } from "../../core/runAttribution.js";
 import type { AwgEvent, AwgLens, AwgLensSection, AwgNode, AwgPresentationBlock, AwgView } from "../../core/types.js";
@@ -26,16 +27,40 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   rich.patch = { ...rich.patch, ...basePatch };
   const applied = applyRichNodePatch(prior, rich);
   const patch = applied.patch;
-  if (Object.keys(patch).length === 0) throw new Error("No update fields provided.");
-  if (patch.tags) patch.tags = [...new Set([...(prior.tags ?? []), ...patch.tags])].sort();
+  const unsetTags = arr(parsed.flags, "unset-tag");
+  if (Object.keys(patch).length === 0 && unsetTags.length === 0) throw new Error("No update fields provided.");
+  if (patch.tags || unsetTags.length) patch.tags = [...new Set([...(prior.tags ?? []), ...(patch.tags ?? [])])].filter((tag) => !unsetTags.includes(tag)).sort();
+  guardTemplateSelfApproval(prior, patch, str(parsed.flags, "by", "agent:codex") ?? "agent:codex");
+  const updatedKeys = [...new Set([...applied.updatedKeys, ...(patch.tags ? ["tags"] : [])])].sort();
   const next: AwgNode = { ...prior, ...patch, updated_at: at };
   await storage.appendLogEntry(next);
   const eventId = `ev:${id.replace(/^n:/, "")}:update:${at.replace(/[^0-9]/g, "")}`;
-  const event: AwgEvent = attachRun({ awg: AWG_VERSION, kind: "event", id: eventId, type: "node_updated", target: id, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at, fields: applied.updatedKeys }, runId);
+  const event: AwgEvent = attachRun({ awg: AWG_VERSION, kind: "event", id: eventId, type: "node_updated", target: id, by: str(parsed.flags, "by", "agent:codex") ?? "agent:codex", at, fields: updatedKeys }, runId);
   await storage.appendLogEntry(event);
-  const output = { ok: true, nodeId: id, eventId, updated: patch, updatedKeys: applied.updatedKeys, node: next, warnings: applied.warnings };
+  const output = { ok: true, nodeId: id, eventId, updated: patch, updatedKeys, node: next, warnings: applied.warnings };
   if (parsed.flags.json) return printJson(output);
   console.log(`Updated node ${id}`);
+}
+
+function guardTemplateSelfApproval(prior: AwgNode, patch: Partial<AwgNode>, by: string): void {
+  const tags = new Set([...(prior.tags ?? []), ...(patch.tags ?? [])]);
+  const isTemplate = prior.type === "template" || ["process", "standard", "policy"].includes(patch.type ?? prior.type) && ["template", "operating-template", "template:operating"].some((tag) => tags.has(tag));
+  const nextFields = { ...(prior.fields ?? {}), ...(patch.fields ?? {}) };
+  const priorFields = prior.fields ?? {};
+  const priorApprovedTemplate = isTemplateNode(prior) && (priorFields.human_approved === true || priorFields.humanApproved === true) && (priorFields.review_state === "reviewed" || priorFields.reviewState === "reviewed");
+  if (priorApprovedTemplate && Object.keys(patch).length > 0 && !/^(human|user|owner):/.test(by)) {
+    throw new Error("Reviewed human-approved operating template updates require --by human:<name>, user:<name>, or owner:<name>; agents cannot revise approved template policy.");
+  }
+  const approvalChanged = nextFields.human_approved === true && priorFields.human_approved !== true
+    || nextFields.humanApproved === true && priorFields.humanApproved !== true
+    || nextFields.review_state === "reviewed" && priorFields.review_state !== "reviewed"
+    || nextFields.reviewState === "reviewed" && priorFields.reviewState !== "reviewed";
+  const next: AwgNode = { ...prior, ...patch, fields: nextFields };
+  const approvedTemplateBecomesSelectable = isTemplateNode(next) && !isTemplateNode(prior) && (nextFields.human_approved === true || nextFields.humanApproved === true || nextFields.review_state === "reviewed" || nextFields.reviewState === "reviewed");
+  if (!isTemplate && !approvedTemplateBecomesSelectable) return;
+  if (!approvalChanged && !approvedTemplateBecomesSelectable) return;
+  if (/^(human|user|owner):/.test(by)) return;
+  throw new Error("Operating template approval requires --by human:<name>, user:<name>, or owner:<name>; agents cannot self-approve templates.");
 }
 
 async function updateLens(parsed: ParsedArgs, lensId: string): Promise<void> {

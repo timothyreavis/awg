@@ -216,7 +216,8 @@ test("packed package exposes the awg bin and runs offline smoke", () => {
     "--summary", "Package smoke template.",
     "--status", "active",
     "--tag", "template:operating",
-    "--fields-json", "{\"scope\":\"project\",\"purpose\":\"Package smoke.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Review on material change.\",\"agent_rules\":\"Search before writing.\",\"review_state\":\"reviewed\"}",
+    "--created-by", "human:owner",
+    "--fields-json", "{\"scope\":\"project\",\"purpose\":\"Package smoke.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Review on material change.\",\"agent_rules\":\"Search before writing.\",\"review_state\":\"reviewed\",\"human_approved\":true}",
     "--block-json", "{\"schemaVersion\":1,\"type\":\"brief\",\"data\":{\"items\":[{\"label\":\"Purpose\",\"text\":\"Packaged block.\"}]}}",
     "--freshness-json", "{\"state\":\"current\",\"last_verified\":\"2026-05-13\"}",
     "--json"
@@ -1285,7 +1286,7 @@ test("template status is read only and emits deterministic json", async () => {
   assert.ok(noTemplateDoctor.diagnostics.some((diag: { code: string }) => diag.code === "template_no_active_template"));
   assert.ok(noTemplateDoctor.fixSuggestions.some((suggestion: { code: string }) => suggestion.code === "AWG_HEALTH_CREATE_OPERATING_TEMPLATE"));
   assert.equal(existsSync(path.join(cwd, ".awg/compiled/graph.json")), false);
-  run(cwd, ["add", "node", "--id", "n:template", "--type", "process", "--title", "Project operating template", "--summary", "Project conventions.", "--status", "active", "--fields-json", "{\"scope\":\"project\",\"purpose\":\"Keep conventions local.\",\"taxonomy\":{\"types\":[\"task\"]},\"freshness_rules\":\"Review on behavior changes.\",\"agent_rules\":\"Search before creating nodes.\",\"review_state\":\"reviewed\",\"human_review_required\":true,\"human_approved\":true,\"fieldRules\":[{\"nodeType\":\"task\",\"field\":\"owner\",\"required\":true}]}", "--tag", "template:operating"]);
+  run(cwd, ["add", "node", "--id", "n:template", "--type", "process", "--title", "Project operating template", "--summary", "Project conventions.", "--status", "active", "--fields-json", "{\"scope\":\"project\",\"purpose\":\"Keep conventions local.\",\"taxonomy\":{\"types\":[\"task\"]},\"freshness_rules\":\"Review on behavior changes.\",\"agent_rules\":\"Search before creating nodes.\",\"review_state\":\"reviewed\",\"human_review_required\":true,\"human_approved\":true,\"fieldRules\":[{\"nodeType\":\"task\",\"field\":\"owner\",\"required\":true}]}", "--tag", "template:operating", "--created-by", "human:owner"]);
   const before = (await new FileAwgStorage(cwd).readLogEntries()).length;
   const status = JSON.parse(run(cwd, ["template", "status", "--goal", "project conventions", "--json"]));
   assert.equal(status.ok, true);
@@ -1309,7 +1310,7 @@ test("template status is read only and emits deterministic json", async () => {
 test("template field rules respect deterministic appliesTo boundaries", () => {
   const cwd = tmp();
   run(cwd, ["init", "--empty"]);
-  run(cwd, ["add", "node", "--id", "n:seo-template", "--type", "process", "--title", "SEO operating template", "--summary", "SEO conventions.", "--status", "active", "--tag", "template:operating", "--fields-json", "{\"scope\":\"seo\",\"appliesTo\":{\"client\":\"acme\"},\"purpose\":\"SEO work.\",\"taxonomy\":{\"types\":[\"task\"]},\"freshness_rules\":\"Review after audits.\",\"agent_rules\":\"Use site evidence.\",\"review_state\":\"reviewed\",\"fieldRules\":[{\"nodeType\":\"task\",\"field\":\"owner\",\"required\":true}]}"]);
+  run(cwd, ["add", "node", "--id", "n:seo-template", "--type", "process", "--title", "SEO operating template", "--summary", "SEO conventions.", "--status", "active", "--tag", "template:operating", "--fields-json", "{\"scope\":\"seo\",\"appliesTo\":{\"client\":\"acme\"},\"purpose\":\"SEO work.\",\"taxonomy\":{\"types\":[\"task\"]},\"freshness_rules\":\"Review after audits.\",\"agent_rules\":\"Use site evidence.\",\"review_state\":\"reviewed\",\"human_approved\":true,\"fieldRules\":[{\"nodeType\":\"task\",\"field\":\"owner\",\"required\":true}]}", "--created-by", "human:owner"]);
   run(cwd, ["add", "node", "--id", "n:plain-task", "--type", "task", "--title", "Plain task", "--summary", "Not SEO."]);
   run(cwd, ["add", "node", "--id", "n:seo-task", "--type", "task", "--title", "SEO task", "--summary", "SEO.", "--fields-json", "{\"client\":\"acme\"}"]);
   run(cwd, ["build"]);
@@ -1381,7 +1382,7 @@ test("release notes, relations, evidence help, and generated instructions expose
   assert.equal(release.ok, true);
   const v191 = release.releases.find((item: { version: string }) => item.version === "0.1.0-v2.1");
   assert.ok(v191.newCommands.includes("awg rels [--json]"));
-  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg queue next")));
+  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg template guide")));
   assert.ok(release.releases.some((item: { newCommands: string[] }) => item.newCommands.some((command: string) => command.startsWith("awg add claim"))));
   assert.ok(run(cwd, ["release", "current"]).includes("AWG release"));
   const rels = JSON.parse(run(cwd, ["rels", "--json"]));
@@ -1576,6 +1577,91 @@ test("template scaffold exposes structured fields and compact handoff stays dete
   assert.ok(compact.length < run(cwd, ["handoff", "--no-record"]).length);
   const json = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
   assert.equal(json.kind, "handoff");
+});
+
+test("adaptive template guide scaffold status and readiness are deterministic", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty"]);
+  const guide = JSON.parse(run(cwd, ["template", "guide", "--goal", "pilot client project", "--json"]));
+  assert.equal(guide.ok, true);
+  assert.ok(guide.fieldContract.some((field: { name: string; requiredForClientPilot: boolean }) => field.name === "sensitivity_rules" && field.requiredForClientPilot));
+  const quotedGuide = JSON.parse(run(cwd, ["template", "guide", "--goal", "client's \"pilot\" $(echo nope)", "--json"]));
+  assert.ok(quotedGuide.suggestedCommands.some((command: string) => command.includes("--goal 'client'\\''s \"pilot\" $(echo nope)'")));
+  assert.ok(run(cwd, ["template", "guide"]).includes("Do not look for preset domain packs"));
+  const beforeLog = canonicalLogSnapshot(cwd);
+  const beforeCompiled = compiledSnapshot(cwd);
+  const initialReadiness = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
+  assert.equal(initialReadiness.ok, true);
+  assert.equal(initialReadiness.ready, false);
+  assert.equal(canonicalLogSnapshot(cwd), beforeLog);
+  assert.equal(compiledSnapshot(cwd), beforeCompiled);
+
+  const scaffold = JSON.parse(run(cwd, ["template", "scaffold", "--title", "Pilot operating template", "--goal", "pilot client project", "--scope", "vault", "--json"]));
+  assert.equal(scaffold.node.status, "needs_review");
+  assert.equal(scaffold.node.fields.review_state, "needs_review");
+  assert.equal(scaffold.node.fields.human_approved, false);
+  assert.ok(scaffold.recommendedFields.includes("sensitivity_rules"));
+  assert.ok(scaffold.suggestedCommands.some((command: string) => command.includes("--goal 'pilot client project'")));
+  assert.ok(runFail(cwd, ["template", "scaffold", "--title", "Self approved", "--review-state", "reviewed"]).includes("cannot self-approve"));
+  assert.ok(runFail(cwd, ["add", "node", "--id", "n:self-approved-template", "--type", "process", "--title", "Self approved add", "--summary", "Should fail.", "--status", "active", "--tag", "template:operating", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Bad.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Bad.\",\"agent_rules\":\"Bad.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]).includes("agents cannot self-approve"));
+  const candidateStatus = JSON.parse(run(cwd, ["template", "status", "--goal", "pilot client project", "--json"]));
+  assert.equal(candidateStatus.selectedTemplate, null);
+  assert.ok(candidateStatus.pendingTemplates.some((template: { id: string }) => template.id === scaffold.nodeId));
+  assert.ok(candidateStatus.pendingTemplates[0].placeholderFields.includes("purpose"));
+  assert.ok(candidateStatus.fieldContract.some((field: { name: string }) => field.name === "backup_rules"));
+  const candidateText = run(cwd, ["template", "status", "--goal", "pilot client project"]);
+  assert.ok(candidateText.includes("pendingTemplates:"));
+  assert.ok(candidateText.includes("pilotReadinessImpact:"));
+  assert.ok(candidateText.includes("placeholderFields:"));
+  const pendingReadiness = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
+  assert.equal(pendingReadiness.ready, false);
+  assert.ok(pendingReadiness.checks.some((check: { id: string; ok: boolean }) => check.id === "active_operating_template" && !check.ok));
+
+  assert.ok(runFail(cwd, ["add", "node", "--id", "n:self-approved-roadmap-template", "--type", "process", "--title", "Self approved roadmap", "--summary", "Should fail.", "--status", "active", "--tag", "template:operating", "--tag", "roadmap", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Bad.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Bad.\",\"agent_rules\":\"Bad.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]).includes("agents cannot self-approve"));
+  run(cwd, ["add", "node", "--id", "n:artifact-template", "--type", "artifact", "--title", "Mis-tagged plan", "--summary", "Should not be selected.", "--status", "active", "--tag", "template:operating", "--tag", "implementation-plan", "--created-by", "human:owner", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Bad.\",\"taxonomy\":{},\"freshness_rules\":\"Bad.\",\"agent_rules\":\"Bad.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]);
+  run(cwd, ["add", "node", "--id", "n:roadmap-process-template", "--type", "process", "--title", "Mis-tagged roadmap process", "--summary", "Should not be selected.", "--status", "active", "--tag", "template:operating", "--tag", "roadmap", "--created-by", "human:owner", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Bad.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Bad.\",\"agent_rules\":\"Bad.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]);
+  run(cwd, ["add", "node", "--id", "n:task-template", "--type", "task", "--title", "Mis-tagged task", "--summary", "Should get cleanup warning.", "--status", "active", "--tag", "template:operating"]);
+  run(cwd, ["add", "node", "--id", "n:closed-template", "--type", "process", "--title", "Closed operating template", "--summary", "Archived.", "--status", "archived", "--tag", "template:operating"]);
+  const artifactStatus = JSON.parse(run(cwd, ["template", "status", "--json"]));
+  assert.equal(artifactStatus.selectedTemplate, null);
+  assert.ok(artifactStatus.warnings.some((warning: { code: string }) => warning.code === "AWG_TEMPLATE_MISTAGGED_ARTIFACT"));
+  assert.ok(artifactStatus.warnings.some((warning: { nodeIds?: string[] }) => warning.nodeIds?.includes("n:roadmap-process-template")));
+  assert.ok(artifactStatus.warnings.some((warning: { nodeIds?: string[] }) => warning.nodeIds?.includes("n:task-template")));
+  assert.ok(!artifactStatus.pendingTemplates.some((template: { id: string }) => template.id === "n:closed-template"));
+  const doctor = JSON.parse(run(cwd, ["doctor", "--fix-suggestions", "--json"]));
+  assert.ok(!JSON.stringify(doctor.fixSuggestions).includes("human_approved=true"));
+  assert.ok(!JSON.stringify(doctor.fixSuggestions).includes("review_state=reviewed"));
+  assert.ok(doctor.fixSuggestions.some((suggestion: { suggestedCommands: string[] }) => suggestion.suggestedCommands.some((command) => command.includes("--unset-tag template:operating"))));
+  const tagCleanup = JSON.parse(run(cwd, ["update", "node", "n:artifact-template", "--tag", "kept-tag", "--unset-tag", "template:operating", "--json"]));
+  assert.ok(tagCleanup.node.tags.includes("kept-tag"));
+  assert.ok(!tagCleanup.node.tags.includes("template:operating"));
+  const tagOnlyCleanup = JSON.parse(run(cwd, ["update", "node", "n:task-template", "--unset-tag", "template:operating", "--json"]));
+  assert.ok(!tagOnlyCleanup.node.tags.includes("template:operating"));
+  assert.ok(tagOnlyCleanup.updatedKeys.includes("tags"));
+  assert.ok(runFail(cwd, ["update", "node", "n:roadmap-process-template", "--unset-tag", "roadmap"]).includes("agents cannot self-approve"));
+  assert.ok(runFail(cwd, ["update", "node", scaffold.nodeId, "--status", "active", "--field", "review_state=reviewed", "--field-json", "{\"human_approved\":true}"]).includes("agents cannot self-approve"));
+
+  run(cwd, ["update", "node", scaffold.nodeId, "--by", "human:owner", "--status", "active", "--field", "purpose=This template describes stable operating policy.", "--field", "scope=vault", "--field-json", "{\"taxonomy\":{\"types\":[\"task\",\"decision\",\"risk\",\"evidence\",\"process\"]},\"human_approved\":true}", "--field", "freshness_rules=Review current operating facts monthly and after material changes.", "--field", "agent_rules=Search before writing, capture consequences only, and add evidence for completion.", "--field", "capture_policy=Capture decisions, risks, tasks, source-of-truth boundaries, and verification evidence.", "--field", "non_capture_policy=Never capture raw transcripts, customer records, credentials, private excerpts, or unrelated private content.", "--field", "evidence_rules=Completed work and durable claims need terminal, file, manual, or source evidence.", "--field", "sensitivity_rules=Handle customer PII, private client context, financial revenue/pricing, contracts and billing, internal strategy, approval boundaries, credentials secrets passwords API key token values, source-of-truth systems, redaction and summarization expectations, and never capture categories.", "--field", "approval_rules=Human review approval is required before accepted, completed, published, or client-visible changes.", "--field", "backup_rules=Version .awg with the repo and export before high-stakes work.", "--field", "retention_rules=Retain durable summaries and archive stale history; avoid storing raw private material.", "--field", "export_rules=Export redacted summaries and source references only.", "--field", "review_state=reviewed"]);
+  const filledStatus = JSON.parse(run(cwd, ["template", "status", "--json"]));
+  assert.ok(!filledStatus.selectedTemplate.placeholderFields.includes("purpose"));
+  const ready = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
+  assert.equal(ready.ready, true);
+  assert.equal(typeof ready.asOf, "string");
+  assert.ok(runFail(cwd, ["update", "node", scaffold.nodeId, "--field", "purpose=Agent-authored revision after approval."]).includes("agents cannot revise approved template policy"));
+  run(cwd, ["update", "node", scaffold.nodeId, "--by", "human:owner", "--field", "sensitivity_rules=Handle customer context, financial revenue/pricing, contracts and billing, internal notes, approval boundaries, credentials secrets passwords API key token values, source-of-truth systems, redaction and summarization expectations, and never capture categories."]);
+  const missingPii = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
+  assert.equal(missingPii.ready, false);
+  assert.ok(missingPii.checks.some((check: { id: string; ok: boolean; message: string }) => check.id === "template_sensitivity_policy" && !check.ok && check.message.includes("customer PII")));
+  run(cwd, ["update", "node", scaffold.nodeId, "--by", "human:owner", "--field", "sensitivity_rules=Handle customer PII, private client context, financial revenue/pricing, contracts and billing, internal strategy, approval boundaries, credentials secrets passwords API key token values, source-of-truth systems, redaction and summarization expectations, and never capture categories."]);
+  run(cwd, ["add", "response", "--target", scaffold.nodeId, "--type", "review", "--summary", "Leaked api_key=sk-123456789012345678901234"]);
+  run(cwd, ["add", "node", "--id", "n:summary-secret", "--type", "evidence", "--title", "Summary secret", "--summary", "Leaked api_key=sk-123456789012345678901235"]);
+  const secretReady = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
+  assert.equal(secretReady.ready, false);
+  assert.ok(secretReady.checks.some((check: { id: string; ok: boolean }) => check.id === "no_secret_like_durable_content" && !check.ok));
+  run(cwd, ["add", "node", "--id", "n:conflicting-template", "--type", "process", "--title", "Conflicting operating template", "--summary", "Conflicts.", "--status", "active", "--tag", "template:operating", "--created-by", "human:owner", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Conflicts.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Current.\",\"agent_rules\":\"Rules.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]);
+  const conflictReady = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
+  assert.equal(conflictReady.ready, false);
+  assert.ok(conflictReady.checks.some((check: { id: string; ok: boolean }) => check.id === "template_conflicts_absent" && !check.ok));
 });
 
 test("task lens and handoff include scoped context and respect budgets", () => {
