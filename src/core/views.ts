@@ -1,9 +1,18 @@
 import { AWG_VERSION } from "./constants.js";
 import { validateViewBlocks } from "./blocks.js";
-import type { AuthoredViewOutput, AwgNode, AwgView, CurrentViewOutput, Diagnostic, DiagnosticsSummary } from "./types.js";
+import type { AttentionIndex, AuthoredViewOutput, AwgNode, AwgView, CurrentViewOutput, Diagnostic, DiagnosticsSummary } from "./types.js";
 
-export function buildCurrentView(nodes: AwgNode[], diagnostics: DiagnosticsSummary, generatedAt: string): CurrentViewOutput {
-  const attention = nodes.filter((n) => ["blocked", "needs_review", "stale"].includes(n.status));
+export function buildCurrentView(nodes: AwgNode[], diagnostics: DiagnosticsSummary, generatedAt: string, attentionIndex?: AttentionIndex): CurrentViewOutput {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const attention = attentionIndex?.items.filter((item) => ["current", "stale_open"].includes(item.baseAttentionState)).slice(0, 30).map((item) => {
+    const node = nodeById.get(item.nodeId);
+    return node ? { ...node, attention: item } : undefined;
+  }).filter(Boolean) ?? nodes.filter((n) => ["blocked", "needs_review", "stale"].includes(n.status));
+  const attentionByNode = new Map((attentionIndex?.items ?? []).map((item) => [item.nodeId, item]));
+  const visibleOpen = (node: AwgNode): boolean => {
+    const state = attentionByNode.get(node.id)?.baseAttentionState;
+    return !["historical", "acknowledged_open", "stale_open", "closeout_candidate"].includes(state ?? "");
+  };
   return {
     awg: AWG_VERSION,
     kind: "view-output",
@@ -14,9 +23,9 @@ export function buildCurrentView(nodes: AwgNode[], diagnostics: DiagnosticsSumma
       { type: "summary", title: "Graph Health", summary: diagnostics },
       { type: "attention-required", title: "Attention Required", items: attention },
       { type: "decision-review", title: "Open Decisions", items: nodes.filter((n) => n.type === "decision" && !["resolved", "archived", "rejected"].includes(n.status)) },
-      { type: "task-review", title: "Active Tasks", items: nodes.filter((n) => n.type === "task" && ["active", "blocked", "in_progress", "needs_review"].includes(n.status)) },
-      { type: "risk-review", title: "Active Risks", items: nodes.filter((n) => n.type === "risk" && !["resolved", "archived"].includes(n.status)) },
-      { type: "question-review", title: "Open Questions", items: nodes.filter((n) => n.type === "question" && !["resolved", "completed", "archived"].includes(n.status)) },
+      { type: "task-review", title: "Active Tasks", items: nodes.filter((n) => n.type === "task" && ["active", "blocked", "in_progress", "needs_review"].includes(n.status) && visibleOpen(n)) },
+      { type: "risk-review", title: "Active Risks", items: nodes.filter((n) => n.type === "risk" && !["resolved", "archived"].includes(n.status) && visibleOpen(n)) },
+      { type: "question-review", title: "Open Questions", items: nodes.filter((n) => n.type === "question" && !["resolved", "completed", "archived"].includes(n.status) && visibleOpen(n)) },
       { type: "node-list", title: "Node Browser", items: nodes },
       { type: "diagnostics", title: "Diagnostics", summary: diagnostics }
     ]

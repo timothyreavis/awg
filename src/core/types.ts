@@ -415,7 +415,7 @@ export type WorkQueueId =
   | "handoff_followup";
 
 export type WorkQueueSeverity = "info" | "warning" | "error";
-export type WorkQueueSourceKind = "node" | "inbox" | "diagnostic" | "claim" | "evidence" | "run" | "topology";
+export type WorkQueueSourceKind = "node" | "inbox" | "diagnostic" | "claim" | "evidence" | "run" | "topology" | "attention";
 
 export interface WorkQueueSummary {
   id: WorkQueueId;
@@ -539,6 +539,90 @@ export interface CoordinationIndex {
   };
 }
 
+export type AttentionState = "current" | "open" | "stale_open" | "closeout_candidate" | "acknowledged_open" | "historical";
+
+export interface AttentionScoreReason {
+  code: string;
+  label: string;
+  value: number;
+  sourceIds?: string[];
+}
+
+export interface AttentionAcknowledgement {
+  id: string;
+  source: "event" | "legacy_intentionally_open";
+  nodeId: string;
+  reason: string;
+  scope: string;
+  by?: string;
+  at: string;
+  runId?: string;
+  reviewAfter?: string;
+  acknowledgedNodeUpdatedAt?: string;
+  acknowledgedMaterialKeys: string[];
+  stale: boolean;
+  staleReasons: string[];
+}
+
+export interface AttentionItem {
+  id: string;
+  nodeId: string;
+  nodeTitle: string;
+  nodeType: string;
+  nodeStatus: string;
+  baseAttentionState: AttentionState;
+  baseFocusScore: number;
+  scoreBreakdown: AttentionScoreReason[];
+  queueWeight: number;
+  ageDays: number;
+  updatedAgeDays: number;
+  nodeUpdatedAt: string;
+  nodeRevision?: string;
+  lastTouchedRunIds: string[];
+  recentRunIds: string[];
+  activeCoordinationClaimIds: string[];
+  evidenceIds: string[];
+  diagnosticIds: string[];
+  inboxItemIds: string[];
+  workQueueItemIds: string[];
+  acknowledgementId?: string;
+  acknowledgedUntil?: string;
+  acknowledgementStale: boolean;
+  acknowledgedNodeUpdatedAt?: string;
+  acknowledgedMaterialKeys: string[];
+  closeoutReasons: string[];
+  staleReasons: string[];
+  suggestedDisposition?: "completed" | "resolved" | "archived" | "superseded" | "needs_review" | "acknowledge_or_schedule_review";
+  suggestedCommands: string[];
+  needsHumanReview: boolean;
+  autonomousSafe: boolean;
+  createdAt: string;
+  updatedAt: string;
+  effectiveAttentionState?: AttentionState;
+  effectiveFocusScore?: number;
+  goalMatched?: boolean;
+  goalBoost?: number;
+  runtimeScoreBreakdown?: AttentionScoreReason[];
+}
+
+export interface AttentionIndex {
+  awg: string;
+  kind: "attention-index";
+  generated_at: string;
+  asOf: string;
+  acknowledgements: AttentionAcknowledgement[];
+  items: AttentionItem[];
+  summary: {
+    total: number;
+    current: number;
+    open: number;
+    staleOpen: number;
+    closeoutCandidates: number;
+    acknowledgedOpen: number;
+    historical: number;
+  };
+}
+
 export interface WorkQueueIndex {
   awg: string;
   kind: "work-queue-index";
@@ -585,6 +669,7 @@ export interface CompiledGraph {
   lens_index?: LensIndex;
   claim_index?: ClaimIndex;
   evidence_index?: EvidenceIndex;
+  attention_index?: AttentionIndex;
   work_queue_index?: WorkQueueIndex;
   coordination_index?: CoordinationIndex;
 }
@@ -642,6 +727,8 @@ export interface ResumeLensOutput {
   maintenance_inbox?: MaintenanceInboxItem[];
   work_queue_summary?: WorkQueueSummary[];
   work_queue_items?: WorkQueueItem[];
+  attention_summary?: AttentionIndex["summary"];
+  attention_items?: AttentionItem[];
 }
 
 export interface CurrentViewOutput {

@@ -5,12 +5,13 @@ import { buildRuns } from "./runs.js";
 import { runSummaryFor } from "./runPreflight.js";
 import { buildOperatingTemplateIndex } from "./operatingTemplates.js";
 import { filterWorkQueueItems } from "./workQueues.js";
+import { projectAttention } from "./attention.js";
 import type { AwgEdge, AwgLens, AwgLensSection, AwgNode, CompiledGraph, Diagnostic, LensIndex } from "./types.js";
 
 export const LENS_STATUSES = ["active", "proposed", "needs_review", "archived"] as const;
 export const LENS_SCOPES = ["vault", "project", "workflow"] as const;
 export const LENS_AUDIENCES = ["agent", "human", "reviewer"] as const;
-export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "workQueues", "coordination", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
+export const LENS_SECTION_SOURCES = ["search", "nodes", "edges", "runs", "claims", "evidence", "maintenanceInbox", "workQueues", "attention", "coordination", "diagnostics", "templateContext", "topology", "anchors", "view", "static"] as const;
 
 const SOURCE_SET = new Set<string>(LENS_SECTION_SOURCES);
 const MAX_SECTION_DATA_BYTES = 50_000;
@@ -143,6 +144,16 @@ function executeSection(graph: CompiledGraph, lens: AwgLens, section: AwgLensSec
         if (query?.severity && item.severity !== String(query.severity)) return false;
         if (query?.nodeIds && !item.nodeIds.some((id) => stringArray(query.nodeIds).includes(id))) return false;
         if (query?.runIds && !item.runIds.some((id) => stringArray(query.runIds).includes(id))) return false;
+        return true;
+      }).slice(0, limit);
+    case "attention":
+      return projectAttention(graph.attention_index, graph, { goal: typeof query?.goal === "string" ? query.goal : typeof query?.q === "string" ? query.q : typeof query?.text === "string" ? query.text : goal }).filter((item) => {
+        const state = item.effectiveAttentionState ?? item.baseAttentionState;
+        if (query?.state && state !== String(query.state)) return false;
+        if (query?.states && !stringArray(query.states).includes(state)) return false;
+        if (query?.nodeIds && !stringArray(query.nodeIds).includes(item.nodeId)) return false;
+        if (query?.minScore !== undefined && (item.effectiveFocusScore ?? item.baseFocusScore) < Number(query.minScore)) return false;
+        if (query?.closeoutOnly === true && state !== "closeout_candidate") return false;
         return true;
       }).slice(0, limit);
     case "coordination":

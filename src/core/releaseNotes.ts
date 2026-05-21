@@ -10,6 +10,46 @@ export interface ReleaseNote {
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [{
+  version: "0.1.0-v2.4.2",
+  date: "2026-05-21",
+  highlights: [
+    "AWG now derives graph.attention_index and .awg/compiled/indexes/attention.json so current focus is separate from durable lifecycle status.",
+    "Base compiled attention is deterministic at graph generated_at, while live read commands label runtime effective overlays with their own asOf and never persist them.",
+    "Append-only node.acknowledged events let agents intentionally carry forward open work with reasons, review dates, run attribution, and stale material-key detection.",
+    "Queues, handoff, lenses, run finish preflight, doctor, maintenance inbox, current view, and the static viewer consume attention state so stale historical work stops dominating current focus."
+  ],
+  newCommands: [
+    "awg closeout candidates [--run <run-id|current>] [--goal <goal>] [--older-than <duration>] [--limit <n>] [--json]",
+    "awg closeout run [--run <run-id|current>] [--limit <n>] [--category-limit <n>] [--json]",
+    "awg closeout mark <node-id> --status <completed|resolved|archived|superseded|needs_review> --reason <text> [--expect-updated-at <iso>] [--json]",
+    "awg ack <node-id> --reason <text> [--review-after <date>] [--scope <scope>] [--expect-updated-at <iso>] [--json]",
+    "awg sweep [--goal <goal>] [--older-than <duration>] [--limit <n>] [--json]"
+  ],
+  agentActions: [
+    "Use awg closeout run --json or finish preflight to inspect touched lifecycle debt before ending substantive work.",
+    "Use awg ack with a reason, review date, and stale-read guard when an item is intentionally carried forward.",
+    "Use awg closeout mark with --expect-updated-at after inspection; do not rely on broad automatic closeout.",
+    "Use awg sweep --json only for dedicated maintenance passes, not every normal task.",
+    "Do not close human-sensitive risks, blockers, client-facing decisions, or policy/process items without evidence or explicit approval."
+  ],
+  adoption: [
+    "Regenerate AGENTS/CLAUDE instructions with awg instructions install or awg upgrade --instructions when appropriate.",
+    "Use configurable lens source attention for reviewed vault-local attention recipes when the built-in task/resume lenses are not enough.",
+    "Treat legacy intentionally_open edges as compatibility acknowledgements and prefer awg ack for new carry-forward state."
+  ],
+  docs: [
+    "README.md",
+    "docs/spec/awg-lifecycle-closeout-attention.md",
+    "docs/spec/awg-core.md",
+    "docs/spec/awg-lenses.md",
+    "docs/spec/awg-viewer-surface.md"
+  ],
+  nonGoals: [
+    "No daemon, server, hosted sync, MCP, network calls, LLM calls, vector search, or external task sync.",
+    "No destructive cleanup, bulk automatic closeout, permission system, or domain-specific lifecycle model.",
+    "No browser-side writeback from the static viewer."
+  ]
+}, {
   version: "0.1.0-v2.4.1",
   date: "2026-05-18",
   highlights: [

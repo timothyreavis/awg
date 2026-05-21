@@ -42,7 +42,7 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   console.log(`Updated node ${id}`);
 }
 
-function guardTemplateSelfApproval(prior: AwgNode, patch: Partial<AwgNode>, by: string): void {
+export function guardTemplateSelfApproval(prior: AwgNode, patch: Partial<AwgNode>, by: string): void {
   const tags = new Set([...(prior.tags ?? []), ...(patch.tags ?? [])]);
   const isTemplate = prior.type === "template" || ["process", "standard", "policy"].includes(patch.type ?? prior.type) && ["template", "operating-template", "template:operating"].some((tag) => tags.has(tag));
   const nextFields = { ...(prior.fields ?? {}), ...(patch.fields ?? {}) };

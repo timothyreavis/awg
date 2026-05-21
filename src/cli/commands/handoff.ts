@@ -82,6 +82,12 @@ function formatHandoffItem(record: Record<string, unknown>, item: unknown): stri
       countLabel(record.warnings, "warning")
     ].filter(Boolean).join(", ") || "No quality checks.";
   }
+  if ("closeoutCandidates" in record || "staleOpen" in record || "acknowledgedOpen" in record) {
+    return `${record.current ?? 0} current, ${record.closeoutCandidates ?? 0} closeout candidates, ${record.staleOpen ?? 0} stale open, ${record.acknowledgedOpen ?? 0} acknowledged`;
+  }
+  if ("nodeId" in record && "baseAttentionState" in record) {
+    return `${record.nodeId} ${record.nodeTitle ?? ""} (${record.baseAttentionState})`;
+  }
   return `${record.id ? `${record.id} ` : ""}${record.title ?? record.summary ?? record.message ?? String(item)}${record.status ? ` (${record.status})` : ""}`;
 }
 

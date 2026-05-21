@@ -1,8 +1,17 @@
 {
   "additionalProperties": true,
   "properties": {
+    "audience": {
+      "type": "string"
+    },
     "awg": {
       "const": "0.1"
+    },
+    "budget": {
+      "type": "object"
+    },
+    "created_at": {
+      "type": "string"
     },
     "id": {
       "pattern": "^lens:.+",
@@ -17,7 +26,34 @@
     "purpose": {
       "type": "string"
     },
+    "review": {
+      "type": "object"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "sections": {
+      "type": "array"
+    },
+    "selector": {
+      "type": "object"
+    },
+    "status": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "title": {
+      "type": "string"
+    },
+    "updated_at": {
       "type": "string"
     }
   },
@@ -25,9 +61,7 @@
     "awg",
     "kind",
     "id",
-    "title",
-    "purpose",
-    "include"
+    "title"
   ],
   "type": "object"
 }

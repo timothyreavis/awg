@@ -4,6 +4,92 @@
     "byNodeId": {},
     "entries": []
   },
+  "attention_index": {
+    "acknowledgements": [],
+    "asOf": "2026-05-11T00:00:00.000Z",
+    "awg": "0.1",
+    "generated_at": "2026-05-11T00:00:00.000Z",
+    "items": [
+      {
+        "acknowledgedMaterialKeys": [],
+        "acknowledgementStale": false,
+        "activeCoordinationClaimIds": [],
+        "ageDays": 0,
+        "autonomousSafe": false,
+        "baseAttentionState": "open",
+        "baseFocusScore": 50,
+        "closeoutReasons": [],
+        "createdAt": "2026-05-11T00:00:00.000Z",
+        "diagnosticIds": [],
+        "evidenceIds": [],
+        "id": "att:79cb2fb6563aaccf",
+        "inboxItemIds": [],
+        "lastTouchedRunIds": [],
+        "needsHumanReview": false,
+        "nodeId": "n:awg-v1",
+        "nodeRevision": "2026-05-11T00:00:00.000Z",
+        "nodeStatus": "active",
+        "nodeTitle": "AWG V1",
+        "nodeType": "concept",
+        "nodeUpdatedAt": "2026-05-11T00:00:00.000Z",
+        "queueWeight": 0,
+        "recentRunIds": [],
+        "scoreBreakdown": [],
+        "staleReasons": [],
+        "suggestedCommands": [
+          "awg node show n:awg-v1 --json"
+        ],
+        "updatedAgeDays": 0,
+        "updatedAt": "2026-05-11T00:00:00.000Z",
+        "workQueueItemIds": []
+      },
+      {
+        "acknowledgedMaterialKeys": [],
+        "acknowledgementStale": false,
+        "activeCoordinationClaimIds": [],
+        "ageDays": 0,
+        "autonomousSafe": false,
+        "baseAttentionState": "open",
+        "baseFocusScore": 50,
+        "closeoutReasons": [],
+        "createdAt": "2026-05-11T00:00:00.000Z",
+        "diagnosticIds": [],
+        "evidenceIds": [],
+        "id": "att:7af13cb5cab09b49",
+        "inboxItemIds": [],
+        "lastTouchedRunIds": [],
+        "needsHumanReview": false,
+        "nodeId": "n:review-static-view",
+        "nodeRevision": "2026-05-11T00:00:00.000Z",
+        "nodeStatus": "in_progress",
+        "nodeTitle": "Review static view",
+        "nodeType": "task",
+        "nodeUpdatedAt": "2026-05-11T00:00:00.000Z",
+        "queueWeight": 0,
+        "recentRunIds": [],
+        "scoreBreakdown": [],
+        "staleReasons": [],
+        "suggestedCommands": [
+          "awg node show n:review-static-view --json"
+        ],
+        "updatedAgeDays": 0,
+        "updatedAt": "2026-05-11T00:00:00.000Z",
+        "workQueueItemIds": [
+          "wq:next:ff0343a80de1e95e"
+        ]
+      }
+    ],
+    "kind": "attention-index",
+    "summary": {
+      "acknowledgedOpen": 0,
+      "closeoutCandidates": 0,
+      "current": 0,
+      "historical": 0,
+      "open": 2,
+      "staleOpen": 0,
+      "total": 2
+    }
+  },
   "authored_views": [],
   "awg": "0.1",
   "claim_index": {
@@ -1102,6 +1188,12 @@
     "generated_at": "2026-05-11T00:00:00.000Z",
     "items": [
       {
+        "attention": {
+          "acknowledgementStale": false,
+          "closeoutReasons": [],
+          "score": 50,
+          "state": "open"
+        },
         "autonomousSafe": false,
         "blocked": false,
         "blockedByNodeIds": [],

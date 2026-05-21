@@ -5,6 +5,7 @@ import { buildCommand } from "./commands/build.js";
 import { claimCommand, claimsCommand } from "./commands/claim.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { coordCommand } from "./commands/coord.js";
+import { ackCommand, closeoutCommand, sweepCommand } from "./commands/closeout.js";
 import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
 import { inboxCommand } from "./commands/inbox.js";
@@ -47,6 +48,9 @@ async function main(): Promise<void> {
   if (command === "rels") return relsCommand(parsed);
   if (command === "quick") return quickCommand(parsed);
   if (command === "queue") return queueCommand(parsed);
+  if (command === "closeout") return closeoutCommand(parsed);
+  if (command === "ack") return ackCommand(parsed);
+  if (command === "sweep") return sweepCommand(parsed);
   if (command === "coord") return coordCommand(parsed);
   if (command === "add") return addCommand(parsed);
   if (command === "verify") return verifyCommand(parsed);
@@ -106,6 +110,11 @@ Commands:
   queue list [--queue <id>] [--limit <n>] [--autonomous] [--human-review] [--json]
   queue next [--goal <goal>] [--queue <id>] [--limit <n>] [--autonomous] [--include-human-review] [--include-claimed] [--mine] [--json]
   queue show <work-queue-item-id> [--json]
+  closeout candidates [--run <run-id|current>] [--goal <goal>] [--older-than <duration>] [--limit <n>] [--json]
+  closeout run [--run <run-id|current>] [--limit <n>] [--category-limit <n>] [--json]
+  closeout mark <node-id> --status <completed|resolved|archived|superseded|needs_review> --reason <text> [--target <node-id>] [--rel <rel>] [--expect-updated-at <iso>] [--force] [--run <run-id>|--no-run] [--json]
+  ack <node-id> --reason <text> [--review-after <date>] [--scope focus|risk|question|task|general] [--expect-updated-at <iso>] [--force] [--run <run-id>|--no-run] [--json]
+  sweep [--goal <goal>] [--older-than <duration>] [--limit <n>] [--json]
   coord status [--json]
   coord claim <target> [--mode exclusive|shared|watch] [--summary <text>] [--reason <text>] [--ttl-hours <n>] [--run <run-id>|--no-run] [--json]
   coord release <coordination-id> --status completed|released|abandoned|blocked [--summary <text>] [--run <run-id>|--no-run] [--json]

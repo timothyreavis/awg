@@ -47,8 +47,8 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   addNodeWarning("AWG_RUN_CLAIM_REQUIRED_EVIDENCE_MISSING", "Touched claim is missing required supporting evidence.", touchedClaims.filter((claim) => claim.verificationStatus === "unverified").map((claim) => claim.id), "Run `awg verify <node-id> --summary \"...\"`.");
   addNodeWarning("AWG_RUN_CLAIM_STALE_OR_EXPIRED", "Touched claim is stale or expired.", touchedClaims.filter((claim) => claim.stale || claim.expired || ["stale", "expired"].includes(claim.verificationStatus)).map((claim) => claim.id), "Review and verify the claim or mark it needs_review.");
   addNodeWarning("AWG_RUN_EVIDENCE_EXPIRED", "Touched evidence is expired.", (graph.evidence_index?.evidence ?? []).filter((evidence) => touched.includes(evidence.id) && evidence.expired).map((evidence) => evidence.id), "Add newer evidence or supersede the expired evidence.");
-  addNodeWarning("AWG_RUN_ACTIVE_BLOCKER_TOUCHED", "Blocker touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "blocker" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id)), "Resolve, review, or run `awg reconcile intentionally-open <node-id> --reason \"...\"`.");
-  addNodeWarning("AWG_RUN_ACTIVE_RISK_TOUCHED", "Risk touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "risk" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id)), "Review the risk or run `awg reconcile intentionally-open <node-id> --reason \"...\"`.");
+  addNodeWarning("AWG_RUN_ACTIVE_BLOCKER_TOUCHED", "Blocker touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "blocker" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id) && !isAcknowledgedOpen(graph, id)), "Resolve, review, or run `awg ack <node-id> --reason \"...\" --review-after <date>`.");
+  addNodeWarning("AWG_RUN_ACTIVE_RISK_TOUCHED", "Risk touched during this run is still active.", touched.filter((id) => nodes.get(id)?.type === "risk" && activeStatus(nodes.get(id)?.status) && !isIntentionallyOpen(graph, id) && !isAcknowledgedOpen(graph, id)), "Review the risk or run `awg ack <node-id> --reason \"...\" --review-after <date>`.");
   addNodeWarning("AWG_RUN_PROPOSED_DECISION_TOUCHED", "Decision touched during this run is still proposed.", summary?.proposedDecisionIds ?? [], "Update the decision status when implementation depends on it.");
   addNodeWarning("AWG_RUN_ORPHAN_NODE_CREATED", "Node created during this run has no graph edges.", summary?.orphanNodeIds ?? [], "Run `awg add edge --from <node-id> --rel relates_to --to <node-id>`.");
   addNodeWarning("AWG_RUN_DUPLICATEISH_NODE_CREATED", "Node created during this run has a duplicate-looking title or alias.", idsForDiagnostics(summary, "duplicate_alias"), "Use `awg search` and update existing nodes instead of duplicating context.");
@@ -65,6 +65,10 @@ export function preflightRun(graph: CompiledGraph, run: AgentRun): RunPreflightR
   addNodeWarning("AWG_RUN_COORDINATION_STALE_CLAIM", "Run has stale coordination claims.", runClaims.filter((claim) => claim.status === "stale").map((claim) => claim.id), "Run `awg coord release <coordination-id> --status abandoned --summary \"...\"`.");
   const otherRunClaims = (graph.coordination_index?.claims ?? []).filter((claim) => claim.status === "active" && claim.runId !== run.id && claim.mode === "exclusive" && claim.nodeIds.some((id) => touched.includes(id)));
   addNodeWarning("AWG_RUN_COORDINATION_OTHER_RUN_CLAIM_TOUCHED", "Touched node is claimed by another active run.", otherRunClaims.flatMap((claim) => claim.nodeIds.filter((id) => touched.includes(id))), "Run `awg coord check --target <node-id> --json`.");
+  const touchedAttention = (graph.attention_index?.items ?? []).filter((item) => touched.includes(item.nodeId));
+  addNodeWarning("AWG_RUN_CLOSEOUT_CANDIDATE_TOUCHED", "Touched node is a closeout candidate.", touchedAttention.filter((item) => item.baseAttentionState === "closeout_candidate").map((item) => item.nodeId), "Run `awg closeout run --json` and close or acknowledge touched lifecycle debt.");
+  addNodeWarning("AWG_RUN_ACK_STALE_TOUCHED", "Touched node has a stale acknowledgement.", touchedAttention.filter((item) => item.acknowledgementStale).map((item) => item.nodeId), "Run `awg ack <node-id> --reason \"...\" --review-after <date>` after review.");
+  addNodeWarning("AWG_RUN_UNACKNOWLEDGED_RISK_OR_BLOCKER", "Touched risk or blocker remains open and unacknowledged.", touchedAttention.filter((item) => ["risk", "blocker"].includes(item.nodeType) && ["current", "open", "stale_open", "closeout_candidate"].includes(item.baseAttentionState) && !item.acknowledgementId).map((item) => item.nodeId), "Resolve the item or run `awg ack <node-id> --reason \"...\" --review-after <date>`.");
   if (touched.length) {
     for (const item of filterInboxItems(graph.maintenance_inbox, { nodeIds: touched, limit: 8 }).filter((item) => item.priority >= 70)) {
       warnings.push({ code: "AWG_RUN_INBOX_ITEM_TOUCHED", severity: "warning", message: item.message, nodeIds: item.nodeIds, suggestedFix: item.suggestedCommands[0] ?? "Run `awg inbox --json`." });
@@ -85,6 +89,11 @@ function isIntentionallyOpen(graph: CompiledGraph, nodeId: string): boolean {
   const node = graph.nodes.find((item) => item.id === nodeId);
   if (!node) return false;
   return graph.edges.some((edge) => edge.rel === "intentionally_open" && edge.from === nodeId && edge.to === nodeId && Boolean(edge.reason) && edge.created_at >= node.updated_at);
+}
+
+function isAcknowledgedOpen(graph: CompiledGraph, nodeId: string): boolean {
+  const item = graph.attention_index?.items.find((candidate) => candidate.nodeId === nodeId);
+  return item?.baseAttentionState === "acknowledged_open" && !item.acknowledgementStale;
 }
 
 function hasUnhandledCrossVaultImpact(node: unknown, runId: string, nodes: Map<string, CompiledGraph["nodes"][number]> | CompiledGraph["nodes"]): boolean {

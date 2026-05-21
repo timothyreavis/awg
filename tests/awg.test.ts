@@ -9,9 +9,9 @@ import { buildAwg } from "../src/core/compiler.js";
 import { buildNodeDetail } from "../src/core/nodeDetail.js";
 import { decodeNodeRouteId, graphNeighborhood, kanbanColumnsFor, nodeRoute, queryNodes, renderStaticSite, unsupportedBlockFallback } from "../src/core/renderStaticSite.js";
 import { currentSchemaManifest, schemaBodyForFile, schemaContentHash, schemaForFile } from "../src/core/schemas.js";
-import type { AwgNode, Diagnostic } from "../src/core/types.js";
+import type { AwgEvent, AwgNode, AwgObject, Diagnostic } from "../src/core/types.js";
 import { FileAwgStorage } from "../src/storage/FileAwgStorage.js";
-import { stableStringify } from "../src/util/json.js";
+import { stableLine, stableStringify } from "../src/util/json.js";
 
 const cli = path.resolve("dist/src/cli/index.js");
 
@@ -120,6 +120,12 @@ function compiledSnapshot(cwd: string): string {
   const root = path.join(cwd, ".awg/compiled");
   const files = walk(root).sort();
   return files.map((file) => `${path.relative(root, file)}\n${readFileSync(file, "utf8")}`).join("\n");
+}
+
+function appendObjects(cwd: string, objects: AwgObject[]): void {
+  const file = path.join(cwd, ".awg/log/2026/01/2026-01-01.awg.jsonl");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${objects.map((object) => stableLine(object)).join("\n")}\n`, { flag: "a" });
 }
 
 function walk(dir: string): string[] {
@@ -232,6 +238,140 @@ test("packed package exposes the awg bin and runs offline smoke", () => {
   assert.equal(nodeDetail.node.blocks[0].type, "brief");
   const doctor = JSON.parse(execFileSync(process.execPath, [bin, "doctor", "--fix-suggestions", "--json"], { cwd: vault, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: home } }));
   assert.equal(doctor.summary.fatal_error_count, 0);
+});
+
+test("attention index separates base and runtime attention with acknowledgements", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    node({ id: "n:old-task", type: "task", title: "Old task", summary: "Old active task.", status: "active", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
+    node({ id: "n:risk", type: "risk", title: "Carried risk", summary: "Risk intentionally open.", status: "active", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
+    { awg: "0.1", kind: "event", id: "ev:ack-risk", type: "node.acknowledged", target: "n:risk", by: "agent:test", at: "2026-01-01T00:00:00.000Z", reason: "Carry forward.", review_after: "2026-02-01T00:00:00.000Z", acknowledgedNodeUpdatedAt: "2025-10-01T00:00:00.000Z", acknowledgedMaterialKeys: ["status", "summary", "edges"] } as AwgEvent
+  ]);
+  const { graph } = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  const oldTask = graph.attention_index?.items.find((item) => item.nodeId === "n:old-task");
+  const risk = graph.attention_index?.items.find((item) => item.nodeId === "n:risk");
+  assert.equal(oldTask?.baseAttentionState, "closeout_candidate");
+  assert.equal(risk?.baseAttentionState, "acknowledged_open");
+  assert.ok(!graph.maintenance_inbox?.items.some((item) => item.code === "AWG_INBOX_ACTIVE_RISK" && item.nodeIds.includes("n:risk")));
+  assert.equal(graph.attention_index?.asOf, graph.generated_at);
+});
+
+test("attention adapts legacy intentionally_open and detects edge material staleness", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    node({ id: "n:risk", type: "risk", title: "Legacy risk", summary: "Risk intentionally open.", status: "active", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }),
+    node({ id: "n:resolver", type: "evidence", title: "Resolver", summary: "Resolver evidence.", status: "active", created_at: "2026-01-03T00:00:00.000Z", updated_at: "2026-01-03T00:00:00.000Z" }),
+    { awg: "0.1", kind: "edge", id: "e:intentional", from: "n:risk", rel: "intentionally_open", to: "n:risk", created_at: "2026-01-02T00:00:00.000Z", reason: "Still intentional." },
+    { awg: "0.1", kind: "edge", id: "e:resolver", from: "n:resolver", rel: "resolved_by", to: "n:risk", created_at: "2026-01-03T00:00:00.000Z", reason: "Resolved later." }
+  ] as AwgObject[]);
+  const { graph } = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  const item = graph.attention_index?.items.find((candidate) => candidate.nodeId === "n:risk");
+  assert.equal(item?.acknowledgementId, "ack:e:intentional");
+  assert.equal(item?.acknowledgementStale, true);
+  assert.ok(item?.staleReasons.some((reason) => reason.includes("edge")));
+});
+
+test("attention keeps queue next from stale open pollution but allows goal overlay", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    node({ id: "n:ancient", type: "task", title: "Ancient migration", summary: "Very old active task.", status: "active", created_at: "2025-01-01T00:00:00.000Z", updated_at: "2025-01-01T00:00:00.000Z" }),
+    node({ id: "n:now", type: "task", title: "Current task", summary: "Current task.", status: "active", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" })
+  ]);
+  run(cwd, ["build", "--json"]);
+  const next = JSON.parse(run(cwd, ["queue", "next", "--json"])) as { items: Array<{ queue: string; nodeIds: string[] }> };
+  assert.ok(next.items.some((item) => item.nodeIds.includes("n:now")));
+  assert.ok(!next.items.some((item) => item.queue === "next" && item.nodeIds.includes("n:ancient")));
+  const goal = JSON.parse(run(cwd, ["queue", "next", "--goal", "Ancient migration", "--json"])) as { items: Array<{ nodeIds: string[]; attentionGoalBoost?: number }> };
+  assert.ok(goal.items.some((item) => item.nodeIds.includes("n:ancient")));
+  const generic = JSON.parse(run(cwd, ["queue", "next", "--goal", "review current work", "--json"])) as { items: Array<{ nodeIds: string[] }> };
+  assert.equal(generic.items.length, 0);
+});
+
+test("ack and closeout mark use append-only events and stale-read guards", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [node({ id: "n:guarded", type: "task", title: "Guarded task", summary: "Task.", status: "active", updated_at: "2026-01-01T00:00:00.000Z" })]);
+  run(cwd, ["build", "--json"]);
+  const ackFail = JSON.parse(runFail(cwd, ["ack", "n:guarded", "--reason", "Carry.", "--expect-updated-at", "2025-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(ackFail.ok, false);
+  assert.equal(ackFail.code, "AWG_CLOSEOUT_STALE_TARGET");
+  const ack = JSON.parse(run(cwd, ["ack", "n:guarded", "--reason", "Carry.", "--review-after", "2026-06-01T00:00:00.000Z", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(ack.ok, true);
+  assert.equal(ack.runId, undefined);
+  const badRun = JSON.parse(runFail(cwd, ["ack", "n:guarded", "--reason", "Carry.", "--review-after", "2026-06-01T00:00:00.000Z", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--run", "run:nope", "--json"]));
+  assert.equal(badRun.ok, false);
+  assert.equal(badRun.code, "AWG_RUN_NOT_FOUND");
+  const badMarkRun = JSON.parse(runFail(cwd, ["closeout", "mark", "n:guarded", "--status", "completed", "--reason", "Evidence reviewed.", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--run", "run:nope", "--json"]));
+  assert.equal(badMarkRun.ok, false);
+  assert.equal(badMarkRun.code, "AWG_RUN_NOT_FOUND");
+  const mark = JSON.parse(run(cwd, ["closeout", "mark", "n:guarded", "--status", "completed", "--reason", "Evidence reviewed.", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(mark.ok, true);
+  assert.deepEqual(mark.eventIds.length, 2);
+  const log = canonicalLogSnapshot(cwd);
+  assert.ok(log.includes("\"type\":\"node.acknowledged\""));
+  assert.ok(log.includes("\"type\":\"node.closeout_marked\""));
+});
+
+test("closeout and ack commands return stable JSON errors for invalid usage", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [node({ id: "n:guarded", type: "task", title: "Guarded task", summary: "Task.", status: "active", updated_at: "2026-01-01T00:00:00.000Z" })]);
+  const badSubcommand = JSON.parse(runFail(cwd, ["closeout", "nope", "--json"]));
+  assert.equal(badSubcommand.ok, false);
+  assert.equal(badSubcommand.code, "AWG_CLOSEOUT_USAGE");
+  const missingAckTarget = JSON.parse(runFail(cwd, ["ack", "--json"]));
+  assert.equal(missingAckTarget.ok, false);
+  assert.equal(missingAckTarget.code, "AWG_ACK_USAGE");
+  const badScope = JSON.parse(runFail(cwd, ["ack", "n:guarded", "--reason", "Carry.", "--scope", "forever", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(badScope.ok, false);
+  assert.equal(badScope.code, "AWG_ACK_INVALID_SCOPE");
+  const missingMarkTarget = JSON.parse(runFail(cwd, ["closeout", "mark", "--json"]));
+  assert.equal(missingMarkTarget.ok, false);
+  assert.equal(missingMarkTarget.code, "AWG_CLOSEOUT_MARK_USAGE");
+});
+
+test("closeout mark rejects self-targets and protects reviewed operating templates", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    node({ id: "n:self", type: "task", title: "Self target", summary: "Task.", status: "active", updated_at: "2026-01-01T00:00:00.000Z" }),
+    node({ id: "n:template", type: "process", title: "Operating template", summary: "Template.", status: "active", tags: ["template:operating"], fields: { human_approved: true, review_state: "reviewed" }, updated_at: "2026-01-01T00:00:00.000Z" })
+  ]);
+  const self = JSON.parse(runFail(cwd, ["closeout", "mark", "n:self", "--status", "resolved", "--reason", "Resolved.", "--target", "n:self", "--rel", "resolved_by", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(self.ok, false);
+  assert.equal(self.code, "AWG_CLOSEOUT_SELF_TARGET");
+  const template = JSON.parse(runFail(cwd, ["closeout", "mark", "n:template", "--status", "archived", "--reason", "Archive.", "--expect-updated-at", "2026-01-01T00:00:00.000Z", "--json"]));
+  assert.equal(template.ok, false);
+  assert.equal(template.code, "AWG_CLOSEOUT_TEMPLATE_APPROVAL_REQUIRED");
+});
+
+test("closeout candidates, run closeout, and sweep return parseable bounded JSON", () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    node({ id: "n:done-open", type: "task", title: "Done but open", summary: "Open task with evidence.", status: "active", created_at: "2025-01-01T00:00:00.000Z", updated_at: "2025-01-01T00:00:00.000Z" }),
+    node({ id: "n:evidence", type: "evidence", title: "Evidence", summary: "Tests passed.", status: "active", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }),
+    { awg: "0.1", kind: "edge", id: "e:evidence", from: "n:evidence", rel: "supports", to: "n:done-open", created_at: "2026-01-01T00:00:00.000Z" }
+  ] as AwgObject[]);
+  run(cwd, ["build", "--json"]);
+  const candidates = JSON.parse(run(cwd, ["closeout", "candidates", "--limit", "1", "--json"]));
+  assert.equal(candidates.ok, true);
+  assert.equal(candidates.candidates.length, 1);
+  assert.equal(candidates.candidates[0].nodeId, "n:done-open");
+  const sweep = JSON.parse(run(cwd, ["sweep", "--limit", "1", "--json"]));
+  assert.equal(sweep.ok, true);
+  assert.ok("safe_closeout_candidate" in sweep.groups);
+  const closeout = JSON.parse(runFail(cwd, ["closeout", "run", "--json"]));
+  assert.equal(closeout.ok, false);
+  assert.equal(closeout.code, "AWG_RUN_NOT_FOUND");
+  run(cwd, ["run", "start", "--goal", "No touch", "--agent", "codex"]);
+  const emptyRun = JSON.parse(run(cwd, ["closeout", "run", "--json"]));
+  assert.equal(emptyRun.ok, true);
+  assert.equal(emptyRun.summary.touched, 0);
+  assert.equal(emptyRun.summary.closeoutCandidates, 0);
 });
 
 test("setup creates global config and registry in temp home", () => {
@@ -1382,7 +1522,8 @@ test("release notes, relations, evidence help, and generated instructions expose
   assert.equal(release.ok, true);
   const v191 = release.releases.find((item: { version: string }) => item.version === "0.1.0-v2.1");
   assert.ok(v191.newCommands.includes("awg rels [--json]"));
-  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg template guide")));
+  assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg closeout candidates")));
+  assert.ok(release.releases.some((item: { newCommands: string[] }) => item.newCommands.some((command: string) => command.startsWith("awg template guide"))));
   assert.ok(release.releases.some((item: { newCommands: string[] }) => item.newCommands.some((command: string) => command.startsWith("awg add claim"))));
   assert.ok(run(cwd, ["release", "current"]).includes("AWG release"));
   const rels = JSON.parse(run(cwd, ["rels", "--json"]));

@@ -113,6 +113,30 @@ function budgetResume(lens: Record<string, any>, budget: number): Record<string,
 
 function printItem(item: unknown): void {
   const record = item as Record<string, unknown>;
+  if (typeof record.nodeTitle === "string" && typeof record.nodeId === "string") {
+    const state = record.effectiveAttentionState ?? record.baseAttentionState;
+    const score = record.effectiveFocusScore ?? record.baseFocusScore;
+    console.log(`- ${record.nodeId} ${record.nodeTitle}${state ? ` (${state}` : ""}${score !== undefined ? `, ${score}` : ""}${state ? ")" : ""}`);
+    return;
+  }
+  if (typeof record.queue === "string" && typeof record.title === "string") {
+    console.log(`- ${record.id ?? ""} [${record.queue}] ${record.title}${record.priority !== undefined ? ` (${record.priority})` : ""}`.trim());
+    return;
+  }
+  if ("activeTemplateId" in record || "selectedTemplate" in record) {
+    const selected = record.selectedTemplate as Record<string, unknown> | undefined;
+    const title = typeof selected?.title === "string" ? selected.title : record.activeTemplateId;
+    console.log(`- template ${title ?? "none"}${record.ready === false ? " (not ready)" : ""}`);
+    return;
+  }
+  if ("fatal_error_count" in record || "warning_count" in record) {
+    console.log(`- ${record.fatal_error_count ?? 0} fatal, ${record.warning_count ?? 0} warnings`);
+    return;
+  }
+  if (typeof record.run === "string" && typeof record.note === "string") {
+    console.log(`- ${record.run}: ${record.note}`);
+    return;
+  }
   const id = record.id ? `${record.id} ` : "";
   const title = record.title ?? record.summary ?? record.message ?? record.code ?? JSON.stringify(record);
   const status = record.status ? ` (${record.status})` : "";

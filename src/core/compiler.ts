@@ -14,6 +14,7 @@ import { buildLensIndex, validateLenses } from "./lensConfigs.js";
 import { buildClaimIndex, buildEvidenceIndex, claimDiagnostics } from "./claims.js";
 import { buildWorkQueueIndex } from "./workQueues.js";
 import { buildCoordinationIndex, coordinationDiagnostics, coordinationForQueueItem } from "./coordination.js";
+import { attentionDiagnostics, buildAttentionIndex, decorateAttentionWithQueueIds } from "./attention.js";
 import type { AwgEdge, AwgLens, AwgNode, AwgObject, AwgPolicy, AwgResponse, AwgView, BuildResult, CompiledGraph, Diagnostic } from "./types.js";
 import type { AwgStorage } from "../storage/AwgStorage.js";
 
@@ -129,21 +130,31 @@ export async function buildAwg(storage: AwgStorage, options: BuildOptions = {}):
   graph.diagnostics.summary.fatal_error_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "fatal").length;
   graph.diagnostics.summary.warning_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "warning").length;
   graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
-  graph.maintenance_inbox = buildMaintenanceInbox(graph);
-  graph.run_summaries = buildRunSummaries(graph);
-  graph.work_queue_index = buildWorkQueueIndex(graph);
   graph.coordination_index = buildCoordinationIndex(graph, options.coordinationAsOf);
-  graph.work_queue_index = buildWorkQueueIndex(graph);
-  if (graph.work_queue_index) {
-    const currentRunId = activeRun(buildRuns(graph))?.id;
-    graph.work_queue_index.items = graph.work_queue_index.items.map((item) => ({ ...item, coordination: coordinationForQueueItem(item, graph, typeof currentRunId === "string" ? currentRunId : undefined) }));
-  }
   graph.diagnostics.diagnostics.push(...coordinationDiagnostics(graph, strict));
   graph.diagnostics.summary.fatal_error_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "fatal").length;
   graph.diagnostics.summary.warning_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "warning").length;
   graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
-  const resumeLens = buildResumeLens(sortedNodes, sortedResponses, graph.diagnostics.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10), graph.work_queue_index);
-  const currentView = buildCurrentView(sortedNodes, graph.diagnostics.summary, generatedAt);
+  graph.maintenance_inbox = buildMaintenanceInbox(graph);
+  graph.run_summaries = buildRunSummaries(graph);
+  graph.attention_index = buildAttentionIndex(graph, generatedAt);
+  graph.diagnostics.diagnostics.push(...attentionDiagnostics(graph));
+  graph.diagnostics.summary.fatal_error_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "fatal").length;
+  graph.diagnostics.summary.warning_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "warning").length;
+  graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
+  graph.maintenance_inbox = buildMaintenanceInbox(graph);
+  graph.work_queue_index = buildWorkQueueIndex(graph);
+  graph.coordination_index = buildCoordinationIndex(graph, options.coordinationAsOf);
+  if (graph.work_queue_index) {
+    const currentRunId = activeRun(buildRuns(graph))?.id;
+    graph.work_queue_index.items = graph.work_queue_index.items.map((item) => ({ ...item, coordination: coordinationForQueueItem(item, graph, typeof currentRunId === "string" ? currentRunId : undefined) }));
+  }
+  graph.attention_index = decorateAttentionWithQueueIds(graph.attention_index, graph);
+  graph.diagnostics.summary.fatal_error_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "fatal").length;
+  graph.diagnostics.summary.warning_count = graph.diagnostics.diagnostics.filter((d) => d.severity === "warning").length;
+  graph.diagnostics.summary.ok = graph.diagnostics.summary.fatal_error_count === 0;
+  const resumeLens = buildResumeLens(sortedNodes, sortedResponses, graph.diagnostics.summary, diag.recommended, generatedAt, graph.maintenance_inbox.items.slice(0, 10), graph.work_queue_index, graph.attention_index);
+  const currentView = buildCurrentView(sortedNodes, graph.diagnostics.summary, generatedAt, graph.attention_index);
   graph.authored_views = buildAuthoredViewOutputs(sortedViews, diagnosticsReport.diagnostics, generatedAt);
 
   if (options.write !== false) {
@@ -240,6 +251,7 @@ async function writeGraphArtifacts(storage: AwgStorage, graph: CompiledGraph): P
   if (graph.evidence_index) await storage.writeCompiledArtifact("indexes/evidence.json", graph.evidence_index);
   if (graph.work_queue_index) await storage.writeCompiledArtifact("indexes/work-queues.json", graph.work_queue_index);
   if (graph.coordination_index) await storage.writeCompiledArtifact("indexes/coordination.json", graph.coordination_index);
+  if (graph.attention_index) await storage.writeCompiledArtifact("indexes/attention.json", graph.attention_index);
 }
 
 function emptySummary(nodes: number, edges: number): CompiledGraph["diagnostics"]["summary"] {

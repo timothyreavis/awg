@@ -91,11 +91,11 @@ function renderRoute() {
   routeTitle.textContent = title;
   if (parsed.route === "overview") root.innerHTML = renderOverview();
   else if (parsed.route === "queues") root.innerHTML = renderQueuesRoute(parsed.params);
-  else if (parsed.route === "coordination") root.innerHTML = renderCoordinationRoute();
+  else if (parsed.route === "coordination") root.innerHTML = renderCoordinationRoute(parsed.params);
   else if (parsed.route === "graph") root.innerHTML = renderGraphRoute(parsed.params);
   else if (parsed.route === "kanban") root.innerHTML = renderKanbanRoute(parsed.params);
   else if (parsed.route === "nodes") root.innerHTML = renderNodesRoute(parsed.params);
-  else if (parsed.route === "topology") root.innerHTML = renderTopologyRoute();
+  else if (parsed.route === "topology") root.innerHTML = renderTopologyRoute(parsed.params);
   else if (parsed.route === "maintenance") root.innerHTML = renderMaintenanceRoute(parsed.params);
   else if (parsed.route === "runs") root.innerHTML = renderRunsRoute();
   else if (parsed.route === "health") root.innerHTML = renderHealthRoute(parsed.params);
@@ -122,19 +122,16 @@ function labelForRoute(route) {
 
 function renderTopSummary() {
   const s = diagnostics.summary || {};
-  const needsAttention = graph.nodes.filter((node) => ["blocked", "needs_review", "stale"].includes(node.status)).length;
+  const needsAttention = ((graph.attention_index || {}).items || []).length
+    ? ((graph.attention_index || {}).items || []).filter((item) => ["current", "closeout_candidate", "stale_open"].includes(item.baseAttentionState)).length
+    : graph.nodes.filter((node) => ["blocked", "needs_review", "stale"].includes(node.status)).length;
   const activeWork = graph.nodes.filter((node) => ["task", "risk", "requirement", "artifact"].includes(node.type) && ["active", "accepted", "in_progress", "blocked", "needs_review", "stale"].includes(node.status)).length;
-  const openDecisions = graph.nodes.filter((node) => node.type === "decision" && !isClosedStatus(node.status)).length;
-  const openQuestions = graph.nodes.filter((node) => node.type === "question" && !isClosedStatus(node.status)).length;
   const healthValue = (s.fatal_error_count || 0) > 0 ? String(s.fatal_error_count) : (s.warning_count || 0) > 0 ? String(s.warning_count) : "OK";
   const healthLabel = (s.fatal_error_count || 0) > 0 ? "Errors" : (s.warning_count || 0) > 0 ? "Warnings" : "Health";
   return [
-    metric("Queue Items", (workQueues.summary || {}).total || 0, "#/queues"),
-    metric("Claims", (coordination.summary || {}).activeClaims || 0, "#/coordination"),
     metric("Needs Attention", needsAttention, needsAttention ? "#/nodes?needsAttention=true" : "#/health"),
+    metric("Queue Items", (workQueues.summary || {}).total || 0, "#/queues"),
     metric("Active Work", activeWork, "#/kanban"),
-    metric("Open Decisions", openDecisions, "#/nodes?type=decision&open=true"),
-    metric("Open Questions", openQuestions, "#/nodes?type=question&open=true"),
     metric(healthLabel, healthValue, "#/health")
   ].join("");
 }
@@ -142,20 +139,31 @@ function renderTopSummary() {
 function renderQueuesRoute(params) {
   let items = workQueues.items || [];
   if (params.queue) items = items.filter((item) => item.queue === params.queue);
+  if (params.severity) items = items.filter((item) => item.severity === params.severity);
+  if (params.source) items = items.filter((item) => item.sourceKind === params.source || item.sourceCode === params.source);
+  if (params.highPriority === "true") items = items.filter((item) => Number(item.priority || 0) >= 85);
   if (params.autonomous === "true") items = items.filter((item) => item.autonomousSafe);
   if (params.humanReview === "true") items = items.filter((item) => item.needsHumanReview);
+  if (params.blocked === "true") items = items.filter((item) => item.blocked);
+  items = [...items].sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || String(a.title || a.summary || a.id).localeCompare(String(b.title || b.summary || b.id)));
   const queueIds = unique((workQueues.queues || []).map((queue) => queue.id));
+  const severities = unique((workQueues.items || []).map((item) => item.severity).filter(Boolean));
+  const sources = unique((workQueues.items || []).flatMap((item) => [item.sourceKind, item.sourceCode]).filter(Boolean));
   const stats = [
     metric("Total", (workQueues.summary || {}).total || 0, "#/queues"),
-    metric("High Priority", (workQueues.summary || {}).highPriority || 0, "#/queues"),
+    metric("High Priority", (workQueues.summary || {}).highPriority || 0, "#/queues?highPriority=true"),
     metric("Autonomous", (workQueues.summary || {}).autonomousSafe || 0, "#/queues?autonomous=true"),
     metric("Human Review", (workQueues.summary || {}).needsHumanReview || 0, "#/queues?humanReview=true"),
-    metric("Blocked", (workQueues.summary || {}).blocked || 0, "#/queues?queue=blocked")
+    metric("Blocked", (workQueues.summary || {}).blocked || 0, "#/queues?blocked=true")
   ].join("");
-  const filters = '<div class="filters"><select data-control="queue-id"><option value="">All queues</option>' + optionList(queueIds, params.queue) + '</select></div>';
-  const queueSummary = (workQueues.queues || []).length ? '<section class="panel span-2"><h2>Queue Summary</h2><div class="metric-row">' + (workQueues.queues || []).map((queue) => metric(queue.title || queue.id, queue.count || 0, "#/queues?queue=" + encodeURIComponent(queue.id))).join("") + '</div></section>' : "";
-  const rows = items.length ? '<div class="card-list">' + items.slice(0, 100).map(renderQueueItemCard).join("") + '</div>' : '<div class="empty"><h2>No queue items</h2><p>The derived work queue is empty for this filter.</p></div>';
-  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body">' + filters + queueSummary + rows + '</div></section>';
+  const filters = '<div class="filters"><select data-control="queue-id"><option value="">All queues</option>' + optionList(queueIds, params.queue) + '</select><select data-control="queue-severity"><option value="">All severities</option>' + optionList(severities, params.severity) + '</select><select data-control="queue-source"><option value="">All sources</option>' + optionList(sources, params.source) + '</select><select data-control="queue-flag"><option value="">All flags</option>' + optionList(["highPriority", "humanReview", "autonomous", "blocked"], params.highPriority === "true" ? "highPriority" : params.humanReview === "true" ? "humanReview" : params.autonomous === "true" ? "autonomous" : params.blocked === "true" ? "blocked" : "") + '</select></div>';
+  const queueSummary = (workQueues.queues || []).length ? '<section class="panel span-2"><h2>Queue Summary</h2><div class="card-list">' + (workQueues.queues || []).map(renderQueueSummaryCard).join("") + '</div></section>' : "";
+  const rows = items.length ? '<div class="result-heading"><strong>' + esc(String(items.length)) + '</strong><span>queue items match these filters</span></div><div class="card-list">' + items.slice(0, 120).map(renderQueueItemCard).join("") + '</div>' : '<div class="empty"><h2>No queue items</h2><p>The derived work queue is empty for this filter.</p></div>';
+  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body"><div class="route-intro"><h2>Work Queue</h2><p class="muted">Derived from risks, maintenance inbox, run preflight, coordination, and evidence gates. Queue priority is context, not permission to override the current user request.</p></div>' + filters + queueSummary + rows + '</div></section>';
+}
+
+function renderQueueSummaryCard(queue) {
+  return '<article class="node-card"><div class="chip-row">' + badge(queue.id || "queue", "type") + (queue.needsHumanReview ? badge("human review", "status") : "") + (queue.autonomousSafe ? badge("autonomous", "status") : "") + '</div><h2><a href="#/queues?queue=' + encodeURIComponent(queue.id || "") + '">' + esc(queue.title || queue.id || "Queue") + '</a></h2><p>' + esc(queue.description || "") + '</p><div class="mini-kpis">' + miniKpi("Items", queue.count || 0) + miniKpi("High", queue.highPriority || 0) + miniKpi("Review", queue.needsHumanReview || 0) + '</div></article>';
 }
 
 function renderQueueItemCard(item) {
@@ -171,18 +179,27 @@ function renderQueueItemCard(item) {
   return '<article class="node-card severity-' + esc(item.severity || "info") + '"><div class="chip-row">' + badge(item.queue || "queue", "type") + badge(item.severity || "info", "severity") + (item.autonomousSafe ? badge("autonomous", "status") : "") + (item.needsHumanReview ? badge("human review", "status") : "") + '<code>' + esc(item.id || "") + '</code></div><h2>' + esc(item.title || item.summary || "Queue item") + '</h2><p>' + esc(item.summary || "") + '</p><p class="muted">priority ' + esc(String(item.priority || 0)) + '</p>' + links + reasons + commands + '</article>';
 }
 
-function renderCoordinationRoute() {
+function renderCoordinationRoute(params) {
+  let claimsList = coordination.claims || [];
+  if (params.status) claimsList = claimsList.filter((claim) => claim.status === params.status);
+  if (params.mode) claimsList = claimsList.filter((claim) => claim.mode === params.mode);
+  if (params.target) claimsList = claimsList.filter((claim) => (claim.targetKind || "") === params.target || (claim.nodeIds || []).includes(params.target) || (claim.targetIds || []).includes(params.target));
+  claimsList = [...claimsList].sort((a, b) => String(a.status || "").localeCompare(String(b.status || "")) || String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+  const statuses = unique((coordination.claims || []).map((claim) => claim.status).filter(Boolean));
+  const modes = unique((coordination.claims || []).map((claim) => claim.mode).filter(Boolean));
+  const targetKinds = unique((coordination.claims || []).map((claim) => claim.targetKind).filter(Boolean));
   const stats = [
-    metric("Active Claims", (coordination.summary || {}).activeClaims || 0, "#/coordination"),
-    metric("Stale Claims", (coordination.summary || {}).staleClaims || 0, "#/coordination"),
+    metric("Active Claims", (coordination.summary || {}).activeClaims || 0, "#/coordination?status=active"),
+    metric("Stale Claims", (coordination.summary || {}).staleClaims || 0, "#/coordination?status=stale"),
     metric("Collisions", (coordination.summary || {}).collisions || 0, "#/coordination"),
     metric("Handoffs", (coordination.summary || {}).handoffs || 0, "#/coordination"),
     metric("Claimed Nodes", (coordination.summary || {}).claimedNodes || 0, "#/coordination")
   ].join("");
-  const claims = (coordination.claims || []).length ? '<section class="panel span-2"><h2>Claims</h2><div class="card-list">' + coordination.claims.map(renderCoordinationClaim).join("") + '</div></section>' : '<section class="panel"><h2>No coordination claims</h2><p class="muted">Claims are advisory and append-only.</p></section>';
+  const filters = '<div class="filters"><select data-control="coord-status"><option value="">All statuses</option>' + optionList(statuses, params.status) + '</select><select data-control="coord-mode"><option value="">All modes</option>' + optionList(modes, params.mode) + '</select><select data-control="coord-target"><option value="">All target kinds</option>' + optionList(targetKinds, params.target) + '</select></div>';
+  const claims = claimsList.length ? '<section class="panel span-2"><h2>Claims</h2><div class="card-list">' + claimsList.map(renderCoordinationClaim).join("") + '</div></section>' : '<section class="panel"><h2>No matching coordination claims</h2><p class="muted">Claims are advisory work-intent records. Use filters above or run <code>awg coord status --json</code> for raw state.</p></section>';
   const collisions = (coordination.collisions || []).length ? '<section class="panel"><h2>Collisions</h2>' + coordination.collisions.map((item) => '<article class="node-card severity-warning"><div class="chip-row">' + badge(item.severity || "warning", "severity") + '<code>' + esc(item.id) + '</code></div><p>' + esc(item.message || "") + '</p><div class="chip-row">' + (item.claimIds || []).map((id) => '<span class="badge status">' + esc(id) + '</span>').join("") + '</div></article>').join("") + '</section>' : "";
   const handoffs = (coordination.handoffs || []).length ? '<section class="panel"><h2>Handoffs</h2>' + coordination.handoffs.map((item) => '<article class="node-card"><div class="chip-row"><code>' + esc(item.id) + '</code>' + badge(item.toRole || item.toAgent || "handoff", "type") + '</div><p>' + esc(item.summary || "") + '</p></article>').join("") + '</section>' : "";
-  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body surface-grid">' + claims + collisions + handoffs + '</div></section>';
+  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body"><div class="route-intro"><h2>Coordination</h2><p class="muted">Advisory claims, stale claims, collisions, and handoffs. These records explain who intended to work on what; they are not hard locks or permissions.</p></div>' + filters + '<div class="surface-grid">' + claims + collisions + handoffs + '</div></div></section>';
 }
 
 function renderCoordinationClaim(claim) {
@@ -198,15 +215,18 @@ function renderOverview() {
   return '<div class="surface-grid">' + blocks.map(renderBlock).join("") + '</div>';
 }
 
-function renderTopologyRoute() {
+function renderTopologyRoute(params) {
   const current = topology.currentVault;
   const neighbors = topology.directNeighbors || [];
   const rels = topology.relationships || [];
-  const header = current ? '<section class="panel"><h2>' + esc(current.name || "Current vault") + '</h2><p><code>' + esc(current.id || "") + '</code></p><p class="muted">' + esc(current.path || "") + '</p></section>' : '<section class="panel"><h2>No registered current vault</h2><p class="muted">Run <code>awg register</code> in this project.</p></section>';
+  const crossRefs = topology.crossVaultRefs || [];
+  const stats = '<section class="health-surface span-2"><div class="health-kpis">' + [metric("Neighbors", neighbors.length, "#/topology"), metric("Relationships", rels.length, "#/topology"), metric("Cross refs", crossRefs.length, "#/topology"), metric("Warnings", (topology.diagnostics || []).length, "#/topology")].join("") + '</div></section>';
+  const header = current ? '<section class="panel"><div class="chip-row">' + badge(current.scope || "project", "type") + badge(current.health?.fatalErrors ? "fatal" : current.health?.warnings ? "warning" : "ok", "status") + '</div><h2>' + esc(current.name || "Current vault") + '</h2><p><code>' + esc(current.id || current.vaultId || "") + '</code></p><p class="muted">' + esc(current.path || "") + '</p><div class="mini-kpis">' + miniKpi("Built", current.health?.built ? "yes" : "no") + miniKpi("Warnings", current.health?.warnings || 0) + miniKpi("Fatal", current.health?.fatalErrors || 0) + '</div></section>' : '<section class="panel"><h2>No registered current vault</h2><p class="muted">Run <code>awg register</code> in this project.</p></section>';
   const neighborCards = neighbors.length ? neighbors.map((vault) => '<section class="panel"><div class="chip-row">' + badge(vault.stale ? "stale/missing" : "ok", "status") + badge(vault.scope || "project", "type") + '</div><h2>' + esc(vault.name || vault.id) + '</h2><p><code>' + esc(vault.id || "") + '</code></p><p class="muted">' + esc(vault.path || "") + '</p><p>' + esc(vault.summary?.text || "") + '</p><h3>Why surfaced</h3><div class="chip-row">' + (vault.whySurfaced || []).map((why) => '<span class="badge type">' + esc(why) + '</span>').join("") + '</div></section>').join("") : '<section class="panel"><h2>No direct neighbors</h2><p class="muted">Create explicit links with <code>awg vault link</code>.</p></section>';
   const relationshipRows = rels.length ? '<section class="panel span-2"><h2>Relationships</h2><table><thead><tr><th>ID</th><th>Relationship</th><th>Direction</th><th>Summary</th></tr></thead><tbody>' + rels.map((rel) => '<tr><td><code>' + esc(rel.id) + '</code></td><td>' + esc(rel.rel || "") + '</td><td>' + esc(rel.direction || "") + '</td><td>' + esc(rel.summary || "") + '</td></tr>').join("") + '</tbody></table></section>' : "";
+  const crossVaultRows = crossRefs.length ? '<section class="panel span-2"><h2>Cross-Vault References</h2><table><thead><tr><th>Node</th><th>Vault</th><th>Reason</th></tr></thead><tbody>' + crossRefs.map((ref) => '<tr><td>' + (ref.nodeId ? nodeLink(ref.nodeId) : "") + '</td><td><code>' + esc(ref.vaultId || ref.vault || "") + '</code></td><td>' + esc(ref.reason || ref.summary || "") + '</td></tr>').join("") + '</tbody></table></section>' : "";
   const diagRows = (topology.diagnostics || []).length ? '<section class="panel span-2"><h2>Topology Health</h2>' + renderDiagnostics(topology.diagnostics || []) + '</section>' : "";
-  return '<div class="surface-grid">' + header + neighborCards + relationshipRows + diagRows + '</div>';
+  return '<div class="surface-grid">' + stats + header + neighborCards + relationshipRows + crossVaultRows + diagRows + '<section class="panel span-2"><h2>Use Topology When</h2><p class="muted">Keep this page for repos that have parent, child, sibling, or related AWG vaults. If this project stays standalone, this page should stay quiet and mostly empty.</p><h3>Useful commands</h3><ul><li><code>awg vault topology --json</code></li><li><code>awg vault link --to &lt;vault&gt; --rel &lt;rel&gt;</code></li><li><code>awg vault list --json</code></li></ul></section></div>';
 }
 
 function renderMaintenanceRoute(params) {
@@ -214,22 +234,31 @@ function renderMaintenanceRoute(params) {
   let items = inbox.items || [];
   if (params.kind) items = items.filter((item) => item.kind === params.kind);
   if (params.severity) items = items.filter((item) => item.severity === params.severity);
+  if (params.code) items = items.filter((item) => item.code === params.code);
+  if (params.highPriority === "true") items = items.filter((item) => Number(item.priority || 0) >= 85);
+  if (params.humanReview === "true") items = items.filter((item) => item.needsHumanReview);
+  if (params.autonomous === "true") items = items.filter((item) => item.autonomousSafe);
+  const search = String(params.q || "").toLowerCase();
+  if (search) items = items.filter((item) => [item.id, item.code, item.kind, item.severity, item.message, ...(item.nodeIds || []), ...(item.runIds || [])].join(" ").toLowerCase().includes(search));
+  items = [...items].sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || String(a.message || a.id).localeCompare(String(b.message || b.id)));
   const kinds = unique((inbox.items || []).map((item) => item.kind));
   const severities = unique((inbox.items || []).map((item) => item.severity));
+  const codes = unique((inbox.items || []).map((item) => item.code));
   const summary = inbox.summary || {};
   const stats = [
     metric("Inbox Items", summary.total || 0, "#/maintenance"),
-    metric("High Priority", summary.highPriority || 0, "#/maintenance"),
+    metric("High Priority", summary.highPriority || 0, "#/maintenance?highPriority=true"),
     metric("Errors", (summary.bySeverity || {}).error || 0, "#/maintenance?severity=error"),
     metric("Warnings", (summary.bySeverity || {}).warning || 0, "#/maintenance?severity=warning")
   ].join("");
-  const filters = '<div class="filters"><select data-control="maintenance-kind"><option value="">All kinds</option>' + optionList(kinds, params.kind) + '</select><select data-control="maintenance-severity"><option value="">All severities</option>' + optionList(severities, params.severity) + '</select></div>';
+  const filters = '<div class="filters"><input data-control="maintenance-q" value="' + esc(params.q || "") + '" placeholder="Search maintenance"><select data-control="maintenance-kind"><option value="">All kinds</option>' + optionList(kinds, params.kind) + '</select><select data-control="maintenance-severity"><option value="">All severities</option>' + optionList(severities, params.severity) + '</select><select data-control="maintenance-code"><option value="">All codes</option>' + optionList(codes, params.code) + '</select><select data-control="maintenance-flag"><option value="">All flags</option>' + optionList(["highPriority", "humanReview", "autonomous"], params.highPriority === "true" ? "highPriority" : params.humanReview === "true" ? "humanReview" : params.autonomous === "true" ? "autonomous" : "") + '</select></div>';
   const rows = items.length ? '<div class="card-list">' + items.map((item) => {
     const reasons = (item.reasons || []).length ? '<h3>Reasons</h3><ul>' + item.reasons.map((reason) => '<li>' + esc(reason) + '</li>').join("") + '</ul>' : "";
     const commands = (item.suggestedCommands || []).length ? '<h3>Suggested commands</h3><ul>' + item.suggestedCommands.map((command) => '<li><code>' + esc(command) + '</code></li>').join("") + '</ul>' : "";
-    return '<article class="node-card severity-' + esc(item.severity) + '"><div class="chip-row">' + badge(item.severity, "severity") + badge(item.kind, "type") + '<code>' + esc(item.id) + '</code></div><h2>' + esc(item.message) + '</h2><p><code>' + esc(item.code) + '</code> priority ' + esc(String(item.priority)) + '</p>' + (item.nodeIds || []).map((id) => nodeLink(id)).join(" ") + reasons + commands + '</article>';
+    const links = renderLinkedIds({ nodeIds: item.nodeIds, runIds: item.runIds, edgeIds: item.edgeIds, relationshipIds: item.relationshipIds, vaultIds: item.vaultIds });
+    return '<article class="node-card severity-' + esc(item.severity) + '"><div class="chip-row">' + badge(item.severity, "severity") + badge(item.kind, "type") + (item.needsHumanReview ? badge("human review", "status") : "") + (item.autonomousSafe ? badge("autonomous", "status") : "") + '<code>' + esc(item.id) + '</code></div><h2>' + esc(item.message) + '</h2><p><code>' + esc(item.code) + '</code> priority ' + esc(String(item.priority)) + '</p>' + links + reasons + commands + '</article>';
   }).join("") + '</div>' : '<div class="empty"><h2>No maintenance items</h2><p>The derived inbox is empty for this filter.</p></div>';
-  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body">' + filters + rows + '</div></section>';
+  return '<section class="health-surface"><div class="health-kpis">' + stats + '</div><div class="health-body"><div class="route-intro"><h2>Maintenance Inbox</h2><p class="muted">Deterministic hygiene and review items from diagnostics, stale/review states, risks, open questions, and run preflight. Suggested commands are local repair paths, not automatic actions.</p></div>' + filters + '<div class="result-heading"><strong>' + esc(String(items.length)) + '</strong><span>maintenance items match these filters</span></div>' + rows + '</div></section>';
 }
 
 function buildOverviewBlocks() {
@@ -245,7 +274,7 @@ function buildOverviewBlocks() {
   const blocks = [
     { type: "current-effort", title: "Current Effort" },
     { type: "attention-list", title: "Current Focus", items: resumeLens?.important || queryNodes({ limit: 6, sortBy: "importance" }) },
-    { type: "attention-list", title: "Needs Attention", items: queryNodes({ statuses: ["blocked", "needs_review", "stale"], limit: 8, sortBy: "blockedFirst" }) },
+    { type: "attention-list", title: "Needs Attention", items: queryNodes({ needsAttention: true, limit: 8, sortBy: "blockedFirst" }) },
     { type: "attention-list", title: "Agent-Surfaced Priorities", items: (resumeLens?.active_tasks || []).concat(resumeLens?.active_risks || []).slice(0, 8) },
     { type: "question-review", title: "Open Questions", items: resumeLens?.unanswered_questions || queryNodes({ type: "question", limit: 8 }) },
     { type: "decision-review", title: "Open Decisions", items: resumeLens?.open_decisions || queryNodes({ type: "decision", limit: 8 }) },
@@ -671,7 +700,8 @@ function renderCurrentEffortBlock(block) {
   const template = graph.operating_templates || {};
   const warningCount = (summary.diagnostics || []).filter((diag) => diag.severity === "warning" || diag.severity === "fatal").length + ((template.conflicts || []).length);
   if (!current) return '<section class="' + blockClass(block) + '"><h2>' + esc(block.title || "Current Effort") + '</h2><p class="muted">No run has been recorded yet.</p></section>';
-  return '<section class="' + blockClass(block, "review-block review-attention") + '"><header class="review-header"><div><h2>' + esc(block.title || "Current Effort") + '</h2><p class="muted">' + esc(current.goal || "Untitled run") + '</p></div><a class="review-count" href="#/runs"><strong>' + esc(current.status || "run") + '</strong></a></header><div class="metric-row">' + metric("Created", (summary.createdNodeIds || []).length, "#/runs") + metric("Touched", (summary.touchedNodeIds || []).length, "#/runs") + metric("Evidence", (summary.evidenceNodeIds || []).length, "#/runs") + metric("Warnings", warningCount, "#/health") + '</div><div class="overview-brief"><p><strong>Template:</strong> ' + esc(template.activeTemplateId || "none") + '</p><p><strong>Template issues:</strong> ' + esc(((template.warnings || []).length + (template.missingSections || []).length + (template.conflicts || []).length)) + '</p>' + (current.summary ? '<p>' + esc(current.summary) + '</p>' : "") + '</div></section>';
+  const runStats = '<div class="current-effort-kpis">' + currentEffortKpi("Created", (summary.createdNodeIds || []).length, "#/runs") + currentEffortKpi("Touched", (summary.touchedNodeIds || []).length, "#/runs") + currentEffortKpi("Evidence", (summary.evidenceNodeIds || []).length, "#/runs") + currentEffortKpi("Warnings", warningCount, "#/health") + '</div>';
+  return '<section class="' + blockClass(block, "review-block review-attention current-effort-card") + '"><header class="review-header"><div><h2>' + esc(block.title || "Current Effort") + '</h2><p class="muted">' + esc(current.goal || "Untitled run") + '</p></div><a class="review-count" href="#/runs"><strong>' + esc(current.status || "run") + '</strong></a></header>' + runStats + '<div class="overview-brief"><p><strong>Template:</strong> ' + esc(template.activeTemplateId || "none") + '</p><p><strong>Template issues:</strong> ' + esc(((template.warnings || []).length + (template.missingSections || []).length + (template.conflicts || []).length)) + '</p>' + (current.summary ? '<p>' + esc(current.summary) + '</p>' : "") + '</div></section>';
 }
 
 function renderAnchors(anchors) {
@@ -709,6 +739,21 @@ function normalizeTableColumns(columns, rows) {
 
 function renderKeyValueTable(value) {
   return '<div class="table-wrap"><table><tbody>' + Object.entries(value || {}).map(([key, item]) => '<tr><th>' + esc(key.replaceAll("_", " ")) + '</th><td><code>' + esc(cellValue(item)) + '</code></td></tr>').join("") + '</tbody></table></div>';
+}
+
+function renderLinkedIds(groups) {
+  const sections = [
+    ["Nodes", groups.nodeIds, (id) => byId.has(id) ? nodeLink(id) : '<code>' + esc(id) + '</code>'],
+    ["Runs", groups.runIds, (id) => '<a class="badge type" href="#/runs">' + esc(id) + '</a>'],
+    ["Edges", groups.edgeIds, (id) => '<code>' + esc(id) + '</code>'],
+    ["Relationships", groups.relationshipIds, (id) => '<code>' + esc(id) + '</code>'],
+    ["Vaults", groups.vaultIds, (id) => '<a class="badge type" href="#/topology">' + esc(id) + '</a>']
+  ];
+  return sections.map(([title, ids, renderer]) => {
+    const kept = (ids || []).slice(0, 8);
+    if (!kept.length) return "";
+    return '<h3>' + esc(title) + '</h3><div class="chip-row">' + kept.map(renderer).join(" ") + ((ids || []).length > kept.length ? '<span class="muted">+' + ((ids || []).length - kept.length) + ' more</span>' : "") + '</div>';
+  }).join("");
 }
 
 function cellValue(value) {
@@ -775,6 +820,8 @@ function missingBlockNode(id) {
 }
 
 function queryNodes(query) {
+  const attentionByNode = new Map(((graph.attention_index || {}).items || []).map((item) => [item.nodeId, item]));
+  const hasAttentionIndex = ((graph.attention_index || {}).items || []).length > 0;
   let result = graph.nodes.filter((node) => {
     if (query.type && node.type !== query.type) return false;
     if (query.types?.length && !query.types.includes(node.type)) return false;
@@ -786,7 +833,11 @@ function queryNodes(query) {
     if (query.confidence_gte !== undefined && node.confidence < Number(query.confidence_gte)) return false;
     if (query.confidence_lte !== undefined && node.confidence > Number(query.confidence_lte)) return false;
     if (query.hasDiagnostics && !(diagnosticsByNode.get(node.id) || []).length) return false;
-    if (query.needsAttention && !["blocked", "needs_review", "stale"].includes(node.status)) return false;
+    if (query.needsAttention) {
+      const attentionState = (attentionByNode.get(node.id) || {}).baseAttentionState || "";
+      if (hasAttentionIndex && !["current", "closeout_candidate", "stale_open"].includes(attentionState)) return false;
+      if (!hasAttentionIndex && !["blocked", "needs_review", "stale"].includes(node.status)) return false;
+    }
     if (query.open && isClosedStatus(node.status)) return false;
     if (query.stale && node.status !== "stale" && !(diagnosticsByNode.get(node.id) || []).some((diag) => diag.code === "stale_node")) return false;
     if (query.needsReview && !["needs_review", "stale"].includes(node.status)) return false;
@@ -966,9 +1017,13 @@ function wireRouteControls(root, route) {
   }
   if (route === "maintenance") {
     root.querySelectorAll("[data-control^='maintenance-']").forEach((control) => control.addEventListener("change", updateMaintenanceHash));
+    root.querySelector("[data-control='maintenance-q']")?.addEventListener("input", debounce(updateMaintenanceHash, 200));
   }
   if (route === "queues") {
     root.querySelectorAll("[data-control^='queue-']").forEach((control) => control.addEventListener("change", updateQueueHash));
+  }
+  if (route === "coordination") {
+    root.querySelectorAll("[data-control^='coord-']").forEach((control) => control.addEventListener("change", updateCoordinationHash));
   }
   if (route === "settings") {
     root.querySelector("[data-control='settings-theme']")?.addEventListener("change", (event) => updateSetting("theme", event.target.value));
@@ -1016,19 +1071,41 @@ function updateNodesHash() {
 
 function updateMaintenanceHash() {
   const params = new URLSearchParams();
-  const map = { kind: "maintenance-kind", severity: "maintenance-severity" };
+  const map = { q: "maintenance-q", kind: "maintenance-kind", severity: "maintenance-severity", code: "maintenance-code" };
   for (const [key, control] of Object.entries(map)) {
     const value = document.querySelector("[data-control='" + control + "']")?.value;
     if (value) params.set(key, value);
   }
+  const flag = document.querySelector("[data-control='maintenance-flag']")?.value;
+  if (flag === "highPriority") params.set("highPriority", "true");
+  if (flag === "humanReview") params.set("humanReview", "true");
+  if (flag === "autonomous") params.set("autonomous", "true");
   location.hash = "#/maintenance" + (params.size ? "?" + params.toString() : "");
 }
 
 function updateQueueHash() {
   const params = new URLSearchParams();
-  const value = document.querySelector("[data-control='queue-id']")?.value;
-  if (value) params.set("queue", value);
+  const map = { queue: "queue-id", severity: "queue-severity", source: "queue-source" };
+  for (const [key, control] of Object.entries(map)) {
+    const value = document.querySelector("[data-control='" + control + "']")?.value;
+    if (value) params.set(key, value);
+  }
+  const flag = document.querySelector("[data-control='queue-flag']")?.value;
+  if (flag === "highPriority") params.set("highPriority", "true");
+  if (flag === "humanReview") params.set("humanReview", "true");
+  if (flag === "autonomous") params.set("autonomous", "true");
+  if (flag === "blocked") params.set("blocked", "true");
   location.hash = "#/queues" + (params.size ? "?" + params.toString() : "");
+}
+
+function updateCoordinationHash() {
+  const params = new URLSearchParams();
+  const map = { status: "coord-status", mode: "coord-mode", target: "coord-target" };
+  for (const [key, control] of Object.entries(map)) {
+    const value = document.querySelector("[data-control='" + control + "']")?.value;
+    if (value) params.set(key, value);
+  }
+  location.hash = "#/coordination" + (params.size ? "?" + params.toString() : "");
 }
 
 function updateSetting(key, value) {
@@ -1071,6 +1148,9 @@ function unsupportedBlock(block) {
 }
 
 function metric(label, value, href) { return '<a class="metric metric-' + metricTone(label) + '" href="' + href + '"><span class="metric-label">' + esc(label) + '</span><span class="metric-state"><i aria-hidden="true"></i>' + esc(metricState(label)) + '</span><strong>' + esc(String(value)) + '</strong></a>'; }
+
+function miniKpi(label, value) { return '<span><small>' + esc(label) + '</small><strong>' + esc(String(value)) + '</strong></span>'; }
+function currentEffortKpi(label, value, href) { return '<a class="current-effort-kpi metric-' + metricTone(label) + '" href="' + href + '"><span>' + esc(label) + '</span><strong>' + esc(String(value)) + '</strong></a>'; }
 function nodeKpi(label, value, href) { return '<a class="node-kpi metric-' + metricTone(label) + '" href="' + href + '"><span>' + esc(label) + '</span><strong>' + esc(String(value)) + '</strong></a>'; }
 function nodeSection(title, body) { return '<section class="node-section"><header><h3>' + esc(title) + '</h3></header><div class="node-section-body">' + body + '</div></section>'; }
 function metricTone(label) {

@@ -7,6 +7,7 @@ import { preflightRun, qualityForRun, runSummaryFor, type HandoffQuality, type R
 import { topologyRelevant, type TopologyIndex } from "./topology.js";
 import { filterInboxItems } from "./maintenance.js";
 import { filterWorkQueueItems } from "./workQueues.js";
+import { projectAttention } from "./attention.js";
 import type { AwgEdge, AwgNode, AwgResponse, CompiledGraph, Diagnostic, DiagnosticsSummary } from "./types.js";
 
 export interface TaskLensOutput {
@@ -60,6 +61,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const diagnostics = graph.diagnostics.diagnostics.filter((diag) => diag.id && relevantIds.has(diag.id)).sort(bySeverity);
   const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { nodeIds: [...relevantIds], limit: 10 });
   const workQueueItems = filterWorkQueueItems(graph.work_queue_index, { goal, graph }).filter((item) => !item.nodeIds.length || item.nodeIds.some((id) => relevantIds.has(id))).slice(0, 10);
+  const attentionItems = projectAttention(graph.attention_index, graph, { goal, nodeIds: [...relevantIds] }).filter((item) => item.goalMatched || item.recentRunIds.length || item.baseAttentionState === "current" || item.baseAttentionState === "closeout_candidate").slice(0, 8);
   const claimIssues = (graph.claim_index?.claims ?? []).filter((claim) => relevantIds.has(claim.id) && (claim.diagnostics.length || ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus))).slice(0, 10);
   const evidence = graph.nodes.filter((item) => item.type === "evidence" && graph.edges.some((edge) => edge.from === item.id && relevantIds.has(edge.to))).sort(byUpdatedDesc).slice(0, 10);
   const runs = buildRuns(graph);
@@ -70,7 +72,8 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
   const topologyItems = topologyRelevant(graph.topology as TopologyIndex | undefined, goal, [...relevantIds, ...(current ? runSummaryFor(graph, current.id)?.touchedNodeIds ?? [] : [])]);
   const decisions = relevantNodes.filter((item) => item.type === "decision").sort(byPriority);
   const risks = relevantNodes.filter((item) => item.type === "risk" || item.type === "blocker").sort(byPriority);
-  const tasks = relevantNodes.filter((item) => item.type === "task" && actionable.has(item.status)).sort(byPriority);
+  const visibleAttentionIds = new Set(attentionItems.filter((item) => item.baseAttentionState === "current" || item.goalMatched && !["historical", "acknowledged_open", "closeout_candidate"].includes(item.baseAttentionState)).map((item) => item.nodeId));
+  const tasks = relevantNodes.filter((item) => item.type === "task" && actionable.has(item.status) && visibleAttentionIds.has(item.id)).sort(byPriority);
   const questions = relevantNodes.filter((item) => item.type === "question" && !["resolved", "completed", "archived"].includes(item.status)).sort(byPriority);
   const sections = budgetSections<unknown>([
     { section: "templateContext", items: [templateContext(graph, goal)] },
@@ -86,6 +89,7 @@ export function buildTaskLens(graph: CompiledGraph, goal: string, budget?: numbe
     { section: "relatedRunNotes", items: relatedRuns.flatMap((run) => run.notes.slice(-3).map((note) => ({ run: run.id, ...note }))) },
     { section: "maintenanceInbox", items: maintenanceInbox },
     { section: "workQueues", items: workQueueItems },
+    { section: "attention", items: attentionItems },
     { section: "coordination", items: [...coordinationClaims, ...coordinationCollisions] },
     { section: "claimTrustIssues", items: claimIssues },
     { section: "diagnostics", items: diagnostics },
@@ -102,9 +106,13 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const preflight = current ? preflightRun(graph, current) : undefined;
   const quality = qualityForRun(graph, current, preflight);
   const runNotes = current ? current.notes.slice(-8).reverse().map((note) => ({ run: current.id, ...note })) : [];
-  const activeTasks = graph.nodes.filter((n) => n.type === "task" && actionable.has(n.status)).sort(byPriority).slice(0, 20);
+  const attentionItems = projectAttention(graph.attention_index, graph, { asOf: graph.generated_at });
+  const currentAttentionIds = new Set(attentionItems.filter((item) => item.baseAttentionState === "current").map((item) => item.nodeId));
+  const suppressedAttentionIds = new Set(attentionItems.filter((item) => ["historical", "acknowledged_open", "stale_open", "closeout_candidate"].includes(item.baseAttentionState)).map((item) => item.nodeId));
+  const visibleOpen = (node: AwgNode): boolean => currentAttentionIds.has(node.id) || !suppressedAttentionIds.has(node.id);
+  const activeTasks = graph.nodes.filter((n) => n.type === "task" && actionable.has(n.status) && visibleOpen(n)).sort(byPriority).slice(0, 20);
   const openDecisions = graph.nodes.filter((n) => n.type === "decision" && ["draft", "proposed", "active", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 20);
-  const blockers = graph.nodes.filter((n) => ["risk", "blocker"].includes(n.type) && actionable.has(n.status)).sort(byPriority).slice(0, 20);
+  const blockers = graph.nodes.filter((n) => ["risk", "blocker"].includes(n.type) && actionable.has(n.status) && visibleOpen(n)).sort(byPriority).slice(0, 20);
   const recentCompleted = graph.nodes.filter((n) => ["completed", "resolved"].includes(n.status)).sort(byUpdatedDesc).slice(0, 12);
   const recentEvidence = graph.nodes.filter((n) => n.type === "evidence").sort(byUpdatedDesc).slice(0, 12);
   const stale = graph.nodes.filter((n) => ["stale", "needs_review"].includes(n.status)).sort(byPriority).slice(0, 12);
@@ -113,6 +121,8 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
   const topologyObject = { currentVault: (graph.topology as TopologyIndex | undefined)?.currentVault ?? null, relatedVaults: compactTopologyItems(topologyItems), crossVaultRefs: ((graph.topology as TopologyIndex | undefined)?.crossVaultRefs ?? []).filter((ref) => (runSummary?.touchedNodeIds ?? []).includes(ref.nodeId)) };
   const maintenanceInbox = filterInboxItems(graph.maintenance_inbox, { limit: 12 });
   const topQueueItems = filterWorkQueueItems(graph.work_queue_index, { limit: 12, includeHumanReview: true });
+  const attentionSummary = graph.attention_index?.summary;
+  const attentionCloseout = attentionItems.filter((item) => item.baseAttentionState === "closeout_candidate").slice(0, 5);
   const handoffFollowup = filterWorkQueueItems(graph.work_queue_index, { queue: "handoff_followup", limit: 8, includeHumanReview: true });
   const claimTrustIssues = (graph.claim_index?.claims ?? []).filter((claim) => ["unverified", "contradicted", "stale", "expired"].includes(claim.verificationStatus) || claim.nodeStatus === "needs_review").slice(0, 12);
   const currentTouchedIds = new Set(runSummary?.touchedNodeIds ?? []);
@@ -135,6 +145,8 @@ export function buildHandoff(graph: CompiledGraph, budget?: number): HandoffOutp
     { section: "handoffQuality", items: [quality] },
     { section: "recommendedNextActions", items: recommendations },
     { section: "workQueues", items: topQueueItems },
+    { section: "attentionSummary", items: attentionSummary ? [attentionSummary] : [] },
+    { section: "closeoutCandidates", items: attentionCloseout },
     { section: "coordination", items: [...coordinationCollisions, ...coordinationClaims, ...coordinationHandoffs] },
     { section: "handoffFollowup", items: handoffFollowup },
     { section: "maintenanceInbox", items: maintenanceInbox },

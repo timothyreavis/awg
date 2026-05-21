@@ -15,6 +15,16 @@
       "updated_at": "2026-05-11T00:00:00.000Z"
     }
   ],
+  "attention_items": [],
+  "attention_summary": {
+    "acknowledgedOpen": 0,
+    "closeoutCandidates": 0,
+    "current": 0,
+    "historical": 0,
+    "open": 2,
+    "staleOpen": 0,
+    "total": 2
+  },
   "awg": "0.1",
   "diagnostics_summary": {
     "dangling_edge_count": 0,
@@ -30,28 +40,7 @@
   },
   "generated_at": "2026-05-11T00:00:00.000Z",
   "id": "lens:resume",
-  "important": [
-    {
-      "awg": "0.1",
-      "confidence": 0.8,
-      "created_at": "2026-05-11T00:00:00.000Z",
-      "id": "n:awg-v1",
-      "importance": 0.9,
-      "kind": "node",
-      "status": "active",
-      "summary": "A local-first semantic graph format for durable agent knowledge.",
-      "tags": [
-        "awg",
-        "example"
-      ],
-      "title": "AWG V1",
-      "type": "concept",
-      "updated_at": "2026-05-11T00:00:00.000Z",
-      "x-example": {
-        "preserved": true
-      }
-    }
-  ],
+  "important": [],
   "kind": "lens-output",
   "maintenance_inbox": [],
   "open_decisions": [],
@@ -64,6 +53,12 @@
   "unanswered_questions": [],
   "work_queue_items": [
     {
+      "attention": {
+        "acknowledgementStale": false,
+        "closeoutReasons": [],
+        "score": 50,
+        "state": "open"
+      },
       "autonomousSafe": false,
       "blocked": false,
       "blockedByNodeIds": [],

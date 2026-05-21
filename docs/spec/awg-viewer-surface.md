@@ -17,6 +17,8 @@ The AWG viewer is a generated static surface for humans reviewing compiled proje
 
 V2.4.1 may add a small read-only onboarding/readiness panel to `#/overview` or `#/settings`. It should show selected operating template, review state, missing required/recommended adaptive fields, pilot readiness result, and suggested commands. It must not become a setup wizard, browser-side write surface, or client-facing UI.
 
+V2.4.2 keeps attention and closeout viewer work small and read-only. The overview and maintenance surfaces may use `graph.attention_index` to show current focus, stale open items, acknowledged open items, and closeout candidates, and node detail may expose attention metadata. The generated viewer must not acknowledge, close, sweep, poll, sync, or execute commands in the browser.
+
 All routes use hash routing so `.awg/compiled/site/index.html` remains usable as static files.
 
 ## Viewer Primitives

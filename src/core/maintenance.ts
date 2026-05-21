@@ -61,8 +61,39 @@ export function buildMaintenanceInbox(graph: CompiledGraph): MaintenanceInbox {
     if (evidence.expired) add({ kind: "evidence", code: "AWG_INBOX_EVIDENCE_EXPIRED", severity: "warning", priority: 82, message: `Evidence is expired: ${evidence.title}`, nodeIds: [evidence.id], reasons: ["evidence expires_at is past"], suggestedCommands: [`awg add evidence --target <node-id> --summary "..." --source manual`] });
   }
 
+  for (const attention of graph.attention_index?.items ?? []) {
+    if (attention.baseAttentionState === "closeout_candidate") {
+      add({
+        kind: attention.needsHumanReview ? "needs_review" : "hygiene",
+        code: "AWG_INBOX_CLOSEOUT_CANDIDATE",
+        severity: "warning",
+        priority: attention.needsHumanReview ? 78 : 72,
+        message: `Closeout candidate: ${attention.nodeTitle}`,
+        nodeIds: [attention.nodeId],
+        reasons: attention.closeoutReasons,
+        suggestedCommands: attention.suggestedCommands,
+        autonomousSafe: attention.autonomousSafe,
+        needsHumanReview: attention.needsHumanReview
+      });
+    }
+    if (attention.acknowledgementStale) {
+      add({
+        kind: "stale",
+        code: "AWG_INBOX_STALE_ACKNOWLEDGEMENT",
+        severity: "warning",
+        priority: 76,
+        message: `Acknowledgement needs review: ${attention.nodeTitle}`,
+        nodeIds: [attention.nodeId],
+        reasons: attention.staleReasons,
+        suggestedCommands: attention.suggestedCommands,
+        autonomousSafe: false,
+        needsHumanReview: true
+      });
+    }
+  }
+
   for (const node of graph.nodes) {
-    if (node.status === "needs_review") {
+    if (node.status === "needs_review" && !isSuppressedByAttention(graph, node.id)) {
       add({
         kind: "needs_review",
         code: "AWG_INBOX_NEEDS_REVIEW_NODE",
@@ -76,10 +107,10 @@ export function buildMaintenanceInbox(graph: CompiledGraph): MaintenanceInbox {
         needsHumanReview: true
       });
     }
-    if (node.type === "risk" && ACTIVE_ATTENTION.has(node.status) && !isIntentionallyOpen(graph, node)) {
+    if (node.type === "risk" && ACTIVE_ATTENTION.has(node.status) && !isIntentionallyOpen(graph, node) && !isSuppressedByAttention(graph, node.id)) {
       add({ kind: "risks", code: "AWG_INBOX_ACTIVE_RISK", severity: "warning", priority: importancePriority(node, 82), message: `Active risk requires attention: ${node.title}`, nodeIds: [node.id], reasons: [`risk status is ${node.status}`], suggestedCommands: [`awg node show ${node.id} --json`, `awg update node ${node.id} --status needs_review`], autonomousSafe: false, needsHumanReview: true });
     }
-    if (node.type === "blocker" && ACTIVE_ATTENTION.has(node.status) && !isIntentionallyOpen(graph, node)) {
+    if (node.type === "blocker" && ACTIVE_ATTENTION.has(node.status) && !isIntentionallyOpen(graph, node) && !isSuppressedByAttention(graph, node.id)) {
       add({ kind: "blockers", code: "AWG_INBOX_ACTIVE_BLOCKER", severity: "warning", priority: importancePriority(node, 86), message: `Active blocker requires attention: ${node.title}`, nodeIds: [node.id], reasons: [`blocker status is ${node.status}`], suggestedCommands: [`awg node show ${node.id} --json`, `awg update node ${node.id} --status needs_review`], autonomousSafe: false, needsHumanReview: true });
     }
     if (node.type === "question" && !CLOSED.has(node.status)) {
@@ -243,4 +274,14 @@ function reconciledDuplicateNodeIds(edges: AwgEdge[]): Set<string> {
 
 function isIntentionallyOpen(graph: CompiledGraph, node: AwgNode): boolean {
   return graph.edges.some((edge) => edge.rel === "intentionally_open" && edge.from === node.id && edge.to === node.id && Boolean(edge.reason) && edge.created_at >= node.updated_at);
+}
+
+function isAcknowledgedOpen(graph: CompiledGraph, nodeId: string): boolean {
+  const item = graph.attention_index?.items.find((candidate) => candidate.nodeId === nodeId);
+  return item?.baseAttentionState === "acknowledged_open" && !item.acknowledgementStale;
+}
+
+function isSuppressedByAttention(graph: CompiledGraph, nodeId: string): boolean {
+  const item = graph.attention_index?.items.find((candidate) => candidate.nodeId === nodeId);
+  return item ? ["acknowledged_open", "stale_open", "closeout_candidate", "historical"].includes(item.baseAttentionState) && !item.acknowledgementStale : false;
 }

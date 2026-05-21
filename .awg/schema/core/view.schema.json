@@ -25,9 +25,7 @@
     "awg",
     "kind",
     "id",
-    "title",
-    "audience",
-    "blocks"
+    "title"
   ],
   "type": "object"
 }

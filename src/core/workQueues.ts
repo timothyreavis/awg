@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { AWG_VERSION } from "./constants.js";
 import { hasEvidenceReference } from "./evidence.js";
 import { activeRun, buildRuns, type AgentRun } from "./runs.js";
+import { projectAttention } from "./attention.js";
 import type { AwgEdge, AwgNode, ClaimIndexRecord, CompiledGraph, Diagnostic, EvidenceIndexRecord, MaintenanceInboxItem, WorkQueueId, WorkQueueIndex, WorkQueueItem, WorkQueueSeverity, WorkQueueSourceKind } from "./types.js";
 
 export const BUILT_IN_WORK_QUEUES: Array<{ id: WorkQueueId; title: string; description: string }> = [
@@ -29,12 +30,14 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
     incomingByTarget.set(edge.to, incoming);
   }
   const activeTouched = activeRunTouchedNodes(graph);
+  const attentionByNode = new Map((graph.attention_index?.items ?? []).map((item) => [item.nodeId, item]));
   const items: WorkQueueItem[] = [];
   const add = (queue: WorkQueueId, input: QueueInput): void => {
     const primary = firstNode(input.nodeIds, nodes);
+    const attention = primary ? attentionByNode.get(primary.id) : undefined;
     const reviewAfter = input.reviewAfter ?? primary?.freshness?.review_after ?? primary?.review_after;
     const sourceIds = sorted(input.sourceIds ?? [...(input.nodeIds ?? []), ...(input.runIds ?? []), ...(input.inboxItemIds ?? []), ...(input.claimIds ?? []), ...(input.evidenceIds ?? []), ...(input.vaultIds ?? []), ...(input.relationshipIds ?? [])]);
-    const priority = clampPriority((input.priority ?? 50) + (primary ? Math.round((primary.importance - 0.5) * 20) : 0) + (isPast(reviewAfter, graph.generated_at) ? 8 : 0) + (touchesActiveRun(input, activeTouched) ? 5 : 0) - (queue === "autonomous" && input.sourceKind === "inbox" && input.inboxItemIds?.length ? 10 : 0));
+    const priority = clampPriority((input.priority ?? 50) + (primary ? Math.round((primary.importance - 0.5) * 20) : 0) + (attention?.queueWeight ?? 0) + (isPast(reviewAfter, graph.generated_at) ? 8 : 0) + (touchesActiveRun(input, activeTouched) ? 5 : 0) - (queue === "autonomous" && input.sourceKind === "inbox" && input.inboxItemIds?.length ? 10 : 0));
     const timestamps = timestampsFor(graph, input, nodes);
     const item: WorkQueueItem = {
       id: workQueueItemId(queue, input.sourceKind, input.sourceCode, {
@@ -70,6 +73,7 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
       needsHumanReview: input.needsHumanReview ?? true,
       blocked: Boolean(input.blocked),
       blockedByNodeIds: sorted(input.blockedByNodeIds ?? []),
+      attention: attention ? { state: attention.baseAttentionState, score: attention.baseFocusScore, closeoutReasons: attention.closeoutReasons, acknowledgementId: attention.acknowledgementId, acknowledgementStale: attention.acknowledgementStale } : undefined,
       reviewAfter,
       createdAt: timestamps.createdAt,
       updatedAt: timestamps.updatedAt
@@ -77,13 +81,35 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
     items.push(item);
   };
 
-  for (const item of graph.maintenance_inbox?.items ?? []) addInboxItems(add, item);
+  const closeoutInboxNodeIds = new Set<string>();
+  const staleAckInboxNodeIds = new Set<string>();
+  for (const item of graph.maintenance_inbox?.items ?? []) {
+    if (item.code === "AWG_INBOX_CLOSEOUT_CANDIDATE") for (const nodeId of item.nodeIds) closeoutInboxNodeIds.add(nodeId);
+    if (item.code === "AWG_INBOX_STALE_ACKNOWLEDGEMENT") for (const nodeId of item.nodeIds) staleAckInboxNodeIds.add(nodeId);
+    addInboxItems(add, item);
+  }
   for (const diagnostic of graph.diagnostics.diagnostics) addDiagnosticItems(add, diagnostic);
 
   for (const node of graph.nodes) {
     const blockers = graph.edges.filter((edge) => edge.rel === "blocks" && edge.to === node.id && ACTIVE.has(nodes.get(edge.from)?.status ?? ""));
-    if (node.type === "task" && ACTIVE.has(node.status) && node.status !== "blocked" && !blockers.length) {
+    const attention = attentionByNode.get(node.id);
+    const attentionState = attention?.baseAttentionState;
+    const hasCurrentAttention = attentionState === "current";
+    const suppressNext = attentionState === "acknowledged_open" || attentionState === "closeout_candidate" || attentionState === "stale_open";
+    if (node.type === "task" && ACTIVE.has(node.status) && node.status !== "blocked" && !blockers.length && (hasCurrentAttention || !suppressNext)) {
       add("next", nodeInput(node, "node", 70, "info", [`Task status is ${node.status}`], [`awg node show ${node.id} --json`], false, false));
+    }
+    if (attentionState === "closeout_candidate" && !closeoutInboxNodeIds.has(node.id)) {
+      const input = nodeInput(node, "attention", 82, "warning", attention?.closeoutReasons ?? ["closeout candidate"], attention?.suggestedCommands ?? [`awg node show ${node.id} --json`], attention?.autonomousSafe ?? false, attention?.needsHumanReview ?? true);
+      input.sourceCode = "closeout_candidate";
+      add("maintenance", input);
+      if (attention?.needsHumanReview) add("human_review", input);
+    }
+    if (attention?.acknowledgementStale && !staleAckInboxNodeIds.has(node.id)) {
+      const input = nodeInput(node, "attention", 78, "warning", attention.staleReasons, attention.suggestedCommands, false, true);
+      input.sourceCode = "stale_acknowledgement";
+      add("stale_review", input);
+      add("maintenance", input);
     }
     if (node.type === "task" && (node.status === "blocked" || blockers.length)) {
       const input = nodeInput(node, "node", 92, "warning", [node.status === "blocked" ? "task status is blocked" : "incoming active blocks edge"], [`awg node show ${node.id} --json`], false, true);
@@ -97,11 +123,11 @@ export function buildWorkQueueIndex(graph: CompiledGraph): WorkQueueIndex {
       add("next", nodeInput(node, "node", 88, "warning", ["completed task needs evidence"], [`awg add evidence --target ${node.id} --summary "..." --source terminal`], false, true));
     }
     if (node.evidence_required && !hasEvidenceReference(node, incomingByTarget.get(node.id) ?? [], nodes)) add("evidence_needed", nodeInput(node, "node", 88, "warning", ["node has evidence_required but no linked evidence"], [`awg add evidence --target ${node.id} --summary "..." --source terminal`], false, true));
-    if (["risk", "blocker"].includes(node.type) && ACTIVE.has(node.status)) {
+    if (["risk", "blocker"].includes(node.type) && ACTIVE.has(node.status) && attentionState !== "acknowledged_open") {
       add("risk_review", nodeInput(node, "node", node.type === "blocker" ? 92 : 86, "warning", [`${node.type} status is ${node.status}`], [`awg node show ${node.id} --json`], false, true));
       add("human_review", nodeInput(node, "node", node.type === "blocker" ? 92 : 86, "warning", [`${node.type} requires human review`], [`awg node show ${node.id} --json`], false, true));
     }
-    if (node.type === "question" && !CLOSED.has(node.status)) add("next", nodeInput(node, "node", 52, "info", [`question status is ${node.status}`], [`awg node show ${node.id} --json`], false, true));
+    if (node.type === "question" && !CLOSED.has(node.status) && (hasCurrentAttention || !suppressNext)) add("next", nodeInput(node, "node", 52, "info", [`question status is ${node.status}`], [`awg node show ${node.id} --json`], false, true));
     if (node.type === "decision" && ["draft", "proposed", "needs_review"].includes(node.status)) add("human_review", nodeInput(node, "node", 76, "warning", [`decision status is ${node.status}`], [`awg node show ${node.id} --json`], false, true));
     if (node.status === "needs_review" || node.status === "stale" || node.freshness?.state === "needs_review" || node.freshness?.state === "stale" || isPast(node.freshness?.review_after ?? node.review_after, graph.generated_at)) {
       add("stale_review", nodeInput(node, "node", node.status === "needs_review" ? 68 : 78, "warning", ["node freshness or status requires review"], [`awg node show ${node.id} --json`], false, true));
@@ -153,7 +179,16 @@ export function filterWorkQueueItems(index: WorkQueueIndex | undefined, options:
   if (options.includeHumanReview === false) items = items.filter((item) => !item.needsHumanReview);
   if (options.mine) items = items.filter((item) => Boolean(item.coordination?.claimedByCurrentRun));
   else if (!options.includeClaimed) items = items.filter((item) => !item.coordination?.claimedByOtherActiveRun);
-  if (options.goal) items = items.filter((item) => itemMatchesGoal(item, options.goal ?? "", options.graph));
+  if (options.goal) {
+    items = items.filter((item) => itemMatchesGoal(item, options.goal ?? "", options.graph));
+    if (options.graph) {
+      const projected = new Map(projectAttention(options.graph.attention_index, options.graph, { goal: options.goal }).map((item) => [item.nodeId, item]));
+      items = items.map((item) => {
+        const boost = Math.max(0, ...item.nodeIds.map((id) => projected.get(id)?.goalBoost ?? 0));
+        return boost ? { ...item, priority: clampPriority(item.priority + boost), attentionGoalBoost: boost } : item;
+      }).sort(compareWorkQueueItems);
+    }
+  }
   return items.slice(0, Math.max(0, options.limit ?? items.length));
 }
 
@@ -413,11 +448,25 @@ function touchesActiveRun(input: QueueInput, touched: Set<string>): boolean {
 }
 
 function itemMatchesGoal(item: WorkQueueItem, goal: string, graph?: CompiledGraph): boolean {
-  const terms = goal.toLowerCase().split(/[^a-z0-9:_-]+/).filter(Boolean);
-  if (!terms.length) return true;
+  const normalizedGoal = goal.toLowerCase().trim();
+  const terms = distinctiveGoalTerms(normalizedGoal);
+  if (!terms.length) return false;
   const nodes = graph ? item.nodeIds.map((id) => graph.nodes.find((node) => node.id === id)).filter((node): node is AwgNode => Boolean(node)) : [];
   const haystack = [item.id, item.queue, item.title, item.summary, ...item.reasons, ...item.sourceIds, ...item.nodeIds, ...nodes.flatMap((node) => [node.title, node.summary])].join(" ").toLowerCase();
-  return terms.some((term) => haystack.includes(term));
+  if (normalizedGoal && haystack.includes(normalizedGoal)) return true;
+  const matches = terms.filter((term) => haystack.includes(term));
+  return matches.length >= Math.min(2, terms.length);
+}
+
+function distinctiveGoalTerms(goal: string): string[] {
+  const stop = new Set(["about", "after", "agent", "agents", "build", "check", "close", "current", "fix", "fixes", "from", "goal", "implement", "issue", "items", "next", "node", "nodes", "open", "review", "slice", "status", "task", "tasks", "test", "tests", "this", "work", "with"]);
+  const domain = new Set(["ack", "claim", "claims", "queue", "queues", "lens", "lenses", "handoff", "closeout", "attention", "coordination", "template", "vault"]);
+  return [...new Set(goal.split(/[^a-z0-9._:-]+/).filter((term) => {
+    if (!term || stop.has(term)) return false;
+    if (domain.has(term)) return true;
+    if (/v\d+(?:[._-]\d+)+/.test(term) || /\d/.test(term) || term.includes("-") || term.includes("_") || term.includes(":")) return term.length >= 3;
+    return term.length >= 6;
+  }))];
 }
 
 function dedupeItems(items: WorkQueueItem[]): WorkQueueItem[] {
