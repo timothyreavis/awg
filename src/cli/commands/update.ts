@@ -25,12 +25,13 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   const rich = richNodePatch(parsed);
   const basePatch = nodePatch(parsed);
   rich.patch = { ...rich.patch, ...basePatch };
+  const requestedFieldKeys = rich.patch.fields && typeof rich.patch.fields === "object" && !Array.isArray(rich.patch.fields) ? Object.keys(rich.patch.fields) : [];
   const applied = applyRichNodePatch(prior, rich);
   const patch = applied.patch;
   const unsetTags = arr(parsed.flags, "unset-tag");
   if (Object.keys(patch).length === 0 && unsetTags.length === 0) throw new Error("No update fields provided.");
   if (patch.tags || unsetTags.length) patch.tags = [...new Set([...(prior.tags ?? []), ...(patch.tags ?? [])])].filter((tag) => !unsetTags.includes(tag)).sort();
-  guardTemplateSelfApproval(prior, patch, str(parsed.flags, "by", "agent:codex") ?? "agent:codex");
+  guardTemplateSelfApproval(prior, patch, str(parsed.flags, "by", "agent:codex") ?? "agent:codex", requestedFieldKeys, Boolean(rich.replaceFields), str(parsed.flags, "expect-updated-at"));
   const updatedKeys = [...new Set([...applied.updatedKeys, ...(patch.tags ? ["tags"] : [])])].sort();
   const next: AwgNode = { ...prior, ...patch, updated_at: at };
   await storage.appendLogEntry(next);
@@ -42,14 +43,25 @@ export async function updateCommand(parsed: ParsedArgs): Promise<void> {
   console.log(`Updated node ${id}`);
 }
 
-export function guardTemplateSelfApproval(prior: AwgNode, patch: Partial<AwgNode>, by: string): void {
+export function guardTemplateSelfApproval(
+  prior: AwgNode,
+  patch: Partial<AwgNode>,
+  by: string,
+  requestedFieldKeys = patch.fields && typeof patch.fields === "object" && !Array.isArray(patch.fields) ? Object.keys(patch.fields) : [],
+  replaceFields = false,
+  expectedUpdatedAt?: string
+): void {
   const tags = new Set([...(prior.tags ?? []), ...(patch.tags ?? [])]);
   const isTemplate = prior.type === "template" || ["process", "standard", "policy"].includes(patch.type ?? prior.type) && ["template", "operating-template", "template:operating"].some((tag) => tags.has(tag));
   const nextFields = { ...(prior.fields ?? {}), ...(patch.fields ?? {}) };
   const priorFields = prior.fields ?? {};
   const priorApprovedTemplate = isTemplateNode(prior) && (priorFields.human_approved === true || priorFields.humanApproved === true) && (priorFields.review_state === "reviewed" || priorFields.reviewState === "reviewed");
   if (priorApprovedTemplate && Object.keys(patch).length > 0 && !/^(human|user|owner):/.test(by)) {
-    throw new Error("Reviewed human-approved operating template updates require --by human:<name>, user:<name>, or owner:<name>; agents cannot revise approved template policy.");
+    if (!isTemplateApprovalResetPatch(patch, nextFields, requestedFieldKeys, replaceFields)) {
+      throw new Error("Reviewed human-approved operating template updates require --by human:<name>, user:<name>, or owner:<name>; agents cannot revise approved template policy.");
+    }
+    if (!expectedUpdatedAt) throw new Error("Approval reset for a reviewed operating template requires --expect-updated-at <iso>.");
+    if (expectedUpdatedAt !== prior.updated_at) throw new Error(`Approval reset target changed since inspection: expected ${expectedUpdatedAt}, current ${prior.updated_at}.`);
   }
   const approvalChanged = nextFields.human_approved === true && priorFields.human_approved !== true
     || nextFields.humanApproved === true && priorFields.humanApproved !== true
@@ -61,6 +73,18 @@ export function guardTemplateSelfApproval(prior: AwgNode, patch: Partial<AwgNode
   if (!approvalChanged && !approvedTemplateBecomesSelectable) return;
   if (/^(human|user|owner):/.test(by)) return;
   throw new Error("Operating template approval requires --by human:<name>, user:<name>, or owner:<name>; agents cannot self-approve templates.");
+}
+
+function isTemplateApprovalResetPatch(patch: Partial<AwgNode>, nextFields: Record<string, unknown>, requestedFieldKeys: string[], replaceFields: boolean): boolean {
+  const patchKeys = Object.keys(patch);
+  if (patchKeys.length !== 1 || !patch.fields || typeof patch.fields !== "object" || Array.isArray(patch.fields)) return false;
+  if (replaceFields) return false;
+  if (!requestedFieldKeys.length) return false;
+  const allowed = new Set(["human_approved", "humanApproved", "review_state", "reviewState", "change_rationale", "affected_sections", "migration_notes"]);
+  if (requestedFieldKeys.some((key) => !allowed.has(key))) return false;
+  if (!requestedFieldKeys.some((key) => ["human_approved", "humanApproved", "review_state", "reviewState"].includes(key))) return false;
+  const stillApproved = (nextFields.human_approved === true || nextFields.humanApproved === true) && (nextFields.review_state === "reviewed" || nextFields.reviewState === "reviewed");
+  return !stillApproved;
 }
 
 async function updateLens(parsed: ParsedArgs, lensId: string): Promise<void> {

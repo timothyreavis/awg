@@ -117,7 +117,7 @@ async function writeStarterLog(root: string): Promise<void> {
   await fs.writeFile(file, `${JSON.stringify(node)}\n`);
 }
 
-function agentsTemplate(): string {
+export function agentsTemplate(): string {
   return `# AWG Agent Instructions
 
 Start of session:
@@ -154,6 +154,8 @@ During work:
 - Add evidence for completed work or verification claims.
 - Rebuild and rerun queue commands after substantial graph updates. Use \`awg coord claim\` for non-trivial advisory work intent, release claims before finishing, and never treat coordination as a hard lock or permission system.
 - Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
+- Use \`awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>\` for intentional carry-forward, and \`awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>\` only after inspection.
+- Use \`awg sweep --json\` only for dedicated maintenance passes. Do not bulk-close or close human-sensitive risks, blockers, decisions, policy, or process items without evidence or explicit approval.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
@@ -163,6 +165,7 @@ Before finishing:
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
 - Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
+- Run \`awg closeout run --json\` or use finish preflight to inspect touched lifecycle debt.
 - Fix fatal validation errors and review warnings.
 - Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
 - If forced, document why in the run summary or a run note.
@@ -223,12 +226,15 @@ During work:
 - Link knowledge by AWG node ID, not by file path.
 - Do not edit \`.awg/compiled/*\`.
 - Rebuild and rerun queue commands after substantial graph updates. Use \`awg coord claim\` for non-trivial advisory work intent, release claims before finishing, and never treat coordination as a hard lock or permission system.
+- Use \`awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>\` for intentional carry-forward, and \`awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>\` only after inspection.
+- Use \`awg sweep --json\` only for dedicated maintenance passes. Do not bulk-close or close human-sensitive risks, blockers, decisions, policy, or process items without evidence or explicit approval.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before stopping:
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
 - Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
+- Run \`awg closeout run --json\` or use finish preflight to inspect touched lifecycle debt.
 - Fix fatal validation errors.
 - Add evidence for completed work.
 - Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.

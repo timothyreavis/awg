@@ -263,7 +263,7 @@ function closeoutReasonsFor(node: AwgNode, graph: CompiledGraph, evidenceIds: st
   if (!OPEN.has(node.status) || (acknowledgement && !acknowledgement.stale)) return [];
   const reasons: string[] = [];
   const longLived = isLongLived(node);
-  const resolver = incoming.find((edge) => ["resolved_by", "superseded_by", "duplicate_of"].includes(edge.rel));
+  const resolver = incoming.find((edge) => edge.rel === "resolved_by") ?? outgoing.find((edge) => ["superseded_by", "duplicate_of"].includes(edge.rel));
   if (resolver) reasons.push(`${resolver.rel} relationship exists`);
   if (node.type === "task" && evidenceIds.length && !longLived) reasons.push("linked evidence exists");
   if (node.type === "task" && runCompletedNode(graph, node.id) && !longLived) reasons.push("completed run touched node");
@@ -335,7 +335,7 @@ function runCompletedNode(graph: CompiledGraph, nodeId: string): boolean {
 function isLongLived(node: AwgNode): boolean {
   const tags = new Set(node.tags ?? []);
   const fields = node.fields ?? {};
-  return ["roadmap", "process", "standard", "policy"].includes(node.type) || ["evergreen", "recurring", "parent", "manual_closeout"].some((tag) => tags.has(tag)) || fields.evergreen === true || fields.recurring === true || fields.parent === true || fields.manual_closeout === true;
+  return ["roadmap", "process", "standard", "policy"].includes(node.type) || ["evergreen", "recurring", "parent", "roadmap", "manual_closeout"].some((tag) => tags.has(tag)) || fields.evergreen === true || fields.recurring === true || fields.parent === true || fields.manual_closeout === true;
 }
 
 function projectItemAsOf(item: AttentionItem, asOfTime: number): AttentionItem {

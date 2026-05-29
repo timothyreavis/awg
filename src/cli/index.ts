@@ -121,7 +121,7 @@ Commands:
   coord check [--target <id>] [--queue-item <id>] [--json]
   coord handoff <coordination-id> [--to-agent <name>] [--to-role <role>] --summary <text> [--run <run-id>|--no-run] [--json]
   rels [--json]
-  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--run <run-id>|--no-run] [--json]
+  update node <id> [--title <title>] [--summary <summary>] [--status <status>] [--type <type>] [--importance <n>] [--confidence <n>] [--tag <tag>] [--body <text>] [--field <key=value>] [--field-json <json>] [--fields-json <json>] [--unset-field <key>] [--block-json <json>] [--blocks-json <json>] [--clear-blocks] [--freshness-json <json>] [--review-after <date>] [--anchor <kind:value>] [--anchors-json <json>] [--unset-anchor <kind:value>] [--expect-updated-at <iso>] [--run <run-id>|--no-run] [--json]
   update view <id> [--title <title>] [--summary <summary>] [--audience <human|agent|reviewer>] [--tag <tag>] [--block-json <json>] [--blocks-json <json|@file>] [--clear-blocks] [--run <run-id>|--no-run] [--json]
   search <query> [--type <type>] [--status <status>] [--tag <tag>] [--limit <n>] [--json]
   run start --goal <goal> [--agent <name>] [--force] [--json]

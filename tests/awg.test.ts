@@ -37,6 +37,21 @@ function tempHome(): string {
   return mkdtempSync(path.join(tmpdir(), "awg-home-"));
 }
 
+function assertCloseoutInstructions(body: string): void {
+  assert.ok(body.includes("awg closeout run --json"));
+  assert.ok(body.includes('awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>'));
+  assert.ok(body.includes('awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>'));
+  assert.ok(body.includes("awg sweep --json"));
+  assert.ok(body.includes("Do not bulk-close or close human-sensitive risks"));
+}
+
+function withoutCloseoutInstructions(body: string): string {
+  return body
+    .replace('- Use `awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>` for intentional carry-forward, and `awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>` only after inspection.\n', "")
+    .replace("- Use `awg sweep --json` only for dedicated maintenance passes. Do not bulk-close or close human-sensitive risks, blockers, decisions, policy, or process items without evidence or explicit approval.\n", "")
+    .replace("- Run `awg closeout run --json` or use finish preflight to inspect touched lifecycle debt.\n", "");
+}
+
 function readRegistry(home: string): { vaults: Array<{ id: string; path: string; name: string; [key: string]: unknown }>; relationships?: Array<Record<string, unknown>>; [key: string]: unknown } {
   return JSON.parse(readFileSync(path.join(home, ".awg/registry.json"), "utf8"));
 }
@@ -149,6 +164,7 @@ test("init creates expected files", () => {
   assert.ok(agents.includes("awg queue next --json"));
   assert.ok(agents.includes("awg coord status --json"));
   assert.ok(agents.includes("never treat coordination as a hard lock"));
+  assertCloseoutInstructions(agents);
   assert.ok(claude.includes("Follow the project instructions in `AGENTS.md`"));
   assert.ok(claude.includes("awg doctor --fix-suggestions --json"));
   assert.ok(claude.includes("--auto-handoff"));
@@ -158,6 +174,7 @@ test("init creates expected files", () => {
   assert.ok(vaultAgents.includes("awg doctor --fix-suggestions --json"));
   assert.ok(vaultAgents.includes("--auto-handoff"));
   assert.ok(vaultAgents.includes("awg node show <node-id> --json"));
+  assertCloseoutInstructions(vaultAgents);
   assert.ok(readFileSync(path.join(cwd, ".awg/schema/core/node.schema.json"), "utf8").includes('"kind"'));
   assert.deepEqual(JSON.parse(readFileSync(path.join(cwd, ".awg/schema/core/.awg-managed.json"), "utf8")), currentSchemaManifest());
 });
@@ -245,14 +262,27 @@ test("attention index separates base and runtime attention with acknowledgements
   run(cwd, ["init", "--empty", "--no-register"]);
   appendObjects(cwd, [
     node({ id: "n:old-task", type: "task", title: "Old task", summary: "Old active task.", status: "active", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
+    node({ id: "n:roadmap-task", type: "task", title: "Roadmap task", summary: "Long-lived roadmap task.", status: "active", tags: ["roadmap"], created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
     node({ id: "n:risk", type: "risk", title: "Carried risk", summary: "Risk intentionally open.", status: "active", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
+    node({ id: "n:canonical", type: "evidence", title: "Canonical evidence", summary: "Canonical node.", status: "active" }),
+    node({ id: "n:duplicate", type: "evidence", title: "Duplicate evidence", summary: "Duplicate node.", status: "active" }),
+    { awg: "0.1", kind: "edge", id: "e:duplicate", from: "n:duplicate", rel: "duplicate_of", to: "n:canonical", created_at: "2026-01-01T00:00:00.000Z" },
     { awg: "0.1", kind: "event", id: "ev:ack-risk", type: "node.acknowledged", target: "n:risk", by: "agent:test", at: "2026-01-01T00:00:00.000Z", reason: "Carry forward.", review_after: "2026-02-01T00:00:00.000Z", acknowledgedNodeUpdatedAt: "2025-10-01T00:00:00.000Z", acknowledgedMaterialKeys: ["status", "summary", "edges"] } as AwgEvent
   ]);
   const { graph } = await buildAwg(new FileAwgStorage(cwd), { write: false });
   const oldTask = graph.attention_index?.items.find((item) => item.nodeId === "n:old-task");
+  const roadmapTask = graph.attention_index?.items.find((item) => item.nodeId === "n:roadmap-task");
   const risk = graph.attention_index?.items.find((item) => item.nodeId === "n:risk");
+  const canonical = graph.attention_index?.items.find((item) => item.nodeId === "n:canonical");
+  const duplicate = graph.attention_index?.items.find((item) => item.nodeId === "n:duplicate");
   assert.equal(oldTask?.baseAttentionState, "closeout_candidate");
+  assert.notEqual(roadmapTask?.baseAttentionState, "closeout_candidate");
+  assert.equal(roadmapTask?.autonomousSafe, false);
+  assert.ok(!roadmapTask?.suggestedCommands.some((command) => command.includes("closeout mark")));
   assert.equal(risk?.baseAttentionState, "acknowledged_open");
+  assert.notEqual(canonical?.baseAttentionState, "closeout_candidate");
+  assert.equal(duplicate?.baseAttentionState, "closeout_candidate");
+  assert.equal(duplicate?.suggestedDisposition, "superseded");
   assert.ok(!graph.maintenance_inbox?.items.some((item) => item.code === "AWG_INBOX_ACTIVE_RISK" && item.nodeIds.includes("n:risk")));
   assert.equal(graph.attention_index?.asOf, graph.generated_at);
 });
@@ -1535,6 +1565,7 @@ test("release notes, relations, evidence help, and generated instructions expose
   assert.ok(agents.includes("awg release current"));
   assert.ok(agents.includes("Capture the consequence, not the conversation"));
   assert.ok(agents.includes("awg quick note|task|risk|question|decision"));
+  assertCloseoutInstructions(agents);
 });
 
 test("coordination claims derive collisions and steer queue/run/lens surfaces", () => {
@@ -1715,6 +1746,8 @@ test("template scaffold exposes structured fields and compact handoff stays dete
   assert.ok(statusJson.fieldHints.taxonomy.includes("preferred node types"));
   const compact = run(cwd, ["handoff", "--compact", "--no-record"]);
   assert.ok(compact.includes("AWG compact handoff"));
+  assert.ok(compact.includes("activeRun:"));
+  assert.ok(compact.includes("Template scaffold smoke"));
   assert.ok(compact.length < run(cwd, ["handoff", "--no-record"]).length);
   const json = JSON.parse(run(cwd, ["handoff", "--json", "--no-record"]));
   assert.equal(json.kind, "handoff");
@@ -1757,6 +1790,13 @@ test("adaptive template guide scaffold status and readiness are deterministic", 
   const pendingReadiness = JSON.parse(run(cwd, ["vault", "readiness", "--client-pilot", "--json"]));
   assert.equal(pendingReadiness.ready, false);
   assert.ok(pendingReadiness.checks.some((check: { id: string; ok: boolean }) => check.id === "active_operating_template" && !check.ok));
+
+  const resettable = JSON.parse(run(cwd, ["add", "node", "--id", "n:resettable-template", "--type", "process", "--title", "Resettable operating template", "--summary", "Approved template to reset.", "--status", "active", "--tag", "template:operating", "--created-by", "human:owner", "--fields-json", "{\"scope\":\"reset\",\"purpose\":\"Reset approval safely.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Review when approval provenance is unclear.\",\"agent_rules\":\"Reset unsafe approval metadata without changing policy.\",\"review_state\":\"reviewed\",\"human_approved\":true}", "--json"]));
+  assert.ok(runFail(cwd, ["update", "node", "n:resettable-template", "--field-json", "{\"human_approved\":false}", "--field", "review_state=needs_review"]).includes("--expect-updated-at"));
+  assert.ok(runFail(cwd, ["update", "node", "n:resettable-template", "--fields-json", "{\"human_approved\":false,\"review_state\":\"needs_review\"}", "--expect-updated-at", resettable.node.updated_at]).includes("agents cannot revise approved template policy"));
+  const reset = JSON.parse(run(cwd, ["update", "node", "n:resettable-template", "--field-json", "{\"human_approved\":false}", "--field", "review_state=needs_review", "--field", "change_rationale=Approval provenance is unclear.", "--field", "affected_sections=approval_metadata", "--expect-updated-at", resettable.node.updated_at, "--json"]));
+  assert.equal(reset.node.fields.human_approved, false);
+  assert.equal(reset.node.fields.review_state, "needs_review");
 
   assert.ok(runFail(cwd, ["add", "node", "--id", "n:self-approved-roadmap-template", "--type", "process", "--title", "Self approved roadmap", "--summary", "Should fail.", "--status", "active", "--tag", "template:operating", "--tag", "roadmap", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Bad.\",\"taxonomy\":{\"types\":[\"process\"]},\"freshness_rules\":\"Bad.\",\"agent_rules\":\"Bad.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]).includes("agents cannot self-approve"));
   run(cwd, ["add", "node", "--id", "n:artifact-template", "--type", "artifact", "--title", "Mis-tagged plan", "--summary", "Should not be selected.", "--status", "active", "--tag", "template:operating", "--tag", "implementation-plan", "--created-by", "human:owner", "--fields-json", "{\"scope\":\"vault\",\"purpose\":\"Bad.\",\"taxonomy\":{},\"freshness_rules\":\"Bad.\",\"agent_rules\":\"Bad.\",\"review_state\":\"reviewed\",\"human_approved\":true}"]);
@@ -2796,6 +2836,7 @@ test("upgrade creates missing schemas and preserves config fields", () => {
   assert.ok(vaultAgents.includes("awg release current"));
   assert.ok(vaultAgents.includes("Capture the consequence, not the conversation"));
   assert.ok(vaultAgents.includes("awg quick note|task|risk|question|decision"));
+  assertCloseoutInstructions(vaultAgents);
 });
 
 test("upgrade refreshes known generated vault instructions and preserves custom vault instructions", () => {
@@ -2835,6 +2876,19 @@ test("upgrade refreshes known generated vault instructions and preserves custom 
   assert.ok(refreshed.includes("awg release current"));
   assert.ok(refreshed.includes("Capture the consequence, not the conversation"));
   assert.ok(refreshed.includes("awg quick note|task|risk|question|decision"));
+  assertCloseoutInstructions(refreshed);
+
+  writeFileSync(vaultAgentsFile, withoutCloseoutInstructions(refreshed));
+  run(cwd, ["upgrade"]);
+  const refreshedFromPriorGenerated = readFileSync(vaultAgentsFile, "utf8");
+  assertCloseoutInstructions(refreshedFromPriorGenerated);
+
+  const priorInit = tmp();
+  run(priorInit, ["init", "--empty"]);
+  const priorInitVaultAgentsFile = path.join(priorInit, ".awg/AGENTS.md");
+  writeFileSync(priorInitVaultAgentsFile, withoutCloseoutInstructions(readFileSync(priorInitVaultAgentsFile, "utf8")));
+  run(priorInit, ["upgrade"]);
+  assertCloseoutInstructions(readFileSync(priorInitVaultAgentsFile, "utf8"));
 
   const custom = tmp();
   run(custom, ["init", "--empty"]);

@@ -6,6 +6,7 @@ import { coreSchemaNames, currentSchemaManifest, isKnownAwgManagedSchemaBody, sc
 import { stableStringify } from "../../util/json.js";
 import { canonicalVaultPath, globalAwgDir, readRegistry } from "../../global/registry.js";
 import { installInstructionsAt, patchManagedInstructionFile, type InstructionPatchResult } from "./instructions.js";
+import { agentsTemplate } from "./init.js";
 import type { ParsedArgs } from "../args.js";
 
 const instructionPacks = ["codex", "claude-code", "antigravity"];
@@ -309,7 +310,13 @@ function printResults(results: UpgradeResult[], dryRun: boolean): void {
 
 function isKnownVaultAgentsTemplate(body: string): boolean {
   const normalized = normalizeTemplate(body);
-  return [vaultAgentsTemplate(), legacyVaultAgentsTemplate()].some((known) => normalizeTemplate(known) === normalized);
+  return [
+    vaultAgentsTemplate(),
+    agentsTemplate(),
+    priorVaultAgentsTemplateWithoutCloseoutHygiene(),
+    priorInitAgentsTemplateWithoutCloseoutHygiene(),
+    legacyVaultAgentsTemplate()
+  ].some((known) => normalizeTemplate(known) === normalized);
 }
 
 function normalizeTemplate(body: string): string {
@@ -347,6 +354,21 @@ function legacyVaultAgentsTemplate(): string {
 `;
 }
 
+function priorVaultAgentsTemplateWithoutCloseoutHygiene(): string {
+  return withoutCloseoutHygiene(vaultAgentsTemplate());
+}
+
+function priorInitAgentsTemplateWithoutCloseoutHygiene(): string {
+  return withoutCloseoutHygiene(agentsTemplate());
+}
+
+function withoutCloseoutHygiene(body: string): string {
+  return body
+    .replace('- Use `awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>` for intentional carry-forward, and `awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>` only after inspection.\n', "")
+    .replace("- Use `awg sweep --json` only for dedicated maintenance passes. Do not bulk-close or close human-sensitive risks, blockers, decisions, policy, or process items without evidence or explicit approval.\n", "")
+    .replace("- Run `awg closeout run --json` or use finish preflight to inspect touched lifecycle debt.\n", "");
+}
+
 function vaultAgentsTemplate(): string {
   return `# AWG Agent Instructions
 
@@ -382,6 +404,8 @@ During work:
 - Add evidence for completed work or verification claims.
 - Use \`awg add claim\` for assertions that may guide future work, \`awg verify <node-id> --summary "..."\` before treating claims as proven, and \`awg claim status <node-id> --json\` before relying on stale, external, metric, policy, pricing, or implementation claims.
 - Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
+- Use \`awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>\` for intentional carry-forward, and \`awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>\` only after inspection.
+- Use \`awg sweep --json\` only for dedicated maintenance passes. Do not bulk-close or close human-sensitive risks, blockers, decisions, policy, or process items without evidence or explicit approval.
 - Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
 
 Before finishing:
@@ -391,6 +415,7 @@ Before finishing:
 - Run \`awg build\`.
 - Run \`awg doctor --fix-suggestions --json\`.
 - Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
+- Run \`awg closeout run --json\` or use finish preflight to inspect touched lifecycle debt.
 - Fix fatal validation errors and review warnings.
 - Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
 - If forced, document why in the run summary or a run note.
