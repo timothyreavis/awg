@@ -9,6 +9,9 @@ const LONG_OPEN_DAYS = 60;
 const STALE_UPDATED_DAYS = 30;
 const RECENT_RUN_DAYS = 14;
 const MATERIAL_KEYS = ["status", "summary", "body", "fields", "freshness", "edges"];
+const IMPLEMENTATION_ARTIFACT_EVIDENCE_REASON = "implementation artifact has verification evidence";
+const IMPLEMENTATION_ARTIFACT_COMPLETED_RUN_REASON = "completed run touched implementation artifact";
+const IMPLEMENTATION_ARTIFACT_TARGET_REASON = "implementation artifact has completed implementation target";
 
 export function buildAttentionIndex(graph: CompiledGraph, asOf = graph.generated_at): AttentionIndex {
   const asOfTime = safeTime(asOf);
@@ -44,8 +47,8 @@ export function buildAttentionIndex(graph: CompiledGraph, asOf = graph.generated
       ...(acknowledgement?.stale ? ["AWG_ACK_STALE"] : [])
     ]);
     const inboxItemIds = sorted((graph.maintenance_inbox?.items ?? []).filter((item) => item.nodeIds.includes(node.id)).map((item) => item.id));
-    const staleReasons = staleReasonsFor(node, asOfTime, acknowledgement, recentRunIds, activeClaimIds);
-    const closeoutReasons = closeoutReasonsFor(node, graph, evidenceIds, incoming.get(node.id) ?? [], outgoing.get(node.id) ?? [], acknowledgement);
+    const staleReasons = staleReasonsFor(node, asOfTime, acknowledgement, recentRunIds, activeClaimIds, activeTouched);
+    const closeoutReasons = closeoutReasonsFor(node, graph, evidenceIds, incoming.get(node.id) ?? [], outgoing.get(node.id) ?? [], acknowledgement, staleReasons);
     const scoreBreakdown = scoreFor(node, {
       activeTouched,
       activeClaimIds,
@@ -251,15 +254,15 @@ function scoreFor(node: AwgNode, input: { activeTouched: boolean; activeClaimIds
 
 function attentionStateFor(node: AwgNode, input: { baseFocusScore: number; activeTouched: boolean; activeClaimIds: string[]; recentRunIds: string[]; staleReasons: string[]; closeoutReasons: string[]; acknowledgement?: AttentionAcknowledgement }): AttentionState {
   if (CLOSED.has(node.status)) return "historical";
-  if (input.activeTouched || input.activeClaimIds.length) return "current";
   if (input.acknowledgement && !input.acknowledgement.stale && OPEN.has(node.status)) return "acknowledged_open";
   if (input.closeoutReasons.length) return "closeout_candidate";
+  if (input.activeTouched || input.activeClaimIds.length) return "current";
   if (input.baseFocusScore >= 75 || (["risk", "blocker"].includes(node.type) && OPEN.has(node.status))) return "current";
   if (input.staleReasons.length) return "stale_open";
   return OPEN.has(node.status) ? "open" : "historical";
 }
 
-function closeoutReasonsFor(node: AwgNode, graph: CompiledGraph, evidenceIds: string[], incoming: AwgEdge[], outgoing: AwgEdge[], acknowledgement?: AttentionAcknowledgement): string[] {
+function closeoutReasonsFor(node: AwgNode, graph: CompiledGraph, evidenceIds: string[], incoming: AwgEdge[], outgoing: AwgEdge[], acknowledgement: AttentionAcknowledgement | undefined, staleReasons: string[]): string[] {
   if (!OPEN.has(node.status) || (acknowledgement && !acknowledgement.stale)) return [];
   const reasons: string[] = [];
   const longLived = isLongLived(node);
@@ -267,17 +270,22 @@ function closeoutReasonsFor(node: AwgNode, graph: CompiledGraph, evidenceIds: st
   if (resolver) reasons.push(`${resolver.rel} relationship exists`);
   if (node.type === "task" && evidenceIds.length && !longLived) reasons.push("linked evidence exists");
   if (node.type === "task" && runCompletedNode(graph, node.id) && !longLived) reasons.push("completed run touched node");
+  if (isImplementationArtifact(node) && !longLived) {
+    if (implementationEvidenceIds(graph, evidenceIds).length) reasons.push(IMPLEMENTATION_ARTIFACT_EVIDENCE_REASON);
+    if (runCompletedNode(graph, node.id)) reasons.push(IMPLEMENTATION_ARTIFACT_COMPLETED_RUN_REASON);
+    if (completedImplementationTargetIds(graph, incoming, outgoing).length) reasons.push(IMPLEMENTATION_ARTIFACT_TARGET_REASON);
+  }
   if (node.type === "risk" && (evidenceIds.length || resolver)) reasons.push("risk has mitigation or resolver evidence");
   if (node.type === "blocker" && resolver) reasons.push("blocker has resolver");
   if (node.type === "question" && graph.responses.some((response) => response.target === node.id)) reasons.push("question has response");
   if (node.type === "decision" && ["draft", "proposed", "needs_review"].includes(node.status) && (incoming.some((edge) => edge.rel === "implements") || outgoing.some((edge) => edge.rel === "implements"))) reasons.push("decision has implementation relationship");
-  if (staleReasonsFor(node, safeTime(graph.generated_at), acknowledgement, [], []).length && !longLived) reasons.push("old open item has no current signal");
+  if (staleReasons.length && !longLived) reasons.push("old open item has no current signal");
   if (longLived && reasons.length) return ["acknowledge or schedule review for long-lived item"];
   return sorted(reasons);
 }
 
-function staleReasonsFor(node: AwgNode, asOfTime: number, acknowledgement: AttentionAcknowledgement | undefined, recentRunIds: string[], activeClaimIds: string[]): string[] {
-  if (!OPEN.has(node.status) || recentRunIds.length || activeClaimIds.length) return acknowledgement?.staleReasons ?? [];
+function staleReasonsFor(node: AwgNode, asOfTime: number, acknowledgement: AttentionAcknowledgement | undefined, recentRunIds: string[], activeClaimIds: string[], activeTouched = false): string[] {
+  if (!OPEN.has(node.status) || activeTouched || recentRunIds.length || activeClaimIds.length) return acknowledgement?.staleReasons ?? [];
   const reasons = [...(acknowledgement?.staleReasons ?? [])];
   const reviewAfter = node.freshness?.review_after ?? node.review_after;
   if (reviewAfter && safeTime(reviewAfter) < asOfTime) reasons.push("review date passed");
@@ -291,6 +299,7 @@ function dispositionFor(node: AwgNode, reasons: string[]): AttentionItem["sugges
   if (reasons.some((reason) => reason.includes("long-lived"))) return "acknowledge_or_schedule_review";
   if (node.type === "risk" || node.type === "blocker" || node.type === "question") return "resolved";
   if (reasons.some((reason) => reason.includes("superseded") || reason.includes("duplicate"))) return "superseded";
+  if (reasons.some(isImplementationArtifactReason)) return "completed";
   return node.type === "task" ? "completed" : "needs_review";
 }
 
@@ -309,7 +318,7 @@ function needsHumanReview(node: AwgNode, closeoutReasons: string[], acknowledgem
 }
 
 function autonomousSafe(node: AwgNode, closeoutReasons: string[], acknowledgement?: AttentionAcknowledgement): boolean {
-  return node.type === "task" && closeoutReasons.length > 0 && !needsHumanReview(node, closeoutReasons, acknowledgement);
+  return (node.type === "task" || closeoutReasons.some(isImplementationArtifactReason)) && closeoutReasons.length > 0 && !needsHumanReview(node, closeoutReasons, acknowledgement);
 }
 
 function queueWeightFor(state: AttentionState, score: number): number {
@@ -323,13 +332,65 @@ function queueWeightFor(state: AttentionState, score: number): number {
 
 function evidenceTargets(graph: CompiledGraph): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  for (const evidence of graph.evidence_index?.evidence ?? []) for (const target of evidence.targetIds) pushMap(out, target, evidence.id);
-  for (const edge of graph.edges) if (["supports", "verified_by", "derived_from", "resolved_by"].includes(edge.rel)) pushMap(out, edge.to, edge.from);
+  for (const evidence of graph.evidence_index?.evidence ?? []) {
+    for (const target of [...evidence.targetIds, ...evidence.verifiesIds, ...evidence.derivedTargetIds]) pushMap(out, target, evidence.id);
+  }
+  for (const edge of graph.edges) {
+    if (["supports", "resolved_by"].includes(edge.rel)) pushMap(out, edge.to, edge.from);
+    if (["verified_by", "derived_from"].includes(edge.rel)) pushMap(out, edge.from, edge.to);
+  }
   return out;
 }
 
 function runCompletedNode(graph: CompiledGraph, nodeId: string): boolean {
   return buildRuns(graph).some((run) => run.status === "completed" && ((graph.run_summaries ?? []) as Array<{ runId?: string; touchedNodeIds?: string[] }>).some((summary) => summary.runId === run.id && (summary.touchedNodeIds ?? []).includes(nodeId)));
+}
+
+function isImplementationArtifact(node: AwgNode): boolean {
+  if (node.type !== "artifact") return false;
+  const tags = new Set((node.tags ?? []).map((tag) => tag.toLowerCase()));
+  if (["implementation-plan", "implementation-spec", "spec-artifact"].some((tag) => tags.has(tag))) return true;
+  const fields = node.fields ?? {};
+  return ["artifact_kind", "artifactKind", "category"].some((key) => {
+    const value = fields[key];
+    return typeof value === "string" && ["implementation-plan", "implementation-spec", "spec-artifact"].includes(value.toLowerCase());
+  });
+}
+
+function implementationEvidenceIds(graph: CompiledGraph, evidenceIds: string[]): string[] {
+  const evidenceById = new Map((graph.evidence_index?.evidence ?? []).map((evidence) => [evidence.id, evidence]));
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  return sorted(evidenceIds.filter((id) => {
+    const evidence = evidenceById.get(id);
+    if (!evidence || evidence.expired || evidence.evidenceStatus !== "passed") return false;
+    if (evidence.source === "test") return true;
+    const node = nodeById.get(id);
+    const text = [evidence.title, evidence.summary, stringValue(node?.command), stringValue(node?.path), stringValue(node?.fields?.command), stringValue(node?.fields?.path)].filter(Boolean).join(" ").toLowerCase();
+    return /\b(implemented|shipped|deployed|released)\b/.test(text)
+      || /\b(typecheck|npm test|test suite|tests? passed|smoke|acceptance review passed)\b/.test(text)
+      || /\bverified\b/.test(text) && /\b(typecheck|test|smoke|acceptance|code)\b/.test(text)
+      || /\bverification\b/.test(text) && /\b(typecheck|test|smoke|acceptance|bundle|passed|code)\b/.test(text);
+  }));
+}
+
+function completedImplementationTargetIds(graph: CompiledGraph, incoming: AwgEdge[], outgoing: AwgEdge[]): string[] {
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const targetIds = [
+    ...outgoing.filter((edge) => edge.rel === "implements").map((edge) => edge.to),
+    ...incoming.filter((edge) => edge.rel === "implements").map((edge) => edge.from)
+  ];
+  return sorted(targetIds.filter((id) => {
+    const target = nodeById.get(id);
+    return Boolean(target && ["artifact", "task"].includes(target.type) && CLOSED.has(target.status));
+  }));
+}
+
+function isImplementationArtifactReason(reason: string): boolean {
+  return reason === IMPLEMENTATION_ARTIFACT_EVIDENCE_REASON || reason === IMPLEMENTATION_ARTIFACT_COMPLETED_RUN_REASON || reason === IMPLEMENTATION_ARTIFACT_TARGET_REASON;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function isLongLived(node: AwgNode): boolean {
@@ -343,7 +404,7 @@ function projectItemAsOf(item: AttentionItem, asOfTime: number): AttentionItem {
   const updatedAgeDays = daysBetween(item.updatedAt, asOfTime);
   const dueAck = Boolean(item.acknowledgedUntil && !item.acknowledgementStale && safeTime(item.acknowledgedUntil) < asOfTime);
   const staleByAge = !item.recentRunIds.length && !item.activeCoordinationClaimIds.length && updatedAgeDays >= STALE_UPDATED_DAYS;
-  const closeoutByAge = !item.recentRunIds.length && !item.activeCoordinationClaimIds.length && item.nodeType === "task" && ageDays >= LONG_OPEN_DAYS && !["historical", "acknowledged_open"].includes(item.baseAttentionState);
+  const closeoutByAge = !item.recentRunIds.length && !item.activeCoordinationClaimIds.length && item.nodeType === "task" && ageDays >= LONG_OPEN_DAYS && !["historical", "acknowledged_open", "current"].includes(item.baseAttentionState);
   if (!dueAck && !staleByAge && !closeoutByAge) return { ...item, ageDays, updatedAgeDays };
   const staleReasons = sorted([
     ...item.staleReasons,

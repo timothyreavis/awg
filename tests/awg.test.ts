@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { MVP_BLOCK_TYPES, VIEW_BLOCK_TYPES, validatePresentationBlock, validateViewBlock } from "../src/core/blocks.js";
+import { projectAttention } from "../src/core/attention.js";
 import { buildAwg } from "../src/core/compiler.js";
 import { buildNodeDetail } from "../src/core/nodeDetail.js";
 import { decodeNodeRouteId, graphNeighborhood, kanbanColumnsFor, nodeRoute, queryNodes, renderStaticSite, unsupportedBlockFallback } from "../src/core/renderStaticSite.js";
@@ -261,7 +262,9 @@ test("attention index separates base and runtime attention with acknowledgements
   const cwd = tmp();
   run(cwd, ["init", "--empty", "--no-register"]);
   appendObjects(cwd, [
+    { awg: "0.1", kind: "event", id: "ev:active-old:start", type: "run_started", target: "run:active-old", run: "run:active-old", by: "agent:codex", at: "2026-01-01T00:00:00.000Z", goal: "Continue old task" },
     node({ id: "n:old-task", type: "task", title: "Old task", summary: "Old active task.", status: "active", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
+    node({ id: "n:active-old-task", type: "task", title: "Active old task", summary: "Old task currently being worked.", status: "active", run: "run:active-old", runId: "run:active-old", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
     node({ id: "n:roadmap-task", type: "task", title: "Roadmap task", summary: "Long-lived roadmap task.", status: "active", tags: ["roadmap"], created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
     node({ id: "n:risk", type: "risk", title: "Carried risk", summary: "Risk intentionally open.", status: "active", created_at: "2025-10-01T00:00:00.000Z", updated_at: "2025-10-01T00:00:00.000Z" }),
     node({ id: "n:canonical", type: "evidence", title: "Canonical evidence", summary: "Canonical node.", status: "active" }),
@@ -271,11 +274,16 @@ test("attention index separates base and runtime attention with acknowledgements
   ]);
   const { graph } = await buildAwg(new FileAwgStorage(cwd), { write: false });
   const oldTask = graph.attention_index?.items.find((item) => item.nodeId === "n:old-task");
+  const activeOldTask = graph.attention_index?.items.find((item) => item.nodeId === "n:active-old-task");
   const roadmapTask = graph.attention_index?.items.find((item) => item.nodeId === "n:roadmap-task");
   const risk = graph.attention_index?.items.find((item) => item.nodeId === "n:risk");
   const canonical = graph.attention_index?.items.find((item) => item.nodeId === "n:canonical");
   const duplicate = graph.attention_index?.items.find((item) => item.nodeId === "n:duplicate");
   assert.equal(oldTask?.baseAttentionState, "closeout_candidate");
+  assert.equal(activeOldTask?.baseAttentionState, "current");
+  assert.deepEqual(activeOldTask?.closeoutReasons, []);
+  const projectedActiveOldTask = projectAttention(graph.attention_index, graph, { asOf: "2026-06-01T00:00:00.000Z", nodeIds: ["n:active-old-task"] })[0];
+  assert.notEqual(projectedActiveOldTask.effectiveAttentionState ?? projectedActiveOldTask.baseAttentionState, "closeout_candidate");
   assert.notEqual(roadmapTask?.baseAttentionState, "closeout_candidate");
   assert.equal(roadmapTask?.autonomousSafe, false);
   assert.ok(!roadmapTask?.suggestedCommands.some((command) => command.includes("closeout mark")));
@@ -285,6 +293,69 @@ test("attention index separates base and runtime attention with acknowledgements
   assert.equal(duplicate?.suggestedDisposition, "superseded");
   assert.ok(!graph.maintenance_inbox?.items.some((item) => item.code === "AWG_INBOX_ACTIVE_RISK" && item.nodeIds.includes("n:risk")));
   assert.equal(graph.attention_index?.asOf, graph.generated_at);
+});
+
+test("implemented implementation-plan artifacts surface for closeout from evidence, proof edges, and completed runs", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    { awg: "0.1", kind: "event", id: "ev:active:start", type: "run_started", target: "run:active-artifact", run: "run:active-artifact", by: "agent:codex", at: "2026-01-01T00:00:00.000Z", goal: "Implement plan artifact closeout" },
+    { awg: "0.1", kind: "event", id: "ev:active:note", type: "run_note", target: "run:active-artifact", run: "run:active-artifact", by: "agent:codex", at: "2026-01-01T00:05:00.000Z", summary: "Implementation is verified." },
+    node({ id: "n:implemented-plan", type: "artifact", title: "Implemented plan", summary: "Implementation plan with verification evidence.", status: "active", tags: ["implementation-plan"], run: "run:active-artifact", runId: "run:active-artifact", updated_at: "2026-01-02T00:00:00.000Z" }),
+    node({ id: "n:plan-evidence", type: "evidence", title: "Verification passed", summary: "Implemented and verified with npm run typecheck and npm test.", status: "active", source: "terminal", evidence_status: "passed", command: "npm run typecheck && npm test", created_at: "2026-01-02T00:01:00.000Z", updated_at: "2026-01-02T00:01:00.000Z" }),
+    { awg: "0.1", kind: "edge", id: "e:plan-evidence", from: "n:plan-evidence", rel: "supports", to: "n:implemented-plan", created_at: "2026-01-02T00:01:00.000Z" },
+    node({ id: "n:verified-plan", type: "artifact", title: "Verified plan", summary: "Implementation plan with verified_by proof.", status: "active", tags: ["implementation-spec"], updated_at: "2026-01-03T00:00:00.000Z" }),
+    node({ id: "n:verified-proof", type: "evidence", title: "Verified proof", summary: "Verification bundle passed.", status: "active", source: "terminal", evidence_status: "passed", command: "npm test", created_at: "2026-01-03T00:01:00.000Z", updated_at: "2026-01-03T00:01:00.000Z" }),
+    { awg: "0.1", kind: "edge", id: "e:verified-proof", from: "n:verified-plan", rel: "verified_by", to: "n:verified-proof", created_at: "2026-01-03T00:01:00.000Z" },
+    { awg: "0.1", kind: "event", id: "ev:done:start", type: "run_started", target: "run:completed-artifact", run: "run:completed-artifact", by: "agent:codex", at: "2026-01-04T00:00:00.000Z", goal: "Complete implementation artifact" },
+    node({ id: "n:completed-run-plan", type: "artifact", title: "Completed-run plan", summary: "Implementation plan touched by a completed run.", status: "active", tags: ["implementation-plan"], run: "run:completed-artifact", runId: "run:completed-artifact", updated_at: "2026-01-04T00:05:00.000Z" }),
+    { awg: "0.1", kind: "event", id: "ev:done:finish", type: "run_finished", target: "run:completed-artifact", run: "run:completed-artifact", by: "agent:codex", at: "2026-01-04T00:10:00.000Z", status: "completed", summary: "Completed artifact implementation." }
+  ] as AwgObject[]);
+  const { graph } = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  const item = graph.attention_index?.items.find((candidate) => candidate.nodeId === "n:implemented-plan");
+  const verified = graph.attention_index?.items.find((candidate) => candidate.nodeId === "n:verified-plan");
+  const completedRun = graph.attention_index?.items.find((candidate) => candidate.nodeId === "n:completed-run-plan");
+  assert.equal(item?.baseAttentionState, "closeout_candidate");
+  assert.ok(item?.closeoutReasons.includes("implementation artifact has verification evidence"));
+  assert.equal(verified?.baseAttentionState, "closeout_candidate");
+  assert.ok(verified?.closeoutReasons.includes("implementation artifact has verification evidence"));
+  assert.equal(completedRun?.baseAttentionState, "closeout_candidate");
+  assert.ok(completedRun?.closeoutReasons.includes("completed run touched implementation artifact"));
+  assert.equal(item?.suggestedDisposition, "completed");
+  assert.equal(item?.autonomousSafe, true);
+  run(cwd, ["build", "--json"]);
+  const candidates = JSON.parse(run(cwd, ["closeout", "candidates", "--json"]));
+  assert.ok(candidates.candidates.some((candidate: { nodeId: string; suggestedDisposition: string; baseAttentionState: string }) => candidate.nodeId === "n:implemented-plan" && candidate.suggestedDisposition === "completed" && candidate.baseAttentionState === "closeout_candidate"));
+  assert.ok(candidates.candidates.some((candidate: { nodeId: string }) => candidate.nodeId === "n:verified-plan"));
+  assert.ok(candidates.candidates.some((candidate: { nodeId: string }) => candidate.nodeId === "n:completed-run-plan"));
+  const runCloseout = JSON.parse(run(cwd, ["closeout", "run", "--json"]));
+  assert.equal(runCloseout.summary.closeoutCandidates, 1);
+  assert.equal(runCloseout.categories.closeoutCandidates[0].nodeId, "n:implemented-plan");
+  assert.equal(runCloseout.categories.closeoutCandidates[0].baseAttentionState, "closeout_candidate");
+  const finish = JSON.parse(runFail(cwd, ["run", "finish", "--status", "completed", "--summary", "Done.", "--json"]));
+  assert.equal(finish.ok, false);
+  assert.ok(finish.preflight.warnings.some((warning: { code: string; nodeIds?: string[] }) => warning.code === "AWG_RUN_CLOSEOUT_CANDIDATE_TOUCHED" && warning.nodeIds?.includes("n:implemented-plan")));
+});
+
+test("artifact closeout heuristic ignores generic and long-lived roadmap artifacts", async () => {
+  const cwd = tmp();
+  run(cwd, ["init", "--empty", "--no-register"]);
+  appendObjects(cwd, [
+    node({ id: "n:generic-artifact", type: "artifact", title: "Generic artifact", summary: "Generic artifact with passing evidence.", status: "active" }),
+    node({ id: "n:roadmap-plan", type: "artifact", title: "Roadmap plan", summary: "Long-lived implementation plan with passing evidence.", status: "active", tags: ["implementation-plan", "roadmap"], created_at: "2025-01-01T00:00:00.000Z", updated_at: "2025-01-01T00:00:00.000Z" }),
+    node({ id: "n:generic-evidence", type: "evidence", title: "Generic proof", summary: "Implemented and verified with tests.", status: "active", source: "terminal", evidence_status: "passed", command: "npm test" }),
+    node({ id: "n:roadmap-evidence", type: "evidence", title: "Roadmap proof", summary: "Implemented and verified with tests.", status: "active", source: "terminal", evidence_status: "passed", command: "npm test" }),
+    { awg: "0.1", kind: "edge", id: "e:generic-evidence", from: "n:generic-evidence", rel: "supports", to: "n:generic-artifact", created_at: "2026-01-01T00:00:00.000Z" },
+    { awg: "0.1", kind: "edge", id: "e:roadmap-evidence", from: "n:roadmap-evidence", rel: "supports", to: "n:roadmap-plan", created_at: "2026-01-01T00:00:00.000Z" }
+  ] as AwgObject[]);
+  const { graph } = await buildAwg(new FileAwgStorage(cwd), { write: false });
+  const generic = graph.attention_index?.items.find((candidate) => candidate.nodeId === "n:generic-artifact");
+  const roadmap = graph.attention_index?.items.find((candidate) => candidate.nodeId === "n:roadmap-plan");
+  assert.deepEqual(generic?.closeoutReasons, []);
+  assert.deepEqual(roadmap?.closeoutReasons, []);
+  run(cwd, ["build", "--json"]);
+  const candidates = JSON.parse(run(cwd, ["closeout", "candidates", "--json"]));
+  assert.ok(!candidates.candidates.some((candidate: { nodeId: string }) => ["n:generic-artifact", "n:roadmap-plan"].includes(candidate.nodeId)));
 });
 
 test("attention adapts legacy intentionally_open and detects edge material staleness", async () => {
@@ -1550,6 +1621,7 @@ test("release notes, relations, evidence help, and generated instructions expose
   run(cwd, ["init", "--empty"]);
   const release = JSON.parse(run(cwd, ["release", "notes", "--json"]));
   assert.equal(release.ok, true);
+  assert.equal(release.releases[0].version, "0.1.0-v2.4.3");
   const v191 = release.releases.find((item: { version: string }) => item.version === "0.1.0-v2.1");
   assert.ok(v191.newCommands.includes("awg rels [--json]"));
   assert.ok(release.releases[0].newCommands.some((command: string) => command.startsWith("awg closeout candidates")));
@@ -2834,6 +2906,8 @@ test("upgrade creates missing schemas and preserves config fields", () => {
   assert.ok(vaultAgents.includes("--auto-handoff"));
   assert.ok(vaultAgents.includes("awg node show <node-id> --json"));
   assert.ok(vaultAgents.includes("awg release current"));
+  assert.ok(vaultAgents.includes("awg queue next --json"));
+  assert.ok(vaultAgents.includes("awg coord status --json"));
   assert.ok(vaultAgents.includes("Capture the consequence, not the conversation"));
   assert.ok(vaultAgents.includes("awg quick note|task|risk|question|decision"));
   assertCloseoutInstructions(vaultAgents);
@@ -2845,35 +2919,58 @@ test("upgrade refreshes known generated vault instructions and preserves custom 
   const vaultAgentsFile = path.join(cwd, ".awg/AGENTS.md");
   writeFileSync(vaultAgentsFile, `# AWG Agent Instructions
 
-- Before starting work, run \`awg handoff\`, \`awg lens resume\`, or read \`.awg/compiled/lenses/resume.json\`.
-- Start a focused run with \`awg run start --goal "<goal>"\`.
-- If the lens is missing or stale, run \`awg build\`.
-- Store durable knowledge as AWG nodes/edges/responses/events.
-- Use \`awg search <query>\` before creating duplicate nodes.
-- Use \`awg template status --goal "..." --json\` to understand local operating templates and field expectations.
-- Use \`awg lens task --goal "..."\` for scoped work context.
+Start of session:
+- Run \`awg handoff\`.
+- Run \`awg release current\` after install or upgrade to discover current local capabilities.
+- Run \`awg vault topology --json\` before cross-project work.
+- Run \`awg run start --goal "<goal>"\`.
+- Use \`awg search <query>\` before creating durable nodes.
+- Run \`awg inbox --limit 10\` to review deterministic maintenance items.
+- Run \`awg template status --goal "<goal>" --json\` to understand the vault operating template.
+- Use \`awg lens task --goal "<goal>"\` for scoped context.
+- Run \`awg queue next --json\` when selecting undirected next work; use \`awg queue show <item-id> --json\` before acting on queue items with multiple related nodes, blockers, or evidence requirements.
 - Use \`awg node show <node-id> --json\` when search, lens, or handoff surfaces a node whose full detail matters.
-- Prefer \`awg add\`, \`awg update node\`, and \`awg add evidence\` commands over manually editing JSONL.
-- Durable writes automatically attach to the active run; use \`--run <run-id>\` for an explicit active run or \`--no-run\` to suppress attribution.
-- Use concise summaries for scanning, \`body\` for deeper detail, \`fields\` for structured operational data, safe \`blocks\` for presentation, \`freshness\` for currentness, and \`anchors\` for file/symbol/url/command references.
-- Do not edit \`.awg/compiled/*\` manually.
-- Do not link by file path when linking knowledge. Link by AWG node ID.
-- Do not delete nodes to reorganize. Supersede, archive, merge later, or create corrective events.
-- When making a durable decision, create or update a decision node.
-- When identifying a risk/blocker, create a risk/task node with review metadata if possible.
-- When completing work, update/add task status and add evidence.
-- When behavior, policy, implementation, ownership, pricing, or process changes, update related nodes and freshness metadata.
-- Add run notes for meaningful progress, blockers, and force-finish rationale.
-- After writing AWG data, run \`awg build\`.
-- Fix fatal validation errors before stopping.
-- Review \`awg doctor --fix-suggestions --json\` warnings and resolve obvious stale items.
-- End with \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
+
+During work:
+- Use AWG for durable project knowledge, not transcript storage. Capture the consequence, not the conversation.
+- Search first, then update the canonical node or create the smallest useful node.
+- Capture decisions, requirements, accepted plans, reusable constraints, risks, blockers, tasks, evidence, source-of-truth boundaries, and actionable feedback once they affect future work.
+- During brainstorming, wait or capture only as a \`needs_review\` note/question; use a \`hypothesis\` tag when useful. Follow the vault template for stricter or more exploratory capture thresholds.
+- Use \`awg quick note|task|risk|question|decision "summary"\` for low-ceremony durable captures.
+- Update existing nodes instead of creating duplicates.
+- Attach durable knowledge as nodes, edges, responses, and evidence.
+- Write only to the current explicit target vault; switch cwd into a related vault or leave a cross-vault handoff task when another vault needs updates.
+- Use \`body\` for narrative detail, \`fields\` for structured operational data, safe \`blocks\` for presentation primitives, \`freshness\` for currentness, and \`anchors\` for references.
+- Link related nodes by AWG node ID, not by file path.
+- Add run notes for meaningful progress or blockers.
+- Add evidence for completed work or verification claims.
+- Rebuild and rerun queue commands after substantial graph updates, and do not claim, reserve, lock, assign, or automatically execute queue work in V2.3.
+- Mark work that requires proof with \`--evidence-required\` and satisfy it before completion.
+- Record AWG friction, stale context, missing primitives, confusing workflows, or presentation gaps as durable nodes and run notes.
+
+Before finishing:
+- Update task, risk, blocker, and decision statuses.
+- Add evidence for completed work.
+- Run \`awg build\`.
+- Run \`awg doctor --fix-suggestions --json\`.
+- Run \`awg inbox --json\` when deciding what to repair or intentionally carry forward.
+- Fix fatal validation errors and review warnings.
+- Run \`awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff\`.
 - If forced, document why in the run summary or a run note.
-- Ensure \`.awg/compiled/lenses/resume.json\` reflects the current state.
+
+Anti-patterns:
+- Do not create duplicate nodes without searching.
+- Do not mark work complete without evidence.
+- Do not ignore stale risks or blockers.
+- Do not leave orphan durable knowledge.
+- Do not write only to chat when knowledge should persist.
+- Do not edit \`.awg/compiled/*\` as source.
 `);
   run(cwd, ["upgrade"]);
   const refreshed = readFileSync(vaultAgentsFile, "utf8");
   assert.ok(refreshed.includes("awg release current"));
+  assert.ok(refreshed.includes("awg queue next --json"));
+  assert.ok(refreshed.includes("awg coord status --json"));
   assert.ok(refreshed.includes("Capture the consequence, not the conversation"));
   assert.ok(refreshed.includes("awg quick note|task|risk|question|decision"));
   assertCloseoutInstructions(refreshed);

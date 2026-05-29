@@ -1,4 +1,4 @@
-# AWG V2.4.2 Lifecycle Closeout And Attention Hygiene
+# AWG V2.4.2/V2.4.3 Lifecycle Closeout And Attention Hygiene
 
 V2.4.2 should fix a dogfood problem that becomes serious in long-lived vaults: old tasks, risks, decisions, planning nodes, and review items can remain `active`, `in_progress`, or `needs_review` long after the underlying work finished. Those stale open statuses then pollute current focus, queues, handoff, lenses, and the viewer.
 
@@ -195,6 +195,21 @@ The compiler should conservatively identify closeout candidates. Examples:
 Candidate detection should be conservative. If AWG cannot infer the right final state, it should suggest inspection or acknowledgement rather than completion.
 
 Long-lived nodes need special care. Nodes with a type, tag, field, or template rule indicating `evergreen`, `recurring`, `parent`, `roadmap`, `process`, `standard`, `policy`, or `manual_closeout` should not be suggested as completed from age or child-completion alone. They may still be stale, due for review, or candidates for acknowledgement.
+
+### V2.4.3 Implemented Artifact Hygiene
+
+V2.4.3 closes a dogfood gap left visible after V2.4.2: implementation-plan and spec artifact nodes can have real implementation or verification evidence while their durable lifecycle status remains `active`. Those nodes should not keep appearing as current work once the shipped artifact is proven.
+
+Implemented-artifact closeout detection should be conservative and advisory. An open artifact-like node can become a closeout candidate when all of the following are true:
+
+- It is an explicit implementation/spec artifact, such as `type: "artifact"` with tags or fields like `implementation-plan`, `implementation-spec`, or `spec-artifact`.
+- Direct evidence, a completed implementation run, or an explicit resolver/proof relationship indicates the artifact's implementation work is done.
+- It is not marked or inferred as `evergreen`, `recurring`, `parent`, `roadmap`, `process`, `standard`, `policy`, or `manual_closeout`.
+- No current acknowledgement carries it forward intentionally. Active run touch or active coordination may keep the item visible, but should not hide closeout pressure once implementation proof exists.
+
+Suggested disposition should usually be `completed` only when the implementation or verification evidence directly supports the artifact. Lower-confidence cases should remain `needs_review` or route to acknowledgement/scheduled review. AWG must not broadly auto-close artifacts from child completion, age, or title matches alone.
+
+`awg closeout run --json` and run-finish preflight should include touched implemented artifact nodes alongside touched tasks, risks, blockers, questions, and decisions. Suggested commands should still require inspection and stale-read guards, for example `awg node show <node-id> --json` followed by `awg closeout mark <node-id> --status completed --reason "..." --expect-updated-at <iso> --json`.
 
 ## Acknowledgement Model
 
@@ -518,7 +533,7 @@ Suggested defaults:
 Generated instructions should teach:
 
 - Before finishing, update statuses for touched tasks, risks, blockers, questions, and decisions.
-- Use `awg closeout run --json` or finish preflight to inspect touched lifecycle debt.
+- Run `awg closeout run --json` before `awg run finish` to inspect touched lifecycle debt.
 - Use `awg ack` when an item is intentionally carried forward with a reason and review date.
 - Do not run broad sweeps during every normal task.
 - Use `awg sweep --json` for dedicated maintenance work.
@@ -548,6 +563,8 @@ Closeout candidates:
 
 - active task with linked evidence is a closeout candidate.
 - active task completed by a run summary is a closeout candidate.
+- active implementation-plan/spec artifact with direct implementation or verification evidence is a closeout candidate.
+- active long-lived roadmap, parent, process, standard, policy, or manual-closeout artifact is not suggested completed from child completion or age alone.
 - active risk with completed mitigation/resolver is a closeout candidate.
 - answered question is a closeout candidate or review candidate.
 - proposed decision with implemented/completed linked work is a closeout candidate.
@@ -558,6 +575,7 @@ CLI:
 
 - `closeout candidates --json` is parseable and read-only.
 - `closeout run --json` scopes to touched run nodes.
+- `closeout run --json` surfaces touched implemented artifact nodes before finish.
 - `closeout run --limit` and `--category-limit` return truncation metadata.
 - `closeout mark` appends normal updates, preserves run attribution, and does not delete source history.
 - `closeout mark --expect-updated-at` detects stale targets.
@@ -611,6 +629,7 @@ npm run typecheck
 npm test
 awg build --json
 awg doctor --fix-suggestions --json
+awg closeout run --json
 npm pack --dry-run --json
 git diff --check
 ```
@@ -638,4 +657,4 @@ Adjust command order to match final CLI constraints.
 
 ## Definition Of Done
 
-AWG has a deterministic attention layer that keeps current focus and next-work queues from being dominated by stale historical open items. Agents can inspect closeout candidates, acknowledge intentionally carried-forward items with reasons and review dates, close touched work through append-only updates, and finish runs without being forced to clean unrelated vault-wide debt. All behavior remains local-first, append-only, backward compatible, domain-agnostic, and stable for multi-agent use.
+AWG has a deterministic attention layer that keeps current focus and next-work queues from being dominated by stale historical open items. Agents can inspect closeout candidates, including implemented artifact/spec nodes, acknowledge intentionally carried-forward items with reasons and review dates, close touched work through append-only updates, and finish runs without being forced to clean unrelated vault-wide debt. All behavior remains local-first, append-only, backward compatible, domain-agnostic, and stable for multi-agent use.

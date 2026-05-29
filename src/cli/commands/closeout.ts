@@ -77,9 +77,9 @@ export async function sweepCommand(parsed: ParsedArgs): Promise<void> {
     items = items.filter((item) => item.ageDays >= thresholdDays || item.updatedAgeDays >= thresholdDays);
   }
   const groups = {
-    safe_closeout_candidate: items.filter((item) => (item.effectiveAttentionState ?? item.baseAttentionState) === "closeout_candidate" && item.autonomousSafe),
+    safe_closeout_candidate: items.filter((item) => hasCloseoutPressure(item) && item.autonomousSafe),
     needs_evidence: items.filter((item) => item.closeoutReasons.some((reason) => reason.includes("evidence")) && !item.evidenceIds.length),
-    needs_human_review: items.filter((item) => item.needsHumanReview && ["closeout_candidate", "stale_open"].includes(item.effectiveAttentionState ?? item.baseAttentionState)),
+    needs_human_review: items.filter((item) => item.needsHumanReview && (hasCloseoutPressure(item) || (item.effectiveAttentionState ?? item.baseAttentionState) === "stale_open")),
     acknowledge_or_schedule_review: items.filter((item) => item.suggestedDisposition === "acknowledge_or_schedule_review" || item.acknowledgementStale),
     stale_but_current_goal_related: items.filter((item) => item.baseAttentionState === "stale_open" && item.goalMatched),
     historical_background: items.filter((item) => item.baseAttentionState === "historical").slice(0, limit.value)
@@ -107,7 +107,7 @@ async function closeoutCandidates(parsed: ParsedArgs): Promise<void> {
   if (!limit.ok) return jsonError(parsed, limit.code, limit.message, {});
   const olderThan = parseDurationDays(parsed, "older-than");
   if (!olderThan.ok) return jsonError(parsed, olderThan.code, olderThan.message, {});
-  let baseItems = (graph.attention_index?.items ?? []).filter((item) => item.baseAttentionState === "closeout_candidate");
+  let baseItems = (graph.attention_index?.items ?? []).filter(hasCloseoutPressure);
   if (runId) baseItems = baseItems.filter((item) => item.lastTouchedRunIds.includes(runId) || item.recentRunIds.includes(runId));
   if (olderThan.value !== undefined) baseItems = projectAttention({ ...graph.attention_index!, items: baseItems }, graph, { asOf: nowIso() }).filter((item) => item.ageDays >= olderThan.value! || item.updatedAgeDays >= olderThan.value!);
   const projected = projectAttention({ ...graph.attention_index!, items: baseItems }, graph, { goal: str(parsed.flags, "goal"), asOf: nowIso() });
@@ -132,9 +132,9 @@ async function closeoutRun(parsed: ParsedArgs): Promise<void> {
   if (!limit.ok) return jsonError(parsed, limit.code, limit.message, {});
   const attention = touched.size ? projectAttention(graph.attention_index, graph, { nodeIds: [...touched], asOf: nowIso() }) : [];
   const categories = {
-    closeoutCandidates: attention.filter((item) => item.baseAttentionState === "closeout_candidate"),
+    closeoutCandidates: attention.filter(hasCloseoutPressure),
     staleAcknowledgements: attention.filter((item) => item.acknowledgementStale),
-    touchedOpen: attention.filter((item) => ["current", "open", "stale_open", "acknowledged_open"].includes(item.baseAttentionState)),
+    touchedOpen: attention.filter((item) => !hasCloseoutPressure(item) && ["current", "open", "stale_open", "acknowledged_open"].includes(item.baseAttentionState)),
     missingEvidence: (graph.work_queue_index?.items ?? []).filter((item) => item.queue === "evidence_needed" && item.nodeIds.some((id) => touched.has(id))),
     unreleasedCoordination: (graph.coordination_index?.claims ?? []).filter((claim) => claim.runId === runId && ["active", "stale"].includes(claim.status))
   };
@@ -218,6 +218,10 @@ function candidateJson(item: AttentionItem, graph: CompiledGraph): Record<string
     needsHumanReview: item.needsHumanReview,
     summary: node?.summary
   };
+}
+
+function hasCloseoutPressure(item: AttentionItem): boolean {
+  return item.closeoutReasons.length > 0;
 }
 
 function confidenceFor(item: AttentionItem): "low" | "medium" | "high" {

@@ -44,6 +44,7 @@ awg search "example"
 awg lens task --goal "use example knowledge"
 awg build
 awg doctor --fix-suggestions --json
+awg closeout run --json
 awg run finish --status completed --summary "Created and verified example knowledge." --auto-handoff
 awg open
 ```
@@ -242,7 +243,7 @@ Coordination is advisory, append-only work intent. `awg coord claim` records an 
 
 Attention is a derived hygiene layer over durable lifecycle state. The compiler writes `graph.attention_index` and `.awg/compiled/indexes/attention.json` using the graph `generated_at` timestamp, then queues, handoff, lenses, run finish preflight, doctor, inbox, current view, and the viewer consume that base attention state. Live read commands may compute runtime `effectiveAttentionState` and goal boosts, but they label their own `asOf` and do not persist those projections. `awg ack` appends a `node.acknowledged` event for intentionally carried-forward work; acknowledgements include reason, scope, review date, run attribution, and material keys, and become stale when the review date passes or watched node/edge material changes. Legacy `intentionally_open` edges remain compatible, but new work should prefer `awg ack`.
 
-Closeout commands are bounded and conservative. `awg closeout candidates --json` lists likely stale or finished open work, `awg closeout run --json` scopes closeout pressure to the selected run's touched nodes, `awg closeout mark` appends a normal node update plus closeout event with stale-read guards, and `awg sweep --json` groups vault-wide maintenance opportunities without mutating logs. AWG does not bulk-close work automatically; use evidence and human approval before closing sensitive risks, blockers, client-facing decisions, policy, process, or template nodes.
+Closeout commands are bounded and conservative. `awg closeout candidates --json` lists likely stale or finished open work, `awg closeout run --json` scopes closeout pressure to the selected run's touched nodes including implemented artifact/spec nodes, `awg closeout mark` appends a normal node update plus closeout event with stale-read guards, and `awg sweep --json` groups vault-wide maintenance opportunities without mutating logs. AWG does not bulk-close work automatically; use evidence and human approval before closing sensitive risks, blockers, client-facing decisions, policy, process, or template nodes.
 
 Node granularity should follow retrieval and maintenance boundaries, not a fixed word count. Keep `summary` to one or two scan-friendly sentences. Use `body` when a future agent needs deeper explanation, SOP detail, requirements, rationale, or examples that would make the summary too dense. Use `fields` for facts agents need to update deterministically, compare, filter, or validate. Use `blocks` only when the information has a natural node-local presentation shape such as a checklist, table, metric row, timeline, node list, callout, or brief. Use authored views when a human needs a recurring multi-node review surface for a queue, audit, run, risk register, evidence set, or operating dashboard. Use `freshness` whenever correctness can decay over time, and update linked/current nodes when behavior, policy, ownership, pricing, process, or implementation changes. Use `anchors` when a node must stay tied to a file, symbol, URL, command, document, or external reference.
 
@@ -279,6 +280,7 @@ awg update node n:task-lens --status completed
 awg add evidence --target n:task-lens --summary "npm test passed" --source terminal --command "npm test"
 awg build
 awg doctor --fix-suggestions --json
+awg closeout run --json
 awg run finish --status completed --summary "Implemented task lens ranking and tests." --auto-handoff
 ```
 
@@ -302,7 +304,7 @@ Implementation-grade roadmap specs live under `docs/spec/` when a slice needs mo
 - `docs/spec/awg-work-queues.md` for V2.3 derived agent work queues, queue CLI, queue indexes, lens/handoff integration, and viewer expectations.
 - `docs/spec/awg-multi-agent-coordination.md` for V2.4 local-first advisory coordination, work claims, collision diagnostics, queue/run/handoff integration, and viewer expectations.
 - `docs/spec/awg-adaptive-vault-onboarding.md` for V2.4.1 adaptive operating-template authoring, vault readiness checks, and internal client/project pilot readiness without fixed domain template packs.
-- `docs/spec/awg-lifecycle-closeout-attention.md` for V2.4.2 attention indexing, acknowledgements, closeout commands, and stale-focus hygiene.
+- `docs/spec/awg-lifecycle-closeout-attention.md` for V2.4.2/V2.4.3 attention indexing, acknowledgements, closeout commands, implemented-artifact closeout hygiene, and stale-focus hygiene.
 
 `awg doctor` includes agent-loop warnings for stale active runs, active runs without recent notes, completed runs without evidence or changed nodes, finished runs without handoff records, completed tasks without evidence, unverified/contradicted/stale/expired claims, expired or underspecified evidence, proof relation direction mismatches, orphan nodes, duplicate-looking titles/aliases, invalid or unsupported blocks, oversized block data, active blockers linked to completed work, active risks with completed mitigation that still need review, freshness/status conflicts, missing current verification, operating-template conflicts or missing sections, template-required field gaps, and secret-like values in durable rich content. These are warnings unless the underlying graph state is malformed. `awg doctor --fix-suggestions --json` adds conservative structured suggestions with command-like repairs; it does not mutate canonical logs.
 

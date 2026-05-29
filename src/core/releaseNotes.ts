@@ -10,6 +10,40 @@ export interface ReleaseNote {
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [{
+  version: "0.1.0-v2.4.3",
+  date: "2026-05-29",
+  highlights: [
+    "Closeout attention now treats implemented implementation-plan/spec artifacts as closeout candidates when direct proof, verified_by evidence, a completed implementation run, or a completed implementation target shows the work shipped.",
+    "Closeout reasons now win the derived attention state before active-run touch, so stale implemented artifacts stop appearing as current work merely because a run touched them.",
+    "Run-scoped closeout and preflight use the same closeout-pressure signal, keeping finish-time lifecycle debt aligned with the attention index.",
+    "Generated root and vault agent instructions now explicitly include closeout-run inspection before finish."
+  ],
+  newCommands: [
+    "awg closeout candidates [--run <run-id|current>] [--goal <goal>] [--older-than <duration>] [--limit <n>] [--json]",
+    "awg closeout run [--run <run-id|current>] [--limit <n>] [--category-limit <n>] [--json]",
+    "awg closeout mark <node-id> --status <completed|resolved|archived|superseded|needs_review> --reason <text> [--expect-updated-at <iso>] [--json]"
+  ],
+  agentActions: [
+    "Run awg closeout run --json before finishing substantive work and inspect implemented artifact/spec candidates, not only task nodes.",
+    "Close implementation-plan/spec artifacts with awg closeout mark after evidence review when the code and verification are already shipped.",
+    "Do not broadly close arbitrary artifacts, roadmap parents, policies, process nodes, or manual-closeout nodes from age or title matches.",
+    "Use awg ack with a reason and review date when an implemented-looking item is intentionally kept active."
+  ],
+  adoption: [
+    "Regenerate AGENTS/CLAUDE instructions with awg upgrade --instructions all when upgrading existing vaults.",
+    "Use awg release current --json after upgrade so agents see the V2.4.3 closeout behavior.",
+    "Expect maintenance inbox, queues, handoff, and closeout run to surface implemented planning artifacts that used to remain active."
+  ],
+  docs: [
+    "README.md",
+    "docs/spec/awg-lifecycle-closeout-attention.md"
+  ],
+  nonGoals: [
+    "No broad automatic bulk closeout.",
+    "No title-only artifact completion inference.",
+    "No change to human approval requirements for risks, blockers, decisions, policies, process nodes, or operating templates."
+  ]
+}, {
   version: "0.1.0-v2.4.2",
   date: "2026-05-21",
   highlights: [

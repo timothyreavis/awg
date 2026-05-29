@@ -23,11 +23,12 @@ During work:
 Before stopping:
 - Run `awg build`.
 - Run `awg doctor --fix-suggestions --json`.
+- Run `awg closeout run --json`.
 - Fix fatal validation errors.
 - Finish the run with `awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff`; if forced, document why.
 - Ensure `awg lens resume` reflects the current project state.
 
-<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:18b200138702b7a6b5a827c37bc23987328e825f3812ec2ab45f77351f8036f1 -->
+<!-- BEGIN AWG MANAGED INSTRUCTIONS id=codex hash=sha256:df2eff0c8beb1e2fcafbd7c467fdf50e45814ceb956c1ebe79d0a14a244cccf2 -->
 # AWG Agent Loop
 
 Start of session:
@@ -63,6 +64,8 @@ During work:
 - Link related nodes by AWG node ID.
 - Add run notes for meaningful progress or blockers.
 - Add evidence for completed work or verification claims.
+- Use `awg ack <node-id> --reason "..." --review-after <date> --expect-updated-at <iso>` when an item is intentionally carried forward; use `awg closeout mark <node-id> --status completed|resolved|archived|superseded|needs_review --reason "..." --expect-updated-at <iso>` after inspection when work can be closed safely.
+- Use `awg sweep --json` only for dedicated maintenance passes. Do not bulk-close or close human-sensitive risks, blockers, client-facing decisions, policies, or process nodes without evidence or explicit approval.
 - Rebuild and rerun queue commands after substantial graph updates. Use `awg coord claim` for non-trivial advisory work intent, release claims before finishing, and never treat coordination as a hard lock or permission system.
 - Use contradictions explicitly with evidence instead of silently replacing old claims, and keep sensitive evidence redacted.
 
@@ -71,6 +74,7 @@ Before finishing:
 - Run `awg build`.
 - Run `awg doctor --fix-suggestions --json`.
 - Fix fatal validation errors and relevant warnings.
+- Run `awg closeout run --json` to inspect touched lifecycle debt.
 - Run `awg run finish --status completed|partial|blocked|failed --summary "..." --auto-handoff`.
 - If finishing with `--force`, document why in the summary or a run note.
 
